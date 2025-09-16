@@ -1,0 +1,135 @@
+import { Contractor } from "../models/Contractor.js";
+import { successResponse } from "../helpers/responseHelper.js";
+
+export class ContractorService {
+  static async createContractor(contractorData, createdByUserId) {
+    try {
+      if (contractorData.email) {
+        const existingContractor = await Contractor.findByEmail(contractorData.email);
+        if (existingContractor) {
+          throw new Error("Contractor with this email already exists");
+        }
+      }
+
+      const contractorWithCreator = {
+        ...contractorData,
+        created_by: createdByUserId
+      };
+
+      const contractor = await Contractor.create(contractorWithCreator);
+
+      return successResponse(
+        contractor,
+        "Contractor created successfully"
+      );
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async getContractors(filters, pagination) {
+    try {
+      const result = await Contractor.findAll(filters, pagination);
+
+      return successResponse(
+        {
+          contractors: result.contractors,
+          pagination: {
+            page: result.page,
+            limit: result.limit,
+            total: result.total,
+            totalPages: result.totalPages
+          }
+        },
+        "Contractors retrieved successfully"
+      );
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async getContractorById(contractorId) {
+    try {
+      const contractor = await Contractor.findById(contractorId);
+      if (!contractor) {
+        throw new Error("Contractor not found");
+      }
+
+      return successResponse(
+        contractor,
+        "Contractor retrieved successfully"
+      );
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async getContractorsByJobId(jobId) {
+    try {
+      const contractors = await Contractor.findByJobId(jobId);
+
+      return successResponse(
+        contractors,
+        "Contractors retrieved successfully for job"
+      );
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async updateContractor(contractorId, updateData) {
+    try {
+      const existingContractor = await Contractor.findById(contractorId);
+      if (!existingContractor) {
+        throw new Error("Contractor not found");
+      }
+
+      if (updateData.email && updateData.email !== existingContractor.email) {
+        const contractorWithEmail = await Contractor.findByEmail(updateData.email);
+        if (contractorWithEmail) {
+          throw new Error("Contractor with this email already exists");
+        }
+      }
+
+      const updatedContractor = await Contractor.update(contractorId, updateData);
+
+      return successResponse(
+        updatedContractor,
+        "Contractor updated successfully"
+      );
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async deleteContractor(contractorId) {
+    try {
+      const existingContractor = await Contractor.findById(contractorId);
+      if (!existingContractor) {
+        throw new Error("Contractor not found");
+      }
+
+      await Contractor.delete(contractorId);
+
+      return successResponse(
+        null,
+        "Contractor deleted successfully"
+      );
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async getContractorStats() {
+    try {
+      const stats = await Contractor.getStats();
+
+      return successResponse(
+        stats,
+        "Contractor statistics retrieved successfully"
+      );
+    } catch (error) {
+      throw error;
+    }
+  }
+}
