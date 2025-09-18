@@ -15,6 +15,42 @@ export default async function productRoutes(fastify, options) {
     preHandler: [fastify.authenticateToken],
   }, ProductController.getAllProducts);
 
+  fastify.get('/getCustomProducts', {
+    preHandler: [fastify.authenticateToken],
+    schema: {
+      querystring: {
+        type: 'object',
+        properties: {
+          page: { type: 'string', pattern: '^[0-9]+$' },
+          limit: { type: 'string', pattern: '^[0-9]+$' },
+          job_id: { type: 'string', pattern: '^[0-9]+$' }
+        },
+        additionalProperties: false
+      }
+    }
+  }, ProductController.getCustomProducts);
+
+  fastify.get('/getProductsByJob/:jobId', {
+    preHandler: [fastify.authenticateToken],
+    schema: {
+      params: {
+        type: 'object',
+        properties: {
+          jobId: { type: 'string', pattern: '^[0-9]+$' }
+        },
+        required: ['jobId']
+      },
+      querystring: {
+        type: 'object',
+        properties: {
+          page: { type: 'string', pattern: '^[0-9]+$' },
+          limit: { type: 'string', pattern: '^[0-9]+$' }
+        },
+        additionalProperties: false
+      }
+    }
+  }, ProductController.getProductsByJob);
+
   fastify.get('/getProductById/:id', {
     preHandler: [fastify.authenticateToken],
     schema: {

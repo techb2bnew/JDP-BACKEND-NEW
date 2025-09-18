@@ -32,6 +32,8 @@ export class ProductController {
         limit = 10,
         category,
         supplier_id,
+        job_id,
+        is_custom,
         status,
         search
       } = request.query;
@@ -39,6 +41,8 @@ export class ProductController {
       const filters = {};
       if (category) filters.category = category;
       if (supplier_id) filters.supplier_id = parseInt(supplier_id);
+      if (job_id) filters.job_id = parseInt(job_id);
+      if (is_custom) filters.is_custom = is_custom;
       if (status) filters.status = status;
       if (search) filters.search = search;
 
@@ -51,6 +55,60 @@ export class ProductController {
       return reply.status(200).send(successResponse(
         result,
         'Products retrieved successfully',
+        200
+      ));
+    } catch (error) {
+      return reply.status(500).send(errorResponse(
+        error.message,
+        500
+      ));
+    }
+  }
+
+  static async getCustomProducts(request, reply) {
+    try {
+      const {
+        page = 1,
+        limit = 10,
+        job_id
+      } = request.query;
+
+      const result = await ProductService.getCustomProducts(
+        job_id ? parseInt(job_id) : null,
+        parseInt(page),
+        parseInt(limit)
+      );
+      
+      return reply.status(200).send(successResponse(
+        result,
+        'Custom products retrieved successfully',
+        200
+      ));
+    } catch (error) {
+      return reply.status(500).send(errorResponse(
+        error.message,
+        500
+      ));
+    }
+  }
+
+  static async getProductsByJob(request, reply) {
+    try {
+      const { jobId } = request.params;
+      const {
+        page = 1,
+        limit = 10
+      } = request.query;
+
+      const result = await ProductService.getProductsByJob(
+        parseInt(jobId),
+        parseInt(page),
+        parseInt(limit)
+      );
+      
+      return reply.status(200).send(successResponse(
+        result,
+        'Products for job retrieved successfully',
         200
       ));
     } catch (error) {

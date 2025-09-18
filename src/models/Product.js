@@ -13,6 +13,13 @@ export class Product {
             full_name,
             email
           ),
+          job:jobs!products_job_id_fkey(
+            id,
+            job_title,
+            job_type,
+            status,
+            priority
+          ),
           suppliers (
             id,
             user_id,
@@ -60,6 +67,13 @@ export class Product {
             full_name,
             email
           ),
+          job:jobs!products_job_id_fkey(
+            id,
+            job_title,
+            job_type,
+            status,
+            priority
+          ),
           suppliers (
             id,
             user_id,
@@ -90,6 +104,12 @@ export class Product {
       if (filters.supplier_id) {
         query = query.eq('supplier_id', filters.supplier_id);
       }
+      if (filters.job_id) {
+        query = query.eq('job_id', filters.job_id);
+      }
+      if (filters.is_custom) {
+        query = query.eq('is_custom', filters.is_custom === 'true');
+      }
       if (filters.status) {
         query = query.eq('status', filters.status);
       }
@@ -111,6 +131,13 @@ export class Product {
             id,
             full_name,
             email
+          ),
+          job:jobs!products_job_id_fkey(
+            id,
+            job_title,
+            job_type,
+            status,
+            priority
           ),
           suppliers (
             id,
@@ -142,6 +169,12 @@ export class Product {
       }
       if (filters.supplier_id) {
         dataQuery = dataQuery.eq('supplier_id', filters.supplier_id);
+      }
+      if (filters.job_id) {
+        dataQuery = dataQuery.eq('job_id', filters.job_id);
+      }
+      if (filters.is_custom) {
+        dataQuery = dataQuery.eq('is_custom', filters.is_custom === 'true');
       }
       if (filters.status) {
         dataQuery = dataQuery.eq('status', filters.status);
@@ -186,6 +219,13 @@ export class Product {
             id,
             full_name,
             email
+          ),
+          job:jobs!products_job_id_fkey(
+            id,
+            job_title,
+            job_type,
+            status,
+            priority
           ),
           suppliers (
             id,
@@ -240,6 +280,7 @@ export class Product {
           product_name,
           category,
           supplier_id,
+          job_id,
           description,
           supplier_sku,
           jdp_sku,
@@ -255,6 +296,13 @@ export class Product {
           created_by,
           created_at,
           updated_at,
+          job:jobs!products_job_id_fkey(
+            id,
+            job_title,
+            job_type,
+            status,
+            priority
+          ),
           suppliers (
             id,
             user_id,
@@ -338,6 +386,7 @@ export class Product {
           product_name,
           category,
           supplier_id,
+          job_id,
           description,
           supplier_sku,
           jdp_sku,
@@ -353,6 +402,13 @@ export class Product {
           created_by,
           created_at,
           updated_at,
+          job:jobs!products_job_id_fkey(
+            id,
+            job_title,
+            job_type,
+            status,
+            priority
+          ),
           suppliers (
             id,
             user_id,
@@ -432,6 +488,13 @@ export class Product {
         .eq('id', productId)
         .select(`
           *,
+          job:jobs!products_job_id_fkey(
+            id,
+            job_title,
+            job_type,
+            status,
+            priority
+          ),
           suppliers (
             id,
             user_id,
@@ -473,6 +536,13 @@ export class Product {
         .from('products')
         .select(`
           *,
+          job:jobs!products_job_id_fkey(
+            id,
+            job_title,
+            job_type,
+            status,
+            priority
+          ),
           suppliers (
             id,
             user_id,
@@ -504,6 +574,164 @@ export class Product {
       }
 
       return data || [];
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async getProductsByJob(jobId, page = 1, limit = 10) {
+    try {
+      const offset = (page - 1) * limit;
+
+      const { count, error: countError } = await supabase
+        .from('products')
+        .select('*', { count: 'exact', head: true })
+        .eq('job_id', jobId);
+
+      if (countError) {
+        throw new Error(`Database error: ${countError.message}`);
+      }
+
+      const { data, error } = await supabase
+        .from('products')
+        .select(`
+          *,
+          job:jobs!products_job_id_fkey(
+            id,
+            job_title,
+            job_type,
+            status,
+            priority
+          ),
+          suppliers (
+            id,
+            user_id,
+            supplier_code,
+            company_name,
+            contact_person,
+            address,
+            contract_start,
+            contract_end,
+            notes,
+            created_at,
+            users (
+              id,
+              full_name,
+              email,
+              phone,
+              role,
+              status,
+              photo_url,
+              created_at
+            )
+          )
+        `)
+        .eq('job_id', jobId)
+        .order('id', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      if (error) {
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      const totalPages = Math.ceil(count / limit);
+
+      return {
+        data: data || [],
+        pagination: {
+          currentPage: page,
+          totalPages: totalPages,
+          totalItems: count,
+          itemsPerPage: limit,
+          hasNextPage: page < totalPages,
+          hasPrevPage: page > 1
+        }
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async getCustomProducts(jobId = null, page = 1, limit = 10) {
+    try {
+      const offset = (page - 1) * limit;
+
+      let query = supabase
+        .from('products')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_custom', true);
+
+      if (jobId) {
+        query = query.eq('job_id', jobId);
+      }
+
+      const { count, error: countError } = await query;
+
+      if (countError) {
+        throw new Error(`Database error: ${countError.message}`);
+      }
+
+      let dataQuery = supabase
+        .from('products')
+        .select(`
+          *,
+          job:jobs!products_job_id_fkey(
+            id,
+            job_title,
+            job_type,
+            status,
+            priority
+          ),
+          suppliers (
+            id,
+            user_id,
+            supplier_code,
+            company_name,
+            contact_person,
+            address,
+            contract_start,
+            contract_end,
+            notes,
+            created_at,
+            users (
+              id,
+              full_name,
+              email,
+              phone,
+              role,
+              status,
+              photo_url,
+              created_at
+            )
+          )
+        `)
+        .eq('is_custom', true);
+
+      if (jobId) {
+        dataQuery = dataQuery.eq('job_id', jobId);
+      }
+
+      const { data, error } = await dataQuery
+        .order('id', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      if (error) {
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      const totalPages = Math.ceil(count / limit);
+
+      return {
+        data: data || [],
+        pagination: {
+          currentPage: page,
+          totalPages: totalPages,
+          totalItems: count,
+          itemsPerPage: limit,
+          hasNextPage: page < totalPages,
+          hasPrevPage: page > 1
+        }
+      };
     } catch (error) {
       throw error;
     }

@@ -15,6 +15,14 @@ export const createProductSchema = {
       type: 'integer',
       minimum: 1
     },
+    job_id: {
+      type: 'integer',
+      minimum: 1
+    },
+    is_custom: {
+      type: 'boolean',
+      default: false
+    },
     description: {
       type: 'string',
       maxLength: 1000
@@ -28,6 +36,10 @@ export const createProductSchema = {
       maxLength: 100
     },
     supplier_cost_price: {
+      type: 'number',
+      minimum: 0
+    },
+    unit_cost: {
       type: 'number',
       minimum: 0
     },
@@ -86,6 +98,13 @@ export const updateProductSchema = {
       type: 'integer',
       minimum: 1
     },
+    job_id: {
+      type: 'integer',
+      minimum: 1
+    },
+    is_custom: {
+      type: 'boolean'
+    },
     description: {
       type: 'string',
       maxLength: 1000
@@ -99,6 +118,10 @@ export const updateProductSchema = {
       maxLength: 100
     },
     supplier_cost_price: {
+      type: 'number',
+      minimum: 0
+    },
+    unit_cost: {
       type: 'number',
       minimum: 0
     },
@@ -170,6 +193,14 @@ export const productQuerySchema = {
     supplier_id: {
       type: 'string',
       pattern: '^[0-9]+$'
+    },
+    job_id: {
+      type: 'string',
+      pattern: '^[0-9]+$'
+    },
+    is_custom: {
+      type: 'string',
+      enum: ['true', 'false']
     },
     search: {
       type: 'string'

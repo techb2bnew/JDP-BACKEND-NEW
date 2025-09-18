@@ -48,6 +48,24 @@ export class ProductService {
     }
   }
 
+  static async getCustomProducts(jobId = null, page = 1, limit = 10) {
+    try {
+      const result = await Product.getCustomProducts(jobId, page, limit);
+      return result;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async getProductsByJob(jobId, page = 1, limit = 10) {
+    try {
+      const result = await Product.getProductsByJob(jobId, page, limit);
+      return result;
+    } catch (error) {
+      throw error;
+    }
+  }
+
   static async getProductById(productId) {
     try {
       const product = await Product.getProductById(productId);
