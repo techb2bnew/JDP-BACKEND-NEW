@@ -10,7 +10,6 @@ import {
 export class StaffService {
   static async createStaffWithUser(staffData) {
     try {
-      // Check if email already exists
       const existingUser = await User.findByEmail(staffData.email);
       if (existingUser) {
         throw new Error('Email already exists');
@@ -46,7 +45,6 @@ export class StaffService {
       const staff = await Staff.create(staffRecordData);
       const completeStaff = await Staff.getStaffById(staff.id);
 
-      // Send email asynchronously without blocking response
       setImmediate(async () => {
         try {
           await sendWelcomeEmail(

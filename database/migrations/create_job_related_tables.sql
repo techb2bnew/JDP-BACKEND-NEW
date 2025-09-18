@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS job_time_logs (
   hourly_rate         DECIMAL(10,2) NOT NULL,
   total_cost          DECIMAL(12,2) NOT NULL,
   work_date           DATE NOT NULL,
+  status              VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
   
   -- System fields
   created_by          INT REFERENCES users(id) ON DELETE SET NULL,

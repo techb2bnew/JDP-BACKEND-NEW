@@ -1,13 +1,11 @@
 import { supabase } from '../config/database.js';
 
-// Simple in-memory cache for role permissions
 const permissionCache = new Map();
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL = 5 * 60 * 1000; 
 
 export class RolePermission {
   static async getPermissionsByRoleName(roleName) {
     try {
-      // Check cache first
       const cacheKey = `permissions_${roleName}`;
       const cached = permissionCache.get(cacheKey);
       if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
@@ -50,7 +48,6 @@ export class RolePermission {
           allowed: rp.allowed
         }));
 
-      // Cache the result
       permissionCache.set(cacheKey, {
         data: permissions,
         timestamp: Date.now()
@@ -116,7 +113,6 @@ export class RolePermission {
           }
 
 
-          // Optimize: Fetch all permissions in one query instead of individual queries
           const permissionIds = data.map(rp => rp.permission_id);
           const { data: allPermissions, error: allPermError } = await supabase
             .from('permissions')
@@ -137,7 +133,6 @@ export class RolePermission {
             return rp;
           });
 
-          // Clear cache for this role
           this.clearRolePermissionCache(roleId);
           
           return permissionsWithDetails;
@@ -150,9 +145,7 @@ export class RolePermission {
     }
   }
 
-  // Helper method to clear cache for a specific role
   static clearRolePermissionCache(roleId) {
-    // Clear all permission caches since we don't know which role names are affected
     permissionCache.clear();
   }
 
@@ -168,7 +161,6 @@ export class RolePermission {
         throw new Error(`Database error: ${rolesError.message}`);
       }
 
-      // Optimize: Fetch all role permissions in one query with joins
       const { data: allRolePermissions, error: allRpError } = await supabase
         .from('role_permissions')
         .select(`
@@ -188,7 +180,6 @@ export class RolePermission {
         throw new Error(`Database error: ${allRpError.message}`);
       }
 
-      // Group permissions by role_id
       const permissionsByRole = {};
       allRolePermissions?.forEach(rp => {
         if (!permissionsByRole[rp.role_id]) {

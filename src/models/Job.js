@@ -1,7 +1,6 @@
 import { supabase } from "../config/database.js";
 
 export class Job {
-  // Helper method to fetch lead labor details
   static async fetchLeadLaborDetails(leadLaborIds) {
     try {
       if (!Array.isArray(leadLaborIds) || leadLaborIds.length === 0) {
@@ -26,7 +25,6 @@ export class Job {
         return [];
       }
 
-      // Fetch user details for each lead labor
       const leadLaborWithUsers = await Promise.all(
         (leadLaborData || []).map(async (leadLabor) => {
           const { data: userData } = await supabase
@@ -49,7 +47,6 @@ export class Job {
     }
   }
 
-  // Helper method to fetch labor details
   static async fetchLaborDetails(laborIds) {
     try {
       if (!Array.isArray(laborIds) || laborIds.length === 0) {
@@ -74,7 +71,6 @@ export class Job {
         return [];
       }
 
-      // Fetch user details for each labor
       const laborWithUsers = await Promise.all(
         (laborData || []).map(async (labor) => {
           const { data: userData } = await supabase
@@ -97,26 +93,31 @@ export class Job {
     }
   }
 
-  // Helper method to fetch materials details
-  static async fetchMaterialsDetails(materialIds) {
+  static async fetchMaterialsDetails(jobId) {
     try {
-      if (!Array.isArray(materialIds) || materialIds.length === 0) {
+      if (!jobId) {
         return [];
       }
 
       const { data: materialData, error } = await supabase
-        .from("materials")
+        .from("products")
         .select(`
           id,
-          material_name,
-          sku,
-          quantity,
-          unit,
+          product_name,
+          supplier_sku,
+          jdp_sku,
           unit_cost,
-          total_cost,
-          supplier
+          jdp_price,
+          stock_quantity,
+          unit,
+          supplier_id,
+          supplier:suppliers!products_supplier_id_fkey(
+            id,
+            company_name,
+            contact_person
+          )
         `)
-        .in("id", materialIds);
+        .eq("job_id", jobId);
 
       if (error) {
         console.error("Error fetching materials:", error);
@@ -130,11 +131,9 @@ export class Job {
     }
   }
 
-  // Helper method to add details to job
   static async addDetailsToJob(job) {
     const jobWithDetails = { ...job };
     
-    // Fetch lead labor details
     if (job.assigned_lead_labor_ids) {
       try {
         const leadLaborIds = JSON.parse(job.assigned_lead_labor_ids);
@@ -146,7 +145,6 @@ export class Job {
       jobWithDetails.assigned_lead_labor = [];
     }
 
-    // Fetch labor details
     if (job.assigned_labor_ids) {
       try {
         const laborIds = JSON.parse(job.assigned_labor_ids);
@@ -158,17 +156,8 @@ export class Job {
       jobWithDetails.assigned_labor = [];
     }
 
-    // Fetch materials details
-    if (job.assigned_material_ids) {
-      try {
-        const materialIds = JSON.parse(job.assigned_material_ids);
-        jobWithDetails.assigned_materials = await Job.fetchMaterialsDetails(materialIds);
-      } catch (error) {
-        jobWithDetails.assigned_materials = [];
-      }
-    } else {
-      jobWithDetails.assigned_materials = [];
-    }
+    // Fetch materials by job_id instead of assigned_material_ids
+    jobWithDetails.assigned_materials = await Job.fetchMaterialsDetails(job.id);
 
     return jobWithDetails;
   }
@@ -297,6 +286,9 @@ export class Job {
       if (filters.contractor_id) {
         query = query.eq("contractor_id", filters.contractor_id);
       }
+      if (filters.created_from) {
+        query = query.eq("created_from", filters.created_from);
+      }
       if (filters.search) {
         query = query.or(`job_title.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
       }
@@ -316,7 +308,6 @@ export class Job {
         throw new Error(`Database error: ${error.message}`);
       }
 
-      // Add details to each job
       const jobsWithDetails = await Promise.all(
         (data || []).map(job => Job.addDetailsToJob(job))
       );
@@ -395,6 +386,168 @@ export class Job {
     }
   }
 
+  static async getJobsByLabor(laborId, page = 1, limit = 10) {
+    try {
+      const offset = (page - 1) * limit;
+
+      if (!laborId) {
+        throw new Error('laborId is required');
+      }
+
+      // Get all jobs and filter by labor ID
+      let allJobsQuery = supabase
+        .from("jobs")
+        .select(`
+          *,
+          customer:customers!jobs_customer_id_fkey(
+            id,
+            customer_name,
+            company_name,
+            email,
+            phone
+          ),
+          contractor:contractors!jobs_contractor_id_fkey(
+            id,
+            contractor_name,
+            company_name,
+            email,
+            phone
+          ),
+          created_by_user:users!jobs_created_by_fkey(
+            id,
+            full_name,
+            email
+          )
+        `, { count: 'exact' });
+
+      const { data: allJobs, error: allJobsError } = await allJobsQuery
+        .order('created_at', { ascending: false });
+
+      if (allJobsError) {
+        throw new Error(`Database error: ${allJobsError.message}`);
+      }
+
+      // Filter jobs by labor ID
+      const filteredJobs = (allJobs || []).filter(job => {
+        try {
+          const laborIds = JSON.parse(job.assigned_labor_ids || '[]');
+          return laborIds.includes(parseInt(laborId));
+        } catch (e) {
+          return false;
+        }
+      });
+
+      // Apply pagination
+      const paginatedJobs = filteredJobs.slice(offset, offset + limit);
+
+      // Add details to each job
+      const jobsWithDetails = await Promise.all(
+        paginatedJobs.map(job => Job.addDetailsToJob(job))
+      );
+
+      const totalPages = Math.ceil(filteredJobs.length / limit);
+
+      return {
+        jobs: jobsWithDetails,
+        total: filteredJobs.length,
+        page: page,
+        limit: limit,
+        totalPages: totalPages,
+        pagination: {
+          currentPage: page,
+          totalPages: totalPages,
+          totalItems: filteredJobs.length,
+          itemsPerPage: limit,
+          hasNextPage: page < totalPages,
+          hasPrevPage: page > 1
+        }
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async getJobsByLeadLabor(leadLaborId, page = 1, limit = 10) {
+    try {
+      const offset = (page - 1) * limit;
+
+      if (!leadLaborId) {
+        throw new Error('leadLaborId is required');
+      }
+
+      // Get all jobs and filter by lead labor ID
+      let allJobsQuery = supabase
+        .from("jobs")
+        .select(`
+          *,
+          customer:customers!jobs_customer_id_fkey(
+            id,
+            customer_name,
+            company_name,
+            email,
+            phone
+          ),
+          contractor:contractors!jobs_contractor_id_fkey(
+            id,
+            contractor_name,
+            company_name,
+            email,
+            phone
+          ),
+          created_by_user:users!jobs_created_by_fkey(
+            id,
+            full_name,
+            email
+          )
+        `, { count: 'exact' });
+
+      const { data: allJobs, error: allJobsError } = await allJobsQuery
+        .order('created_at', { ascending: false });
+
+      if (allJobsError) {
+        throw new Error(`Database error: ${allJobsError.message}`);
+      }
+
+      // Filter jobs by lead labor ID
+      const filteredJobs = (allJobs || []).filter(job => {
+        try {
+          const leadLaborIds = JSON.parse(job.assigned_lead_labor_ids || '[]');
+          return leadLaborIds.includes(parseInt(leadLaborId));
+        } catch (e) {
+          return false;
+        }
+      });
+
+      // Apply pagination
+      const paginatedJobs = filteredJobs.slice(offset, offset + limit);
+
+      // Add details to each job
+      const jobsWithDetails = await Promise.all(
+        paginatedJobs.map(job => Job.addDetailsToJob(job))
+      );
+
+      const totalPages = Math.ceil(filteredJobs.length / limit);
+
+      return {
+        jobs: jobsWithDetails,
+        total: filteredJobs.length,
+        page: page,
+        limit: limit,
+        totalPages: totalPages,
+        pagination: {
+          currentPage: page,
+          totalPages: totalPages,
+          totalItems: filteredJobs.length,
+          itemsPerPage: limit,
+          hasNextPage: page < totalPages,
+          hasPrevPage: page > 1
+        }
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+
   static async getStats() {
     try {
       const { data: totalJobs, error: totalError } = await supabase
@@ -440,8 +593,6 @@ export class Job {
       if (pendingError) {
         throw new Error(`Database error: ${pendingError.message}`);
       }
-
-      // Get total revenue from all jobs
       const { data: revenueData, error: revenueError } = await supabase
         .from("jobs")
         .select("estimated_cost");
@@ -456,7 +607,6 @@ export class Job {
       const draft = draftJobs?.length || 0;
       const pending = pendingJobs?.length || 0;
       
-      // Calculate total revenue
       const totalRevenue = (revenueData || []).reduce((sum, job) => {
         return sum + (parseFloat(job.estimated_cost) || 0);
       }, 0);
@@ -506,7 +656,6 @@ export class Job {
         throw new Error(`Database error: ${error.message}`);
       }
 
-      // Add details to each job
       const jobsWithDetails = await Promise.all(
         (data || []).map(job => Job.addDetailsToJob(job))
       );
@@ -545,7 +694,6 @@ export class Job {
         throw new Error(`Database error: ${error.message}`);
       }
 
-      // Add details to each job
       const jobsWithDetails = await Promise.all(
         (data || []).map(job => Job.addDetailsToJob(job))
       );
@@ -556,53 +704,47 @@ export class Job {
     }
   }
 
-  // Get comprehensive job details for dashboard view
   static async getJobDashboardDetails(jobId) {
     try {
-      // Get basic job details
       const job = await Job.findById(jobId);
       if (!job) {
         return null;
       }
 
-       // Fetch real data from related tables
        const [transactions, timeLogs, materialUsage] = await Promise.all([
          Job.getJobTransactions(jobId),
          Job.getJobTimeLogs(jobId),
          Job.getJobMaterialUsage(jobId)
        ]);
 
-       // Get additional dashboard data
        const dashboardData = {
          ...job,
          
-         // Project Summary
          projectSummary: {
            jobEstimate: parseFloat(job.estimated_cost) || 0,
-           materialCost: 0, // Will be calculated from material usage
-           laborCost: 0,    // Will be calculated from time logs
+           materialCost: 0, 
+           laborCost: 0,    
            actualProjectCost: 0,
-           projectProgress: 0 // Will be calculated based on status
+           projectProgress: 0 
          },
 
-         // Key Metrics
          keyMetrics: {
-           totalHoursWorked: 0, // Will be calculated from time logs
-           totalMaterialUsed: 0, // Will be calculated from material usage
-           totalLabourEntries: 0, // Will be calculated from time logs
-           numberOfInvoices: 0 // Will be calculated from transactions
+           totalHoursWorked: 0,
+           totalMaterialUsed: 0, 
+           totalLabourEntries: 0, 
+           numberOfInvoices: 0 
          },
 
-         // Transaction History
+         
          transactionHistory: transactions,
 
-         // Material Usage Summary
+         
          materialUsage: {
            totalCost: 0,
            materials: materialUsage
          },
 
-         // Labor Summary
+        
          laborSummary: {
            totalCost: 0,
            laborEntries: timeLogs,
@@ -610,7 +752,7 @@ export class Job {
          }
        };
 
-       // Calculate material cost from material usage
+       
        if (materialUsage && materialUsage.length > 0) {
          const materialCost = materialUsage.reduce((sum, material) => {
            return sum + (parseFloat(material.total_cost) || 0);
@@ -620,7 +762,7 @@ export class Job {
          dashboardData.keyMetrics.totalMaterialUsed = materialUsage.length;
        }
 
-       // Calculate labor cost from time logs
+       
        if (timeLogs && timeLogs.length > 0) {
          const laborCost = timeLogs.reduce((sum, log) => {
            return sum + (parseFloat(log.total_cost) || 0);
@@ -635,7 +777,7 @@ export class Job {
          dashboardData.keyMetrics.totalHoursWorked = totalHours;
        }
 
-       // Calculate number of invoices from transactions
+       
        if (transactions && transactions.length > 0) {
          const invoiceCount = transactions.filter(t => 
            t.invoice_type.includes('invoice')
@@ -643,12 +785,12 @@ export class Job {
          dashboardData.keyMetrics.numberOfInvoices = invoiceCount;
        }
 
-      // Calculate actual project cost
+      
       dashboardData.projectSummary.actualProjectCost = 
         dashboardData.projectSummary.materialCost + 
         dashboardData.projectSummary.laborCost;
 
-      // Calculate project progress based on status
+      
       const progressMap = {
         'draft': 0,
         'active': 25,
@@ -665,7 +807,7 @@ export class Job {
      }
    }
 
-   // Get job transactions
+   
    static async getJobTransactions(jobId) {
      try {
        const { data, error } = await supabase
@@ -684,7 +826,7 @@ export class Job {
      }
    }
 
-   // Get job time logs
+   
    static async getJobTimeLogs(jobId) {
      try {
        const { data, error } = await supabase
@@ -703,7 +845,7 @@ export class Job {
      }
    }
 
-   // Get job material usage
+  
    static async getJobMaterialUsage(jobId) {
      try {
        const { data, error } = await supabase
@@ -722,7 +864,7 @@ export class Job {
      }
    }
 
-   // Create job transaction
+   
    static async createJobTransaction(transactionData) {
      try {
        const { data, error } = await supabase
@@ -741,7 +883,7 @@ export class Job {
      }
    }
 
-   // Create job time log
+   
    static async createJobTimeLog(timeLogData) {
      try {
        const { data, error } = await supabase
@@ -760,7 +902,7 @@ export class Job {
      }
    }
 
-   // Create job material usage
+  
    static async createJobMaterialUsage(materialUsageData) {
      try {
        const { data, error } = await supabase

@@ -147,4 +147,28 @@ export class JobService {
       throw error;
     }
   }
+
+  static async getJobsByLabor(laborId, page = 1, limit = 10) {
+    try {
+      const result = await Job.getJobsByLabor(laborId, page, limit);
+      return successResponse(
+        result,
+        "Jobs by labor retrieved successfully"
+      );
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async getJobsByLeadLabor(leadLaborId, page = 1, limit = 10) {
+    try {
+      const result = await Job.getJobsByLeadLabor(leadLaborId, page, limit);
+      return successResponse(
+        result,
+        "Jobs by lead labor retrieved successfully"
+      );
+    } catch (error) {
+      throw error;
+    }
+  }
 }

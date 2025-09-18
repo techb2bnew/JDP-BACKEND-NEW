@@ -20,6 +20,7 @@ import productRoutes from './routes/productRoutes.js';
 import { customerRoutes } from './routes/customerRoutes.js';
 import { contractorRoutes } from './routes/contractorRoutes.js';
 import { jobRoutes } from './routes/jobRoutes.js';
+import jobTimeLogRoutes from './routes/jobTimeLogRoutes.js';
 
 
 
@@ -91,6 +92,7 @@ await fastify.register(productRoutes, { prefix: '/api/products' });
 await fastify.register(customerRoutes, { prefix: '/api/customer' });
 await fastify.register(contractorRoutes, { prefix: '/api/contractor' });
 await fastify.register(jobRoutes, { prefix: '/api/job' });
+await fastify.register(jobTimeLogRoutes, { prefix: '/api/job-time-logs' });
 
 
 fastify.get('/health', async (request, reply) => {

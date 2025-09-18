@@ -239,7 +239,6 @@ export class LeadLabor {
       const currentYear = new Date().getFullYear();
       const prefix = `LL-${currentYear}-`;
       
-      // Get the highest labor code for current year
       const { data, error } = await supabase
         .from('lead_labor')
         .select('labor_code')

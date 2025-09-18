@@ -3,7 +3,7 @@ name: Deploy Backend Application
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch: # Manual trigger ke liye
+  workflow_dispatch: 
 
 jobs:
   deploy:

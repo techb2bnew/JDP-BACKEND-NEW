@@ -5,9 +5,8 @@ export class ProductController {
   static async createProduct(request, reply) {
     try {
       const productData = request.body;
-      const userId = request.user.id; // Get user ID from authenticated user
+      const userId = request.user.id; 
       
-      // Validate required fields
       ProductService.validateProductData(productData);
 
       const result = await ProductService.createProduct(productData, userId);

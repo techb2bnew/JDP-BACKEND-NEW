@@ -332,7 +332,6 @@ export class LaborService {
     try {
       const fileUrls = {};
 
-      // Files are already processed in route with S3 upload
       if (files.photo && files.photo[0]) {
         fileUrls.photo_url = files.photo[0].location;
       }

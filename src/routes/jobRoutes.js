@@ -52,4 +52,62 @@ export async function jobRoutes(fastify, options) {
     schema: getJobByIdSchema,
     handler: JobController.getJobDashboardDetails
   });
+
+  fastify.get('/getJobsByLabor', {
+    preHandler: [fastify.authenticateToken],
+    schema: {
+      querystring: {
+        type: 'object',
+        properties: {
+          laborId: {
+            type: 'string',
+            pattern: '^[0-9]+$',
+            description: 'Labor ID to filter jobs'
+          },
+          page: {
+            type: 'string',
+            pattern: '^[0-9]+$',
+            description: 'Page number for pagination'
+          },
+          limit: {
+            type: 'string',
+            pattern: '^[0-9]+$',
+            description: 'Number of items per page'
+          }
+        },
+        required: ['laborId'],
+        additionalProperties: false
+      }
+    },
+    handler: JobController.getJobsByLabor
+  });
+
+  fastify.get('/getJobsByLeadLabor', {
+    preHandler: [fastify.authenticateToken],
+    schema: {
+      querystring: {
+        type: 'object',
+        properties: {
+          leadLaborId: {
+            type: 'string',
+            pattern: '^[0-9]+$',
+            description: 'Lead Labor ID to filter jobs'
+          },
+          page: {
+            type: 'string',
+            pattern: '^[0-9]+$',
+            description: 'Page number for pagination'
+          },
+          limit: {
+            type: 'string',
+            pattern: '^[0-9]+$',
+            description: 'Number of items per page'
+          }
+        },
+        required: ['leadLaborId'],
+        additionalProperties: false
+      }
+    },
+    handler: JobController.getJobsByLeadLabor
+  });
 }

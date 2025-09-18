@@ -193,8 +193,18 @@ export class Product {
 
       const totalPages = Math.ceil(count / limit);
 
+      // Calculate total cost for all products
+      const totalCost = (data || []).reduce((sum, product) => {
+        // Use unit_cost only for custom products, jdp_price for all others
+        const cost = product.is_custom === true ? 
+          (parseFloat(product.unit_cost) || 0) : 
+          (parseFloat(product.jdp_price) || 0);
+        return sum + cost;
+      }, 0);
+
       return {
         data: data || [],
+        totalCost: totalCost.toFixed(2),
         pagination: {
           currentPage: page,
           totalPages: totalPages,
@@ -636,8 +646,16 @@ export class Product {
 
       const totalPages = Math.ceil(count / limit);
 
+      const totalCost = (data || []).reduce((sum, product) => {
+        const cost = product.is_custom === true ? 
+          (parseFloat(product.unit_cost) || 0) : 
+          (parseFloat(product.jdp_price) || 0);
+        return sum + cost;
+      }, 0);
+
       return {
         data: data || [],
+        totalCost: totalCost.toFixed(2),
         pagination: {
           currentPage: page,
           totalPages: totalPages,
@@ -721,8 +739,13 @@ export class Product {
 
       const totalPages = Math.ceil(count / limit);
 
+      const totalCost = (data || []).reduce((sum, product) => {
+        return sum + (parseFloat(product.unit_cost) || 0);
+      }, 0);
+
       return {
         data: data || [],
+        totalCost: totalCost.toFixed(2),
         pagination: {
           currentPage: page,
           totalPages: totalPages,
@@ -739,7 +762,6 @@ export class Product {
 
   static async getStats() {
     try {
-      // Get total products count
       const { data: totalProducts, error: totalError } = await supabase
         .from('products')
         .select('id', { count: 'exact' });
@@ -748,7 +770,6 @@ export class Product {
         throw new Error(`Database error: ${totalError.message}`);
       }
 
-      // Get active products count (status = 'active')
       const { data: activeProducts, error: activeError } = await supabase
         .from('products')
         .select('id', { count: 'exact' })
@@ -758,7 +779,6 @@ export class Product {
         throw new Error(`Database error: ${activeError.message}`);
       }
 
-      // Get inactive products count (status = 'inactive')
       const { data: inactiveProducts, error: inactiveError } = await supabase
         .from('products')
         .select('id', { count: 'exact' })
@@ -768,7 +788,6 @@ export class Product {
         throw new Error(`Database error: ${inactiveError.message}`);
       }
 
-      // Get draft products count (status = 'draft')
       const { data: draftProducts, error: draftError } = await supabase
         .from('products')
         .select('id', { count: 'exact' })
@@ -778,7 +797,6 @@ export class Product {
         throw new Error(`Database error: ${draftError.message}`);
       }
 
-      // Get low stock products count (stock <= 10)
       const { data: lowStockProducts, error: lowStockError } = await supabase
         .from('products')
         .select('id', { count: 'exact' })
@@ -788,7 +806,6 @@ export class Product {
         throw new Error(`Database error: ${lowStockError.message}`);
       }
 
-      // Get total inventory value
       const { data: inventoryData, error: inventoryError } = await supabase
         .from('products')
         .select('jdp_price, stock_quantity');
@@ -797,7 +814,6 @@ export class Product {
         throw new Error(`Database error: ${inventoryError.message}`);
       }
 
-      // Calculate total inventory value
       const totalInventoryValue = inventoryData?.reduce((total, product) => {
         const price = parseFloat(product.jdp_price) || 0;
         const quantity = parseInt(product.stock_quantity) || 0;

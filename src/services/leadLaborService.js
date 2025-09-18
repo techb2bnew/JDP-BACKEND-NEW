@@ -11,7 +11,6 @@ import {
 export class LeadLaborService {
   static async createLeadLaborWithUser(leadLaborData, files = null) {
     try {
-      // Run validation checks in parallel for better performance
       const [existingUser, laborCode] = await Promise.all([
         User.findByEmail(leadLaborData.email),
         leadLaborData.labor_code ? 
@@ -81,7 +80,6 @@ export class LeadLaborService {
 
       const leadLabor = await LeadLabor.create(leadLaborRecordData);
 
-      // Send email asynchronously without blocking response
       setImmediate(async () => {
         try {
           await sendWelcomeEmail(
@@ -127,7 +125,6 @@ export class LeadLaborService {
       const currentLeadLabor = await LeadLabor.getLeadLaborById(leadLaborId);
       const userId = currentLeadLabor.user_id;
 
-      // Check email uniqueness if email is being updated
       if (updateData.email && updateData.email !== currentLeadLabor.users.email) {
         const existingUser = await User.findByEmail(updateData.email);
         if (existingUser) {
@@ -195,7 +192,6 @@ export class LeadLaborService {
     try {
       const fileUrls = {};
 
-      // Files are already processed in route with S3 upload
       if (files.photo && files.photo[0]) {
         fileUrls.photo_url = files.photo[0].location;
       }

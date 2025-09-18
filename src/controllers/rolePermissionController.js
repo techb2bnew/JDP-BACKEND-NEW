@@ -30,7 +30,6 @@ export class RolePermissionController {
       
       return reply.status(201).send(successResponse(result, 'Role created successfully with permissions', 201));
     } catch (error) {
-      console.error('Error in createRoleWithPermissions:', error);
       return reply.status(500).send(errorResponse('Failed to create role with permissions and products', 500));
     }
   }
@@ -62,7 +61,6 @@ export class RolePermissionController {
       
       return reply.status(200).send(successResponse(result, 'Role permissions updated successfully'));
     } catch (error) {
-      console.error('Error in updateRolePermissionsById:', error);
       return reply.status(500).send(errorResponse('Failed to update role permissions', 500));
     }
   }
@@ -73,7 +71,6 @@ export class RolePermissionController {
       
       return reply.status(200).send(successResponse(roles, 'All roles with permissions retrieved successfully'));
     } catch (error) {
-      console.error('Error in getAllRolesWithAllPermissions:', error);
       return reply.status(500).send(errorResponse('Failed to retrieve roles with permissions', 500));
     }
   }
@@ -95,7 +92,6 @@ export class RolePermissionController {
       
       return reply.status(200).send(successResponse(result, 'Role permissions retrieved successfully'));
     } catch (error) {
-      console.error('Error in getRolePermissionsById:', error);
       if (error.message.includes('not found')) {
         return reply.status(404).send(errorResponse('Role not found', 404));
       }
@@ -122,7 +118,6 @@ export class RolePermissionController {
       
       return reply.status(200).send(successResponse(result, 'Role deleted successfully'));
     } catch (error) {
-      console.error('Error in deleteRole:', error);
       if (error.message.includes('not found')) {
         return reply.status(404).send(errorResponse('Role not found', 404));
       }

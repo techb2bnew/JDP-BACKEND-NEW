@@ -83,17 +83,13 @@ export class AuthService {
       }
 
      
-      console.log("useruseruseruser",user);
       
 
-      // Access control based on login_by and management_type
       if (login_by === 'app') {
-        // App login - only labor and lead_labor allowed
         if (user.management_type !== 'labor' && user.management_type !== 'lead_labor') {
           throw new Error("Only Team Leads and Team Members can log in here. Please use the Admin Portal for Staff login.");
         }
         } else if (login_by === 'admin') {
-          // Admin login - only staff and admin allowed, not labor/lead_labor
           if (user.management_type === 'labor' || user.management_type === 'lead_labor') {
             throw new Error("Team Leads and Team Members cannot login here. Please use the Mobile App for login.");
           }
@@ -101,13 +97,11 @@ export class AuthService {
         throw new Error("Invalid login method");
       }
 
-      // Fetch permissions with optimized query
       let permissions = [];
       try {
         permissions = await RolePermission.getPermissionsByRoleName(user.role);
       } catch (permError) {
         console.error('Error fetching permissions:', permError);
-        // Don't throw error, just log it
       }
 
       const token = generateToken({
@@ -118,9 +112,8 @@ export class AuthService {
         login_by: login_by
       });
 
-      // Store token in database
       const tokenExpiry = new Date();
-      tokenExpiry.setHours(tokenExpiry.getHours() + 24); // 24 hours expiry
+      tokenExpiry.setHours(tokenExpiry.getHours() + 24); 
 
       await UserToken.create({
         user_id: user.id,

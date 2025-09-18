@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS jobs (
   
 
   created_by          INT REFERENCES users(id) ON DELETE SET NULL,
+  created_from        VARCHAR(20) DEFAULT 'admin' CHECK (created_from IN ('admin', 'app')),
   system_ip           VARCHAR(45),
   created_at          TIMESTAMP DEFAULT NOW(),
   updated_at          TIMESTAMP DEFAULT NOW()

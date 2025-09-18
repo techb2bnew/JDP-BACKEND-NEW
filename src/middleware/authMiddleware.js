@@ -20,7 +20,7 @@ export const authenticateToken = async (request, reply) => {
 
     const decoded = verifyToken(token);
 
-    // Check if token exists and is active in database
+   
     const tokenRecord = await UserToken.findByToken(token);
     if (!tokenRecord || !tokenRecord.is_active) {
       return reply
@@ -30,7 +30,6 @@ export const authenticateToken = async (request, reply) => {
         );
     }
 
-    // Check if token is expired
     if (new Date() > new Date(tokenRecord.expires_at)) {
       return reply
         .code(401)

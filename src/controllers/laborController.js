@@ -81,7 +81,6 @@ export class LaborController {
       
       return reply.status(200).send(successResponse(labor, 'Labor retrieved successfully'));
     } catch (error) {
-      console.error('Error in getLaborById:', error);
       if (error.message.includes('not found')) {
         return reply.status(404).send(errorResponse('Labor not found', 404));
       }
@@ -111,7 +110,6 @@ export class LaborController {
       
       return reply.status(200).send(successResponse(updatedLabor, 'Labor updated successfully'));
     } catch (error) {
-      console.error('Error in updateLabor:', error);
       if (error.message.includes('not found')) {
         return reply.status(404).send(errorResponse('Labor not found', 404));
       }
@@ -148,7 +146,6 @@ export class LaborController {
       
       return reply.status(200).send(successResponse(result, 'Labor deleted successfully'));
     } catch (error) {
-      console.error('Error in deleteLabor:', error);
       if (error.message.includes('not found')) {
         return reply.status(404).send(errorResponse('Labor not found', 404));
       }
@@ -161,12 +158,6 @@ export class LaborController {
       const { laborId } = req.params;
       let updateData = req.body;
       const files = req.files;
-
-      // Debug logging
-      console.log('Debug - req.body:', req.body);
-      console.log('Debug - req.files:', req.files);
-      console.log('Debug - updateData:', updateData);
-      console.log('Debug - files:', files);
 
       if (!laborId) {
         return reply.status(400).send(validationErrorResponse(['Labor ID is required']));
@@ -189,7 +180,6 @@ export class LaborController {
 
       return reply.status(200).send(successResponse(updatedLabor, 'Labor profile updated successfully'));
     } catch (error) {
-      console.error('Error in updateProfile:', error);
       if (error.message.includes('not found')) {
         return reply.status(404).send(errorResponse('Labor not found', 404));
       }

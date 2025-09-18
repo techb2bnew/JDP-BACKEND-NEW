@@ -121,6 +121,12 @@ export const createJobSchema = {
         type: 'string',
         maxLength: 45,
         description: 'System IP address'
+      },
+      created_from: {
+        type: 'string',
+        enum: ['admin', 'app'],
+        default: 'admin',
+        description: 'Source of job creation (admin panel or mobile app)'
       }
     }
   }
@@ -245,6 +251,11 @@ export const updateJobSchema = {
         type: 'string',
         maxLength: 45,
         description: 'System IP address'
+      },
+      created_from: {
+        type: 'string',
+        enum: ['admin', 'app'],
+        description: 'Source of job creation (admin panel or mobile app)'
       }
     }
   }
@@ -295,6 +306,11 @@ export const getJobsSchema = {
         type: 'integer',
         minimum: 1,
         description: 'Filter by contractor ID'
+      },
+      created_from: {
+        type: 'string',
+        enum: ['admin', 'app'],
+        description: 'Filter by creation source'
       },
       sortBy: {
         type: 'string',

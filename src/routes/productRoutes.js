@@ -314,7 +314,7 @@ export default async function productRoutes(fastify, options) {
     }
   }, ProductController.getProductStatistics);
 
-  // Get product statistics (dashboard stats)
+  
   fastify.get('/getProductStats/stats', {
     preHandler: [fastify.authenticateToken],
     handler: ProductController.getProductStats

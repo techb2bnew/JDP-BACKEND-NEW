@@ -22,7 +22,6 @@ export class StaffController {
 
       return reply.status(201).send(successResponse(result, 'Staff created successfully', 201));
     } catch (error) {
-      console.error('Error in createStaff:', error);
       if (error.message.includes('duplicate key') || error.message.includes('unique constraint')) {
         return reply.status(400).send(errorResponse('Email already exists', 400));
       }
@@ -47,7 +46,6 @@ export class StaffController {
       
       return reply.status(200).send(successResponse(result, 'Staff retrieved successfully'));
     } catch (error) {
-      console.error('Error in getAllStaff:', error);
       return reply.status(500).send(errorResponse('Failed to retrieve staff', 500));
     }
   }
@@ -60,7 +58,6 @@ export class StaffController {
         return reply.status(400).send(validationErrorResponse(['Staff ID is required']));
       }
 
-      // Validate staffId is a number
       const staffIdNum = parseInt(staffId);
       if (isNaN(staffIdNum)) {
         return reply.status(400).send(validationErrorResponse(['Staff ID must be a valid number']));
@@ -70,7 +67,6 @@ export class StaffController {
 
       return reply.status(200).send(successResponse(staff, 'Staff retrieved successfully'));
     } catch (error) {
-      console.error('Error in getStaffById:', error);
       if (error.message.includes('not found')) {
         return reply.status(404).send(errorResponse('Staff not found', 404));
       }
@@ -127,7 +123,6 @@ export class StaffController {
 
       return reply.status(200).send(successResponse(result, 'Staff deleted successfully'));
     } catch (error) {
-      console.error('Error in deleteStaff:', error);
       if (error.message.includes('not found')) {
         return reply.status(404).send(errorResponse('Staff not found', 404));
       }
@@ -162,7 +157,6 @@ export class StaffController {
 
       return reply.status(200).send(successResponse(updatedStaff, 'Staff profile updated successfully'));
     } catch (error) {
-      console.error('Error in updateProfile:', error);
       if (error.message.includes('not found')) {
         return reply.status(404).send(errorResponse('Staff not found', 404));
       }

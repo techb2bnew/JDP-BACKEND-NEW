@@ -176,7 +176,6 @@ export class AuthController {
       
       return reply.code(200).send(result);
     } catch (error) {
-      console.error('Error in logout:', error);
       return reply.code(500).send(errorResponse('Failed to logout', 500));
     }
   }
@@ -189,7 +188,6 @@ export class AuthController {
       
       return reply.code(200).send(result);
     } catch (error) {
-      console.error('Error in logout all:', error);
       return reply.code(500).send(errorResponse('Failed to logout from all devices', 500));
     }
   }
