@@ -132,6 +132,47 @@ export class Job {
     }
   }
 
+  static async fetchCustomLaborDetails(jobId) {
+    try {
+      if (!jobId) {
+        return [];
+      }
+
+      const { data: customLaborData, error } = await supabase
+        .from("labor")
+        .select(`
+          id,
+          labor_code,
+          trade,
+          experience,
+          hourly_rate,
+          hours_worked,
+          availability,
+          is_custom,
+          job_id,
+          user_id,
+          user:users!labor_user_id_fkey(
+            id,
+            full_name,
+            email,
+            phone
+          )
+        `)
+        .eq("job_id", jobId)
+        .eq("is_custom", true);
+
+      if (error) {
+        console.error("Error fetching custom labor:", error);
+        return [];
+      }
+
+      return customLaborData || [];
+    } catch (error) {
+      console.error("Error in fetchCustomLaborDetails:", error);
+      return [];
+    }
+  }
+
   static async addDetailsToJob(job) {
     const jobWithDetails = { ...job };
     
@@ -159,6 +200,8 @@ export class Job {
 
     jobWithDetails.assigned_materials = await Job.fetchMaterialsDetails(job.id);
 
+    // Add custom labor for this job
+    jobWithDetails.custom_labor = await Job.fetchCustomLaborDetails(job.id);
 
     return jobWithDetails;
   }

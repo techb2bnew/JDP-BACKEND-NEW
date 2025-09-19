@@ -94,4 +94,6 @@ export default async function laborRoutes(fastify, options) {
     }
   }, LaborController.deleteLabor);
 
+  fastify.get('/getLaborByJob/:jobId', LaborController.getLaborByJob);
+
 }

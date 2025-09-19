@@ -203,4 +203,28 @@ export class LaborController {
       return reply.status(500).send(errorResponse('Failed to retrieve custom labor', 500));
     }
   }
+
+  static async getLaborByJob(req, reply) {
+    try {
+      const { jobId } = req.params;
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 10;
+
+      if (!jobId) {
+        return reply.status(400).send(validationErrorResponse(['Job ID is required']));
+      }
+
+      const jobIdNum = parseInt(jobId);
+      if (isNaN(jobIdNum)) {
+        return reply.status(400).send(validationErrorResponse(['Job ID must be a valid number']));
+      }
+
+      const result = await LaborService.getLaborByJob(jobIdNum, page, limit);
+      
+      return reply.status(200).send(successResponse(result, 'Job labor retrieved successfully'));
+    } catch (error) {
+      console.error('Error in getLaborByJob:', error);
+      return reply.status(500).send(errorResponse('Failed to retrieve job labor', 500));
+    }
+  }
 }

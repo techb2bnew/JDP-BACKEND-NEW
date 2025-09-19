@@ -43,7 +43,7 @@ export class LaborService {
         email: laborData.email,
         phone: laborData.phone || null,
         password: hashedPassword,
-        role: laborData.role,
+        role: laborData.role || 'labor',
         status: laborData.status || 'active',
         management_type:laborData.management_type
       };
@@ -68,10 +68,10 @@ export class LaborService {
       const laborRecordData = {
         user_id: user.id,
         labor_code: laborCode,
-        dob: laborData.dob,
-        address: laborData.address,
+        dob: laborData.dob || '1990-01-01',
+        address: laborData.address || 'Default Address',
         notes: laborData.notes || null,
-        date_of_joining: laborData.date_of_joining,
+        date_of_joining: laborData.date_of_joining || new Date().toISOString().split('T')[0],
         trade: laborData.trade || null,
         experience: laborData.experience || null,
         hourly_rate: laborData.hourly_rate || null,
@@ -81,7 +81,8 @@ export class LaborService {
         certifications: laborData.certifications ? JSON.stringify(laborData.certifications) : null,
         skills: laborData.skills ? JSON.stringify(laborData.skills) : null,
         management_type:laborData.management_type,
-        is_custom: laborData.is_custom || false
+        is_custom: laborData.is_custom || false,
+        job_id: laborData.job_id || null
       };
 
       const labor = await Labor.create(laborRecordData);
@@ -182,6 +183,7 @@ export class LaborService {
       if (updateData.certifications !== undefined) laborData.certifications = updateData.certifications ? JSON.stringify(updateData.certifications) : null;
       if (updateData.skills !== undefined) laborData.skills = updateData.skills ? JSON.stringify(updateData.skills) : null;
       if (updateData.is_custom !== undefined) laborData.is_custom = updateData.is_custom;
+      if (updateData.job_id !== undefined) laborData.job_id = updateData.job_id;
 
       if (Object.keys(userData).length > 0) {
         await User.update(userId, userData);
@@ -346,6 +348,15 @@ export class LaborService {
   static async getCustomLabor(page = 1, limit = 10) {
     try {
       const result = await Labor.getCustomLabor(page, limit);
+      return result;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async getLaborByJob(jobId, page = 1, limit = 10) {
+    try {
+      const result = await Labor.getLaborByJob(jobId, page, limit);
       return result;
     } catch (error) {
       throw error;

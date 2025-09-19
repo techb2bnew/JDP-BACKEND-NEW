@@ -390,4 +390,53 @@ export class Labor {
       throw error;
     }
   }
+
+  static async getLaborByJob(jobId, page = 1, limit = 10) {
+    try {
+      const offset = (page - 1) * limit;
+
+      const { data, error, count } = await supabase
+        .from('labor')
+        .select(`
+          *,
+          users!labor_user_id_fkey (
+            id,
+            full_name,
+            email,
+            phone,
+            role,
+            status,
+            photo_url,
+            created_at
+          ),
+          supervisor:users!labor_supervisor_id_fkey (
+            id,
+            full_name,
+            email,
+            phone,
+            role,
+            status,
+            photo_url,
+            created_at
+          )
+        `, { count: 'exact' })
+        .eq('job_id', jobId)
+        .order('id', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      if (error) {
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      return {
+        labor: this.parseLaborData(data || []),
+        total: count || 0,
+        page,
+        limit,
+        totalPages: Math.ceil((count || 0) / limit)
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
 }

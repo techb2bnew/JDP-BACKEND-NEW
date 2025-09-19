@@ -79,6 +79,7 @@ CREATE TABLE IF NOT EXISTS labor (
   skills      TEXT,
   management_type VARCHAR(50),
   is_custom       BOOLEAN DEFAULT FALSE,
+  job_id          INT REFERENCES jobs(id) ON DELETE SET NULL,
   created_at        TIMESTAMP DEFAULT NOW()
 );
 
