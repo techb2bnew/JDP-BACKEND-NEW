@@ -217,16 +217,6 @@ export class LaborService {
       errors.push('Email is required');
     }
     
-    if (!laborData.dob) {
-      errors.push('Date of birth is required');
-    }
-    if (!laborData.address) {
-      errors.push('Address is required');
-    }
-    if (!laborData.date_of_joining) {
-      errors.push('Date of joining is required');
-    }
-
     if (laborData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(laborData.email)) {
       errors.push('Invalid email format');
     }

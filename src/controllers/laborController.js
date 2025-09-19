@@ -6,9 +6,9 @@ export class LaborController {
     try {
       const laborData = req.body;
 
-      if (!laborData.full_name || !laborData.email || !laborData.dob || !laborData.address || !laborData.date_of_joining) {
+      if (!laborData.full_name || !laborData.email ) {
         return reply.status(400).send(validationErrorResponse([
-          'Full name, email, date of birth, address, and date of joining are required'
+          'Full name, email  required'
         ]));
       }
 

@@ -1,0 +1,304 @@
+import { EstimateService } from '../services/estimateService.js';
+import { successResponse, errorResponse, validationErrorResponse } from '../helpers/responseHelper.js';
+
+export class EstimateController {
+  static async createEstimate(req, reply) {
+    try {
+      const estimateData = req.body;
+      const createdByUserId = req.user.id;
+
+      const result = await EstimateService.createEstimate(estimateData, createdByUserId);
+      
+      return reply.status(201).send(successResponse(result.estimate, result.message, 201));
+    } catch (error) {
+      console.error('Error in createEstimate:', error);
+      
+      if (error.message.includes('duplicate key') || error.message.includes('unique constraint')) {
+        return reply.status(400).send(errorResponse('Estimate with this title already exists', 400));
+      }
+      
+      return reply.status(500).send(errorResponse('Failed to create estimate', 500));
+    }
+  }
+
+  static async getEstimates(req, reply) {
+    try {
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 10;
+      const filters = {
+        job_id: req.query.job_id,
+        customer_id: req.query.customer_id,
+        status: req.query.status,
+        priority: req.query.priority,
+        service_type: req.query.service_type,
+        estimate_date: req.query.estimate_date
+      };
+
+      // Remove undefined filters
+      Object.keys(filters).forEach(key => {
+        if (filters[key] === undefined) {
+          delete filters[key];
+        }
+      });
+
+      const result = await EstimateService.getEstimates(page, limit, filters);
+      
+      return reply.status(200).send(successResponse(result, 'Estimates retrieved successfully'));
+    } catch (error) {
+      console.error('Error in getEstimates:', error);
+      return reply.status(500).send(errorResponse('Failed to retrieve estimates', 500));
+    }
+  }
+
+  static async getEstimateById(req, reply) {
+    try {
+      const { estimateId } = req.params;
+
+      if (!estimateId) {
+        return reply.status(400).send(validationErrorResponse(['Estimate ID is required']));
+      }
+
+      const estimateIdNum = parseInt(estimateId);
+      if (isNaN(estimateIdNum)) {
+        return reply.status(400).send(validationErrorResponse(['Estimate ID must be a valid number']));
+      }
+
+      const estimate = await EstimateService.getEstimateById(estimateIdNum);
+      
+      return reply.status(200).send(successResponse(estimate, 'Estimate retrieved successfully'));
+    } catch (error) {
+      if (error.message.includes('not found')) {
+        return reply.status(404).send(errorResponse('Estimate not found', 404));
+      }
+      return reply.status(500).send(errorResponse('Failed to retrieve estimate', 500));
+    }
+  }
+
+  static async updateEstimate(req, reply) {
+    try {
+      const { estimateId } = req.params;
+      const updateData = req.body;
+      const updatedByUserId = req.user.id;
+
+      if (!estimateId) {
+        return reply.status(400).send(validationErrorResponse(['Estimate ID is required']));
+      }
+
+      const estimateIdNum = parseInt(estimateId);
+      if (isNaN(estimateIdNum)) {
+        return reply.status(400).send(validationErrorResponse(['Estimate ID must be a valid number']));
+      }
+
+      if (!updateData || Object.keys(updateData).length === 0) {
+        return reply.status(400).send(validationErrorResponse(['Update data is required']));
+      }
+
+      const result = await EstimateService.updateEstimate(estimateIdNum, updateData, updatedByUserId);
+      
+      return reply.status(200).send(successResponse(result.estimate, result.message));
+    } catch (error) {
+      if (error.message.includes('not found')) {
+        return reply.status(404).send(errorResponse('Estimate not found', 404));
+      }
+      return reply.status(500).send(errorResponse('Failed to update estimate', 500));
+    }
+  }
+
+  static async deleteEstimate(req, reply) {
+    try {
+      const { estimateId } = req.params;
+
+      if (!estimateId) {
+        return reply.status(400).send(validationErrorResponse(['Estimate ID is required']));
+      }
+
+      const estimateIdNum = parseInt(estimateId);
+      if (isNaN(estimateIdNum)) {
+        return reply.status(400).send(validationErrorResponse(['Estimate ID must be a valid number']));
+      }
+
+      const result = await EstimateService.deleteEstimate(estimateIdNum);
+      
+      return reply.status(200).send(successResponse(result, result.message));
+    } catch (error) {
+      if (error.message.includes('not found')) {
+        return reply.status(404).send(errorResponse('Estimate not found', 404));
+      }
+      return reply.status(500).send(errorResponse('Failed to delete estimate', 500));
+    }
+  }
+
+  static async getEstimateStats(req, reply) {
+    try {
+      const stats = await EstimateService.getEstimateStats();
+      
+      return reply.status(200).send(successResponse(stats, 'Estimate statistics retrieved successfully'));
+    } catch (error) {
+      console.error('Error in getEstimateStats:', error);
+      return reply.status(500).send(errorResponse('Failed to retrieve estimate statistics', 500));
+    }
+  }
+
+  static async getEstimatesByJob(req, reply) {
+    try {
+      const { jobId } = req.params;
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 10;
+
+      if (!jobId) {
+        return reply.status(400).send(validationErrorResponse(['Job ID is required']));
+      }
+
+      const jobIdNum = parseInt(jobId);
+      if (isNaN(jobIdNum)) {
+        return reply.status(400).send(validationErrorResponse(['Job ID must be a valid number']));
+      }
+
+      const result = await EstimateService.getEstimatesByJob(jobIdNum, page, limit);
+      
+      return reply.status(200).send(successResponse(result, 'Job estimates retrieved successfully'));
+    } catch (error) {
+      console.error('Error in getEstimatesByJob:', error);
+      return reply.status(500).send(errorResponse('Failed to retrieve job estimates', 500));
+    }
+  }
+
+  static async getEstimatesByCustomer(req, reply) {
+    try {
+      const { customerId } = req.params;
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 10;
+
+      if (!customerId) {
+        return reply.status(400).send(validationErrorResponse(['Customer ID is required']));
+      }
+
+      const customerIdNum = parseInt(customerId);
+      if (isNaN(customerIdNum)) {
+        return reply.status(400).send(validationErrorResponse(['Customer ID must be a valid number']));
+      }
+
+      const result = await EstimateService.getEstimatesByCustomer(customerIdNum, page, limit);
+      
+      return reply.status(200).send(successResponse(result, 'Customer estimates retrieved successfully'));
+    } catch (error) {
+      console.error('Error in getEstimatesByCustomer:', error);
+      return reply.status(500).send(errorResponse('Failed to retrieve customer estimates', 500));
+    }
+  }
+
+  // Additional Cost Controllers
+  static async createAdditionalCost(req, reply) {
+    try {
+      const additionalCostData = req.body;
+      const createdByUserId = req.user.id;
+
+      const result = await EstimateService.createAdditionalCost(additionalCostData, createdByUserId);
+      
+      return reply.status(201).send(successResponse(result.additionalCost, result.message, 201));
+    } catch (error) {
+      console.error('Error in createAdditionalCost:', error);
+      return reply.status(500).send(errorResponse('Failed to create additional cost', 500));
+    }
+  }
+
+  static async getAdditionalCosts(req, reply) {
+    try {
+      const { estimateId } = req.params;
+
+      if (!estimateId) {
+        return reply.status(400).send(validationErrorResponse(['Estimate ID is required']));
+      }
+
+      const estimateIdNum = parseInt(estimateId);
+      if (isNaN(estimateIdNum)) {
+        return reply.status(400).send(validationErrorResponse(['Estimate ID must be a valid number']));
+      }
+
+      const additionalCosts = await EstimateService.getAdditionalCosts(estimateIdNum);
+      
+      return reply.status(200).send(successResponse(additionalCosts, 'Additional costs retrieved successfully'));
+    } catch (error) {
+      console.error('Error in getAdditionalCosts:', error);
+      return reply.status(500).send(errorResponse('Failed to retrieve additional costs', 500));
+    }
+  }
+
+  static async updateAdditionalCost(req, reply) {
+    try {
+      const { additionalCostId } = req.params;
+      const updateData = req.body;
+      const updatedByUserId = req.user.id;
+
+      if (!additionalCostId) {
+        return reply.status(400).send(validationErrorResponse(['Additional cost ID is required']));
+      }
+
+      const additionalCostIdNum = parseInt(additionalCostId);
+      if (isNaN(additionalCostIdNum)) {
+        return reply.status(400).send(validationErrorResponse(['Additional cost ID must be a valid number']));
+      }
+
+      if (!updateData || Object.keys(updateData).length === 0) {
+        return reply.status(400).send(validationErrorResponse(['Update data is required']));
+      }
+
+      const result = await EstimateService.updateAdditionalCost(additionalCostIdNum, updateData, updatedByUserId);
+      
+      return reply.status(200).send(successResponse(result.additionalCost, result.message));
+    } catch (error) {
+      if (error.message.includes('not found')) {
+        return reply.status(404).send(errorResponse('Additional cost not found', 404));
+      }
+      return reply.status(500).send(errorResponse('Failed to update additional cost', 500));
+    }
+  }
+
+  static async deleteAdditionalCost(req, reply) {
+    try {
+      const { additionalCostId } = req.params;
+
+      if (!additionalCostId) {
+        return reply.status(400).send(validationErrorResponse(['Additional cost ID is required']));
+      }
+
+      const additionalCostIdNum = parseInt(additionalCostId);
+      if (isNaN(additionalCostIdNum)) {
+        return reply.status(400).send(validationErrorResponse(['Additional cost ID must be a valid number']));
+      }
+
+      const result = await EstimateService.deleteAdditionalCost(additionalCostIdNum);
+      
+      return reply.status(200).send(successResponse(result, result.message));
+    } catch (error) {
+      if (error.message.includes('not found')) {
+        return reply.status(404).send(errorResponse('Additional cost not found', 404));
+      }
+      return reply.status(500).send(errorResponse('Failed to delete additional cost', 500));
+    }
+  }
+
+  static async calculateTotalCosts(req, reply) {
+    try {
+      const { estimateId } = req.params;
+
+      if (!estimateId) {
+        return reply.status(400).send(validationErrorResponse(['Estimate ID is required']));
+      }
+
+      const estimateIdNum = parseInt(estimateId);
+      if (isNaN(estimateIdNum)) {
+        return reply.status(400).send(validationErrorResponse(['Estimate ID must be a valid number']));
+      }
+
+      const costs = await EstimateService.calculateTotalCosts(estimateIdNum);
+      
+      return reply.status(200).send(successResponse(costs, 'Total costs calculated successfully'));
+    } catch (error) {
+      if (error.message.includes('not found')) {
+        return reply.status(404).send(errorResponse('Estimate not found', 404));
+      }
+      return reply.status(500).send(errorResponse('Failed to calculate total costs', 500));
+    }
+  }
+}
