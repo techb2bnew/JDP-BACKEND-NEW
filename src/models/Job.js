@@ -61,6 +61,7 @@ export class Job {
           trade,
           experience,
           hourly_rate,
+          hours_worked,
           availability,
           user_id
         `)
@@ -156,8 +157,8 @@ export class Job {
       jobWithDetails.assigned_labor = [];
     }
 
-    // Fetch materials by job_id instead of assigned_material_ids
     jobWithDetails.assigned_materials = await Job.fetchMaterialsDetails(job.id);
+
 
     return jobWithDetails;
   }
@@ -394,7 +395,6 @@ export class Job {
         throw new Error('laborId is required');
       }
 
-      // Get all jobs and filter by labor ID
       let allJobsQuery = supabase
         .from("jobs")
         .select(`
@@ -427,7 +427,7 @@ export class Job {
         throw new Error(`Database error: ${allJobsError.message}`);
       }
 
-      // Filter jobs by labor ID
+      
       const filteredJobs = (allJobs || []).filter(job => {
         try {
           const laborIds = JSON.parse(job.assigned_labor_ids || '[]');
@@ -437,10 +437,10 @@ export class Job {
         }
       });
 
-      // Apply pagination
+
       const paginatedJobs = filteredJobs.slice(offset, offset + limit);
 
-      // Add details to each job
+     
       const jobsWithDetails = await Promise.all(
         paginatedJobs.map(job => Job.addDetailsToJob(job))
       );
@@ -475,7 +475,7 @@ export class Job {
         throw new Error('leadLaborId is required');
       }
 
-      // Get all jobs and filter by lead labor ID
+     
       let allJobsQuery = supabase
         .from("jobs")
         .select(`
@@ -508,7 +508,7 @@ export class Job {
         throw new Error(`Database error: ${allJobsError.message}`);
       }
 
-      // Filter jobs by lead labor ID
+      
       const filteredJobs = (allJobs || []).filter(job => {
         try {
           const leadLaborIds = JSON.parse(job.assigned_lead_labor_ids || '[]');
@@ -518,10 +518,10 @@ export class Job {
         }
       });
 
-      // Apply pagination
+      
       const paginatedJobs = filteredJobs.slice(offset, offset + limit);
 
-      // Add details to each job
+   
       const jobsWithDetails = await Promise.all(
         paginatedJobs.map(job => Job.addDetailsToJob(job))
       );
@@ -711,11 +711,7 @@ export class Job {
         return null;
       }
 
-       const [transactions, timeLogs, materialUsage] = await Promise.all([
-         Job.getJobTransactions(jobId),
-         Job.getJobTimeLogs(jobId),
-         Job.getJobMaterialUsage(jobId)
-       ]);
+       const materialUsage = await Job.getJobMaterialUsage(jobId);
 
        const dashboardData = {
          ...job,
@@ -731,12 +727,8 @@ export class Job {
          keyMetrics: {
            totalHoursWorked: 0,
            totalMaterialUsed: 0, 
-           totalLabourEntries: 0, 
-           numberOfInvoices: 0 
+           totalLabourEntries: 0
          },
-
-         
-         transactionHistory: transactions,
 
          
          materialUsage: {
@@ -747,7 +739,7 @@ export class Job {
         
          laborSummary: {
            totalCost: 0,
-           laborEntries: timeLogs,
+           laborEntries: [],
            leadLaborEntries: job.assigned_lead_labor || []
          }
        };
@@ -762,20 +754,6 @@ export class Job {
          dashboardData.keyMetrics.totalMaterialUsed = materialUsage.length;
        }
 
-       
-       if (timeLogs && timeLogs.length > 0) {
-         const laborCost = timeLogs.reduce((sum, log) => {
-           return sum + (parseFloat(log.total_cost) || 0);
-         }, 0);
-         const totalHours = timeLogs.reduce((sum, log) => {
-           return sum + (parseFloat(log.hours_worked) || 0);
-         }, 0);
-         
-         dashboardData.projectSummary.laborCost = laborCost;
-         dashboardData.laborSummary.totalCost = laborCost;
-         dashboardData.keyMetrics.totalLabourEntries = timeLogs.length;
-         dashboardData.keyMetrics.totalHoursWorked = totalHours;
-       }
 
        
        if (transactions && transactions.length > 0) {
@@ -807,43 +785,8 @@ export class Job {
      }
    }
 
-   
-   static async getJobTransactions(jobId) {
-     try {
-       const { data, error } = await supabase
-         .from("job_transactions")
-         .select("*")
-         .eq("job_id", jobId)
-         .order("created_at", { ascending: false });
-
-       if (error) {
-         throw new Error(`Database error: ${error.message}`);
-       }
-
-       return data || [];
-     } catch (error) {
-       throw error;
-     }
-   }
 
    
-   static async getJobTimeLogs(jobId) {
-     try {
-       const { data, error } = await supabase
-         .from("job_time_logs")
-         .select("*")
-         .eq("job_id", jobId)
-         .order("work_date", { ascending: false });
-
-       if (error) {
-         throw new Error(`Database error: ${error.message}`);
-       }
-
-       return data || [];
-     } catch (error) {
-       throw error;
-     }
-   }
 
   
    static async getJobMaterialUsage(jobId) {

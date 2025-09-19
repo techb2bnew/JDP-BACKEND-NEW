@@ -72,11 +72,13 @@ CREATE TABLE IF NOT EXISTS labor (
   trade             VARCHAR(100),            
   experience        VARCHAR(50),
   hourly_rate       NUMERIC(10,2),
+  hours_worked      DECIMAL(8,2) DEFAULT 0,
   supervisor_id     INT REFERENCES users(id),
   availability      VARCHAR(100),
   certifications      TEXT,
   skills      TEXT,
-  management_type VARCHAR(50)
+  management_type VARCHAR(50),
+  is_custom       BOOLEAN DEFAULT FALSE,
   created_at        TIMESTAMP DEFAULT NOW()
 );
 

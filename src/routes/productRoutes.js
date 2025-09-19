@@ -139,7 +139,6 @@ export default async function productRoutes(fastify, options) {
 
   fastify.post('/updateProduct/:id', {
     preHandler: [fastify.authenticateToken],
-  
   }, ProductController.updateProduct);
 
   fastify.delete('/deleteProduct/:id', {

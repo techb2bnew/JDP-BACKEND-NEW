@@ -80,7 +80,8 @@ export class LaborService {
         system_ip: laborData.system_ip,
         certifications: laborData.certifications ? JSON.stringify(laborData.certifications) : null,
         skills: laborData.skills ? JSON.stringify(laborData.skills) : null,
-        management_type:laborData.management_type
+        management_type:laborData.management_type,
+        is_custom: laborData.is_custom || false
       };
 
       const labor = await Labor.create(laborRecordData);
@@ -162,6 +163,7 @@ export class LaborService {
       if (updateData.trade !== undefined) laborData.trade = updateData.trade;
       if (updateData.experience !== undefined) laborData.experience = updateData.experience;
       if (updateData.hourly_rate !== undefined) laborData.hourly_rate = updateData.hourly_rate;
+      if (updateData.hours_worked !== undefined) laborData.hours_worked = updateData.hours_worked;
       if (updateData.supervisor_id !== undefined) {
         if (updateData.supervisor_id) {
           const supervisor = await User.findById(updateData.supervisor_id);
@@ -179,6 +181,7 @@ export class LaborService {
       if (updateData.availability !== undefined) laborData.availability = updateData.availability;
       if (updateData.certifications !== undefined) laborData.certifications = updateData.certifications ? JSON.stringify(updateData.certifications) : null;
       if (updateData.skills !== undefined) laborData.skills = updateData.skills ? JSON.stringify(updateData.skills) : null;
+      if (updateData.is_custom !== undefined) laborData.is_custom = updateData.is_custom;
 
       if (Object.keys(userData).length > 0) {
         await User.update(userId, userData);
@@ -345,6 +348,15 @@ export class LaborService {
       }
 
       return fileUrls;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async getCustomLabor(page = 1, limit = 10) {
+    try {
+      const result = await Labor.getCustomLabor(page, limit);
+      return result;
     } catch (error) {
       throw error;
     }

@@ -189,4 +189,18 @@ export class LaborController {
       return reply.status(500).send(errorResponse('Failed to update labor profile', 500));
     }
   }
+
+  static async getCustomLabor(req, reply) {
+    try {
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 10;
+      
+      const result = await LaborService.getCustomLabor(page, limit);
+      
+      return reply.status(200).send(successResponse(result, 'Custom labor retrieved successfully'));
+    } catch (error) {
+      console.error('Error in getCustomLabor:', error);
+      return reply.status(500).send(errorResponse('Failed to retrieve custom labor', 500));
+    }
+  }
 }
