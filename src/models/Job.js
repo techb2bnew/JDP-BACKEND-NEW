@@ -1037,9 +1037,25 @@ export class Job {
          updateFields.end_timer = updateData.end_timer;
        }
 
-       // Handle pause timer update (reason and notes)
+       // Handle pause timer update (array of objects with title and duration)
        if (updateData.pause_timer) {
-         updateFields.pause_timer = updateData.pause_timer;
+         // Get current pause timer array
+         let currentPauses = [];
+         try {
+           currentPauses = job.pause_timer ? JSON.parse(job.pause_timer) : [];
+         } catch (e) {
+           currentPauses = [];
+         }
+
+         // If it's an array, append to existing pauses
+         if (Array.isArray(updateData.pause_timer)) {
+           currentPauses = currentPauses.concat(updateData.pause_timer);
+         } else {
+           // If it's a single object, add it to the array
+           currentPauses.push(updateData.pause_timer);
+         }
+
+         updateFields.pause_timer = JSON.stringify(currentPauses);
        }
 
        const { data, error } = await supabase

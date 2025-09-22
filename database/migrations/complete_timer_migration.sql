@@ -13,7 +13,7 @@ ALTER TABLE jobs ADD COLUMN IF NOT EXISTS total_work_time INTERVAL DEFAULT '00:0
 -- Step 4: Add timer fields for mobile app
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS start_timer TIMESTAMP;
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS end_timer TIMESTAMP;
-ALTER TABLE jobs ADD COLUMN IF NOT EXISTS pause_timer TEXT;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS pause_timer JSONB DEFAULT '[]';
 
 -- Step 5: Update existing records to have default values
 UPDATE jobs SET 
@@ -62,7 +62,7 @@ INSERT INTO jobs (
     '02:30:45'::interval,
     '2024-01-15T09:00:00Z'::timestamp,
     '2024-01-15T17:00:00Z'::timestamp,
-    'Lunch Break - Test pause reason',
+    '[{"title": "Lunch Break", "duration": "00:30:45"}, {"title": "Equipment Issue", "duration": "00:15:30"}]'::jsonb,
     'app'
 );
 
@@ -85,7 +85,7 @@ SET
     total_work_time = '08:00:00'::interval,
     start_timer = '2024-01-15T08:00:00Z'::timestamp,
     end_timer = '2024-01-15T18:00:00Z'::timestamp,
-    pause_timer = 'Equipment Issue - Drill machine stopped working'
+    pause_timer = '[{"title": "Lunch Break", "duration": "00:30:00"}, {"title": "Material Pickup", "duration": "00:45:00"}, {"title": "Customer Meeting", "duration": "01:00:00"}]'::jsonb
 WHERE job_title = 'Test Job - Complete Timer';
 
 -- Step 11: Verify the update

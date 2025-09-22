@@ -149,9 +149,24 @@ export const createJobSchema = {
         description: 'End timer timestamp'
       },
       pause_timer: {
-        type: 'string',
-        maxLength: 500,
-        description: 'Pause timer reason and notes (e.g., "Lunch Break - Additional notes here")'
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            title: {
+              type: 'string',
+              maxLength: 200,
+              description: 'Pause reason title (e.g., "Lunch Break", "Equipment Issue")'
+            },
+            duration: {
+              type: 'string',
+              pattern: '^\\d{2}:\\d{2}:\\d{2}$',
+              description: 'Pause duration in HH:MM:SS format'
+            }
+          },
+          required: ['title', 'duration']
+        },
+        description: 'Array of pause timer objects with title and duration (e.g., [{"title": "Lunch Break", "duration": "00:30:45"}])'
       }
     }
   }
@@ -303,9 +318,24 @@ export const updateJobSchema = {
         description: 'End timer timestamp'
       },
       pause_timer: {
-        type: 'string',
-        maxLength: 500,
-        description: 'Pause timer reason and notes (e.g., "Lunch Break - Additional notes here")'
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            title: {
+              type: 'string',
+              maxLength: 200,
+              description: 'Pause reason title (e.g., "Lunch Break", "Equipment Issue")'
+            },
+            duration: {
+              type: 'string',
+              pattern: '^\\d{2}:\\d{2}:\\d{2}$',
+              description: 'Pause duration in HH:MM:SS format'
+            }
+          },
+          required: ['title', 'duration']
+        },
+        description: 'Array of pause timer objects with title and duration (e.g., [{"title": "Lunch Break", "duration": "00:30:45"}])'
       }
     }
   }

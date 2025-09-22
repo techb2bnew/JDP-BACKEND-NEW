@@ -33,85 +33,73 @@ curl -X POST "YOUR_SERVER_URL/api/job/updateWorkData/1" \
   }'
 ```
 
-## 3. Pause Timer with Reason
+## 3. Pause Timer with Reasons (Array of Objects)
 
-### Lunch Break
+### Add Single Pause Reason
 ```bash
 curl -X POST "YOUR_SERVER_URL/api/job/updateWorkData/1" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -d '{
-    "pause_timer": "Lunch Break - Taking 30 minute lunch break"
+    "pause_timer": {
+      "title": "Lunch Break",
+      "duration": "00:30:45"
+    }
   }'
 ```
 
-### Material Pickup
+### Add Multiple Pause Reasons at Once
 ```bash
 curl -X POST "YOUR_SERVER_URL/api/job/updateWorkData/1" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -d '{
-    "pause_timer": "Material Pickup - Going to get supplies from warehouse"
+    "pause_timer": [
+      {
+        "title": "Lunch Break",
+        "duration": "00:30:45"
+      },
+      {
+        "title": "Material Pickup",
+        "duration": "00:45:00"
+      },
+      {
+        "title": "Equipment Issue",
+        "duration": "00:15:30"
+      }
+    ]
   }'
 ```
 
-### Customer Meeting
+### Add More Pause Reasons (Appends to existing array)
 ```bash
 curl -X POST "YOUR_SERVER_URL/api/job/updateWorkData/1" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -d '{
-    "pause_timer": "Customer Meeting - Discussing project requirements"
+    "pause_timer": [
+      {
+        "title": "Customer Meeting",
+        "duration": "01:00:00"
+      },
+      {
+        "title": "Weather Delay",
+        "duration": "00:20:00"
+      }
+    ]
   }'
 ```
 
-### Equipment Issue
+### Add Single Reason (Appends to existing array)
 ```bash
 curl -X POST "YOUR_SERVER_URL/api/job/updateWorkData/1" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -d '{
-    "pause_timer": "Equipment Issue - Drill machine stopped working, waiting for repair"
-  }'
-```
-
-### Weather Delay
-```bash
-curl -X POST "YOUR_SERVER_URL/api/job/updateWorkData/1" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  -d '{
-    "pause_timer": "Weather Delay - Heavy rain, cannot work outside"
-  }'
-```
-
-### Waiting for Parts
-```bash
-curl -X POST "YOUR_SERVER_URL/api/job/updateWorkData/1" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  -d '{
-    "pause_timer": "Waiting for Parts - Need electrical components, delivery expected in 2 hours"
-  }'
-```
-
-### Safety Break
-```bash
-curl -X POST "YOUR_SERVER_URL/api/job/updateWorkData/1" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  -d '{
-    "pause_timer": "Safety Break - Mandatory safety break as per company policy"
-  }'
-```
-
-### Other Reason
-```bash
-curl -X POST "YOUR_SERVER_URL/api/job/updateWorkData/1" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  -d '{
-    "pause_timer": "Other - Personal emergency, need to leave for 1 hour"
+    "pause_timer": {
+      "title": "Safety Break",
+      "duration": "00:10:00"
+    }
   }'
 ```
 
@@ -172,7 +160,16 @@ curl -X POST "YOUR_SERVER_URL/api/job/updateWorkData/1" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -d '{
-    "pause_timer": "Lunch Break - 30 minute break",
+    "pause_timer": [
+      {
+        "title": "Lunch Break",
+        "duration": "00:30:00"
+      },
+      {
+        "title": "Equipment Issue",
+        "duration": "00:15:30"
+      }
+    ],
     "work_activity": 3
   }'
 ```
@@ -202,7 +199,16 @@ curl -X GET "YOUR_SERVER_URL/api/job/getWorkActivityHistory/1" \
     "total_work_time": "07:30:45",
     "start_timer": "2024-01-15T09:00:00Z",
     "end_timer": "2024-01-15T17:00:00Z",
-    "pause_timer": "Lunch Break - 30 minute break",
+        "pause_timer": [
+          {
+            "title": "Lunch Break",
+            "duration": "00:30:00"
+          },
+          {
+            "title": "Equipment Issue",
+            "duration": "00:15:30"
+          }
+        ],
     "updated_at": "2024-01-15T17:00:00Z"
   }
 }
@@ -233,6 +239,9 @@ curl -X GET "YOUR_SERVER_URL/api/job/getWorkActivityHistory/1" \
 1. All timestamps should be in ISO 8601 format (e.g., `2024-01-15T09:00:00Z`)
 2. `work_activity` should be a positive integer (1, 2, 3, etc.)
 3. `total_work_time` should be in HH:MM:SS format
-4. `pause_timer` can include both reason and additional notes
-5. You can update multiple fields in a single API call
-6. At least one field must be provided in each request
+4. `pause_timer` is now an array of objects with `title` and `duration`
+5. Each pause object must have both `title` (string) and `duration` (HH:MM:SS format)
+6. You can send a single object or an array of objects for `pause_timer`
+7. New pause reasons are appended to the existing array
+8. You can update multiple fields in a single API call
+9. At least one field must be provided in each request
