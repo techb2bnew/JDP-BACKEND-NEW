@@ -1,4 +1,5 @@
 import { JobService } from '../services/jobService.js';
+import { Job } from '../models/Job.js';
 import { errorResponse } from '../helpers/responseHelper.js';
 
 export class JobController {
@@ -208,6 +209,119 @@ export class JobController {
     } catch (error) {
       if (error.message.includes('not found')) {
         return reply.code(404).send(errorResponse(error.message, 404));
+      }
+      if (error.message.includes('Database error')) {
+        return reply.code(500).send(errorResponse('Database error occurred', 500));
+      }
+      return reply.code(500).send(errorResponse(error.message));
+    }
+  }
+
+  // Work Activity and Time Controllers
+  static async updateWorkActivity(request, reply) {
+    try {
+      const { id } = request.params;
+      const { activity_count } = request.body;
+
+      if (typeof activity_count !== 'number' || activity_count < 0) {
+        return reply.code(400).send(errorResponse('activity_count must be a positive number', 400));
+      }
+
+      const result = await Job.updateWorkActivity(parseInt(id), activity_count);
+      return reply.code(200).send({
+        success: true,
+        message: 'Work activity count updated successfully',
+        data: result
+      });
+    } catch (error) {
+      if (error.message.includes('not found')) {
+        return reply.code(404).send(errorResponse(error.message, 404));
+      }
+      if (error.message.includes('Database error')) {
+        return reply.code(500).send(errorResponse('Database error occurred', 500));
+      }
+      return reply.code(500).send(errorResponse(error.message));
+    }
+  }
+
+  static async updateTotalWorkTime(request, reply) {
+    try {
+      const { id } = request.params;
+      const { total_work_time } = request.body;
+
+      if (!total_work_time) {
+        return reply.code(400).send(errorResponse('total_work_time is required', 400));
+      }
+
+      const result = await Job.updateTotalWorkTime(parseInt(id), total_work_time);
+      return reply.code(200).send({
+        success: true,
+        message: 'Total work time updated successfully',
+        data: result
+      });
+    } catch (error) {
+      if (error.message.includes('not found')) {
+        return reply.code(404).send(errorResponse(error.message, 404));
+      }
+      if (error.message.includes('Invalid time format')) {
+        return reply.code(400).send(errorResponse(error.message, 400));
+      }
+      if (error.message.includes('Database error')) {
+        return reply.code(500).send(errorResponse('Database error occurred', 500));
+      }
+      return reply.code(500).send(errorResponse(error.message));
+    }
+  }
+
+  static async getWorkActivityHistory(request, reply) {
+    try {
+      const { id } = request.params;
+      const result = await Job.getWorkActivityHistory(parseInt(id));
+      return reply.code(200).send({
+        success: true,
+        data: result
+      });
+    } catch (error) {
+      if (error.message.includes('not found')) {
+        return reply.code(404).send(errorResponse(error.message, 404));
+      }
+      if (error.message.includes('Database error')) {
+        return reply.code(500).send(errorResponse('Database error occurred', 500));
+      }
+      return reply.code(500).send(errorResponse(error.message));
+    }
+  }
+
+  // Unified method to update both work activity and total work time
+  static async updateWorkData(request, reply) {
+    try {
+      const { id } = request.params;
+      const updateData = request.body;
+
+      // Validate that at least one field is provided
+      if (updateData.work_activity === undefined && !updateData.total_work_time) {
+        return reply.code(400).send(errorResponse('Either work_activity or total_work_time is required', 400));
+      }
+
+      // Validate work activity if provided (should be a simple number)
+      if (updateData.work_activity !== undefined) {
+        if (typeof updateData.work_activity !== 'number' || updateData.work_activity < 0) {
+          return reply.code(400).send(errorResponse('work_activity must be a positive number', 400));
+        }
+      }
+
+      const result = await Job.updateWorkData(parseInt(id), updateData);
+      return reply.code(200).send({
+        success: true,
+        message: 'Work data updated successfully',
+        data: result
+      });
+    } catch (error) {
+      if (error.message.includes('not found')) {
+        return reply.code(404).send(errorResponse(error.message, 404));
+      }
+      if (error.message.includes('Invalid time format')) {
+        return reply.code(400).send(errorResponse(error.message, 400));
       }
       if (error.message.includes('Database error')) {
         return reply.code(500).send(errorResponse('Database error occurred', 500));

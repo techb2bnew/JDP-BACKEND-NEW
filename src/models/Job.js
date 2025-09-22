@@ -906,4 +906,141 @@ export class Job {
        throw error;
      }
    }
+
+   // Work Activity and Time Methods
+   static async updateWorkActivity(jobId, activityCount) {
+     try {
+       if (!jobId) {
+         throw new Error('Job ID is required');
+       }
+
+       if (typeof activityCount !== 'number' || activityCount < 0) {
+         throw new Error('Activity count must be a positive number');
+       }
+
+       // Update job with new activity count
+       const { data, error } = await supabase
+         .from("jobs")
+         .update({
+           work_activity: activityCount,
+           updated_at: new Date().toISOString()
+         })
+         .eq("id", jobId)
+         .select()
+         .single();
+
+       if (error) {
+         throw new Error(`Database error: ${error.message}`);
+       }
+
+       return data;
+     } catch (error) {
+       throw error;
+     }
+   }
+
+   static async updateTotalWorkTime(jobId, workTime) {
+     try {
+       if (!jobId) {
+         throw new Error('Job ID is required');
+       }
+
+       // Validate time format (HH:MM:SS)
+       const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/;
+       if (!timeRegex.test(workTime)) {
+         throw new Error('Invalid time format. Use HH:MM:SS');
+       }
+
+       const { data, error } = await supabase
+         .from("jobs")
+         .update({
+           total_work_time: workTime,
+           updated_at: new Date().toISOString()
+         })
+         .eq("id", jobId)
+         .select()
+         .single();
+
+       if (error) {
+         throw new Error(`Database error: ${error.message}`);
+       }
+
+       return data;
+     } catch (error) {
+       throw error;
+     }
+   }
+
+   static async getWorkActivityHistory(jobId) {
+     try {
+       if (!jobId) {
+         throw new Error('Job ID is required');
+       }
+
+       const job = await Job.findById(jobId);
+       if (!job) {
+         throw new Error('Job not found');
+       }
+
+       return {
+         jobId: job.id,
+         jobTitle: job.job_title,
+         totalWorkTime: job.total_work_time,
+         activityCount: job.work_activity || 0
+       };
+     } catch (error) {
+       throw error;
+     }
+   }
+
+   // Unified method to update both work activity and total work time
+   static async updateWorkData(jobId, updateData) {
+     try {
+       if (!jobId) {
+         throw new Error('Job ID is required');
+       }
+
+       const job = await Job.findById(jobId);
+       if (!job) {
+         throw new Error('Job not found');
+       }
+
+       const updateFields = {
+         updated_at: new Date().toISOString()
+       };
+
+       // Handle work activity update (simple integer count)
+       if (updateData.work_activity !== undefined) {
+         if (typeof updateData.work_activity !== 'number' || updateData.work_activity < 0) {
+           throw new Error('Work activity must be a positive number');
+         }
+         updateFields.work_activity = updateData.work_activity;
+       }
+
+       // Handle total work time update
+       if (updateData.total_work_time) {
+         // Validate time format (HH:MM:SS)
+         const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/;
+         if (!timeRegex.test(updateData.total_work_time)) {
+           throw new Error('Invalid time format. Use HH:MM:SS');
+         }
+         updateFields.total_work_time = updateData.total_work_time;
+       }
+
+       const { data, error } = await supabase
+         .from("jobs")
+         .update(updateFields)
+         .eq("id", jobId)
+         .select()
+         .single();
+
+       if (error) {
+         throw new Error(`Database error: ${error.message}`);
+       }
+
+       return data;
+     } catch (error) {
+       throw error;
+     }
+   }
  }

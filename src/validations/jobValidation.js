@@ -127,6 +127,16 @@ export const createJobSchema = {
         enum: ['admin', 'app'],
         default: 'admin',
         description: 'Source of job creation (admin panel or mobile app)'
+      },
+      work_activity: {
+        type: 'integer',
+        minimum: 0,
+        description: 'Number of work activities (simple count like 1, 2, 20)'
+      },
+      total_work_time: {
+        type: 'string',
+        pattern: '^\\d{2}:\\d{2}:\\d{2}$',
+        description: 'Total work time in HH:MM:SS format'
       }
     }
   }
@@ -256,6 +266,16 @@ export const updateJobSchema = {
         type: 'string',
         enum: ['admin', 'app'],
         description: 'Source of job creation (admin panel or mobile app)'
+      },
+      work_activity: {
+        type: 'integer',
+        minimum: 0,
+        description: 'Number of work activities (simple count like 1, 2, 20)'
+      },
+      total_work_time: {
+        type: 'string',
+        pattern: '^\\d{2}:\\d{2}:\\d{2}$',
+        description: 'Total work time in HH:MM:SS format'
       }
     }
   }
