@@ -28,9 +28,17 @@ END $$;
 -- Add total_work_time field (INTERVAL to store work time)
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS total_work_time INTERVAL DEFAULT '00:00:00';
 
+-- Add timer fields for mobile app
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS start_timer TIMESTAMP;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS end_timer TIMESTAMP;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS pause_timer TEXT;
+
 -- Add indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_jobs_work_activity ON jobs (work_activity);
 CREATE INDEX IF NOT EXISTS idx_jobs_total_work_time ON jobs (total_work_time);
+CREATE INDEX IF NOT EXISTS idx_jobs_start_timer ON jobs (start_timer);
+CREATE INDEX IF NOT EXISTS idx_jobs_end_timer ON jobs (end_timer);
+CREATE INDEX IF NOT EXISTS idx_jobs_pause_timer ON jobs (pause_timer);
 
 -- Update existing records to have default values
 UPDATE jobs SET 

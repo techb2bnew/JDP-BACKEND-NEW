@@ -993,7 +993,7 @@ export class Job {
      }
    }
 
-   // Unified method to update both work activity and total work time
+   // Unified method to update work activity, total work time, and timer fields
    static async updateWorkData(jobId, updateData) {
      try {
        if (!jobId) {
@@ -1025,6 +1025,21 @@ export class Job {
            throw new Error('Invalid time format. Use HH:MM:SS');
          }
          updateFields.total_work_time = updateData.total_work_time;
+       }
+
+       // Handle start timer update
+       if (updateData.start_timer) {
+         updateFields.start_timer = updateData.start_timer;
+       }
+
+       // Handle end timer update
+       if (updateData.end_timer) {
+         updateFields.end_timer = updateData.end_timer;
+       }
+
+       // Handle pause timer update (reason and notes)
+       if (updateData.pause_timer) {
+         updateFields.pause_timer = updateData.pause_timer;
        }
 
        const { data, error } = await supabase

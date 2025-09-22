@@ -137,6 +137,21 @@ export const createJobSchema = {
         type: 'string',
         pattern: '^\\d{2}:\\d{2}:\\d{2}$',
         description: 'Total work time in HH:MM:SS format'
+      },
+      start_timer: {
+        type: 'string',
+        format: 'date-time',
+        description: 'Start timer timestamp'
+      },
+      end_timer: {
+        type: 'string',
+        format: 'date-time',
+        description: 'End timer timestamp'
+      },
+      pause_timer: {
+        type: 'string',
+        maxLength: 500,
+        description: 'Pause timer reason and notes (e.g., "Lunch Break - Additional notes here")'
       }
     }
   }
@@ -276,6 +291,21 @@ export const updateJobSchema = {
         type: 'string',
         pattern: '^\\d{2}:\\d{2}:\\d{2}$',
         description: 'Total work time in HH:MM:SS format'
+      },
+      start_timer: {
+        type: 'string',
+        format: 'date-time',
+        description: 'Start timer timestamp'
+      },
+      end_timer: {
+        type: 'string',
+        format: 'date-time',
+        description: 'End timer timestamp'
+      },
+      pause_timer: {
+        type: 'string',
+        maxLength: 500,
+        description: 'Pause timer reason and notes (e.g., "Lunch Break - Additional notes here")'
       }
     }
   }

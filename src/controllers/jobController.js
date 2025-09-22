@@ -292,15 +292,19 @@ export class JobController {
     }
   }
 
-  // Unified method to update both work activity and total work time
+  // Unified method to update work activity, total work time, and timer fields
   static async updateWorkData(request, reply) {
     try {
       const { id } = request.params;
       const updateData = request.body;
 
       // Validate that at least one field is provided
-      if (updateData.work_activity === undefined && !updateData.total_work_time) {
-        return reply.code(400).send(errorResponse('Either work_activity or total_work_time is required', 400));
+      if (updateData.work_activity === undefined && 
+          !updateData.total_work_time && 
+          !updateData.start_timer && 
+          !updateData.end_timer && 
+          !updateData.pause_timer) {
+        return reply.code(400).send(errorResponse('At least one field is required: work_activity, total_work_time, start_timer, end_timer, or pause_timer', 400));
       }
 
       // Validate work activity if provided (should be a simple number)
