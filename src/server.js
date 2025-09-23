@@ -22,8 +22,6 @@ import { contractorRoutes } from './routes/contractorRoutes.js';
 import { jobRoutes } from './routes/jobRoutes.js';
 import estimateRoutes from './routes/estimateRoutes.js';
 
-
-
 dotenv.config();
 
 const fastify = Fastify({

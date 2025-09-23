@@ -181,7 +181,7 @@ CREATE TABLE IF NOT EXISTS products (
   updated_at          TIMESTAMP DEFAULT NOW()
 );
 
--- Create indexes for products table
+
 CREATE INDEX IF NOT EXISTS idx_products_status ON products(status);
 CREATE INDEX IF NOT EXISTS idx_products_system_ip ON products(system_ip);
 CREATE INDEX IF NOT EXISTS idx_products_created_by ON products(created_by);

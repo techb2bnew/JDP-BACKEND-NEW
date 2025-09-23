@@ -12,7 +12,7 @@ export const createEstimateSchema = Joi.object({
   email_address: Joi.string().email().required(),
   estimate_date: Joi.date().required(),
   
-  // Cost breakdown
+
   materials_cost: Joi.number().precision(2).min(0).default(0),
   labor_cost: Joi.number().precision(2).min(0).default(0),
   additional_costs: Joi.number().precision(2).min(0).default(0),
@@ -21,8 +21,20 @@ export const createEstimateSchema = Joi.object({
   tax_amount: Joi.number().precision(2).min(0).default(0),
   total_amount: Joi.number().precision(2).min(0).default(0),
   
-  // Status
-  status: Joi.string().valid('draft', 'sent', 'accepted', 'rejected', 'expired').default('draft')
+
+  status: Joi.string().valid('draft', 'sent', 'accepted', 'rejected', 'expired').default('draft'),
+  
+
+  invoice_type: Joi.string().valid('estimate', 'proposal_invoice', 'progressive_invoice', 'final_invoice').default('estimate'),
+  invoice_number: Joi.string().max(50).optional(),
+  issue_date: Joi.date().optional(),
+  due_date: Joi.date().optional(),
+  
+ 
+  additional_cost: Joi.object({
+    description: Joi.string().max(200).required(),
+    amount: Joi.number().precision(2).min(0).required()
+  }).optional()
 });
 
 export const updateEstimateSchema = Joi.object({
@@ -37,7 +49,7 @@ export const updateEstimateSchema = Joi.object({
   email_address: Joi.string().email().optional(),
   estimate_date: Joi.date().optional(),
   
-  // Cost breakdown
+
   materials_cost: Joi.number().precision(2).min(0).optional(),
   labor_cost: Joi.number().precision(2).min(0).optional(),
   additional_costs: Joi.number().precision(2).min(0).optional(),
@@ -45,9 +57,18 @@ export const updateEstimateSchema = Joi.object({
   tax_percentage: Joi.number().precision(2).min(0).max(100).optional(),
   tax_amount: Joi.number().precision(2).min(0).optional(),
   total_amount: Joi.number().precision(2).min(0).optional(),
+
+  status: Joi.string().valid('draft', 'sent', 'accepted', 'rejected', 'expired').optional(),
   
-  // Status
-  status: Joi.string().valid('draft', 'sent', 'accepted', 'rejected', 'expired').optional()
+  invoice_type: Joi.string().valid('estimate', 'proposal_invoice', 'progressive_invoice', 'final_invoice').optional(),
+  invoice_number: Joi.string().max(50).optional(),
+  issue_date: Joi.date().optional(),
+  due_date: Joi.date().optional(),
+  
+  additional_cost: Joi.object({
+    description: Joi.string().max(200).required(),
+    amount: Joi.number().precision(2).min(0).required()
+  }).optional()
 });
 
 export const estimateQuerySchema = Joi.object({
@@ -56,7 +77,6 @@ export const estimateQuerySchema = Joi.object({
   sortBy: Joi.string().valid('id', 'estimate_title', 'estimate_date', 'total_amount', 'status', 'created_at').default('created_at'),
   sortOrder: Joi.string().valid('asc', 'desc').default('desc'),
   
-  // Filters
   job_id: Joi.number().integer().positive().optional(),
   customer_id: Joi.number().integer().positive().optional(),
   status: Joi.string().valid('draft', 'sent', 'accepted', 'rejected', 'expired').optional(),
@@ -65,7 +85,6 @@ export const estimateQuerySchema = Joi.object({
   estimate_date: Joi.date().optional()
 });
 
-// Additional Cost Schemas
 export const createAdditionalCostSchema = Joi.object({
   estimate_id: Joi.number().integer().positive().required(),
   description: Joi.string().max(200).required(),

@@ -1,8 +1,52 @@
 import { supabase } from '../config/database.js';
 
 export class Estimate {
+  static async generateInvoiceNumber() {
+    try {
+      const { data, error } = await supabase.rpc('generate_invoice_number');
+      
+      if (error) {
+        const currentYear = new Date().getFullYear();
+        const prefix = `INV-${currentYear}-`;
+        
+        const { data: lastInvoice, error: fetchError } = await supabase
+          .from('estimates')
+          .select('invoice_number')
+          .like('invoice_number', prefix + '%')
+          .order('invoice_number', { ascending: false })
+          .limit(1);
+        
+        if (fetchError) {
+          throw new Error(`Database error: ${fetchError.message}`);
+        }
+        
+        let nextNumber = 1;
+        if (lastInvoice && lastInvoice.length > 0) {
+          const lastNumber = lastInvoice[0].invoice_number;
+          const match = lastNumber.match(new RegExp(`${prefix}(\\d+)`));
+          if (match) {
+            nextNumber = parseInt(match[1]) + 1;
+          }
+        }
+        
+        return `${prefix}${nextNumber.toString().padStart(3, '0')}`;
+      }
+      
+      return data;
+    } catch (error) {
+      throw error;
+    }
+  }
+
   static async create(estimateData) {
     try {
+      const additionalCost = estimateData.additional_cost;
+      delete estimateData.additional_cost; 
+
+      if (!estimateData.invoice_number) {
+        estimateData.invoice_number = await Estimate.generateInvoiceNumber();
+      }
+
       const { data, error } = await supabase
         .from("estimates")
         .insert([estimateData])
@@ -33,7 +77,61 @@ export class Estimate {
         throw new Error(`Database error: ${error.message}`);
       }
 
-      return data;
+      if (additionalCost && additionalCost.description && additionalCost.amount) {
+        const additionalCostData = {
+          estimate_id: data.id,
+          description: additionalCost.description,
+          amount: additionalCost.amount,
+          created_by: estimateData.created_by || null,
+          system_ip: estimateData.system_ip || null
+        };
+
+        const { error: additionalCostError } = await supabase
+          .from("estimate_additional_costs")
+          .insert([additionalCostData]);
+
+        if (additionalCostError) {
+          console.error('Error creating additional cost:', additionalCostError);
+        }
+      }
+
+      const { data: completeEstimate, error: fetchError } = await supabase
+        .from("estimates")
+        .select(`
+          *,
+          job:jobs!estimates_job_id_fkey(
+            id,
+            job_title,
+            job_type,
+            status
+          ),
+          customer:customers!estimates_customer_id_fkey(
+            id,
+            customer_name,
+            company_name,
+            email,
+            phone
+          ),
+          created_by_user:users!estimates_created_by_fkey(
+            id,
+            full_name,
+            email
+          ),
+          additional_cost:estimate_additional_costs(
+            id,
+            description,
+            amount,
+            created_at
+          )
+        `)
+        .eq('id', data.id)
+        .single();
+
+      if (fetchError) {
+        throw new Error(`Database error: ${fetchError.message}`);
+      }
+
+      return completeEstimate;
     } catch (error) {
       throw error;
     }
@@ -65,7 +163,6 @@ export class Estimate {
           )
         `, { count: 'exact' });
 
-      // Apply filters
       if (filters.job_id) {
         query = query.eq("job_id", filters.job_id);
       }
@@ -146,7 +243,6 @@ export class Estimate {
 
       if (!data) return null;
 
-      // Get additional costs for this estimate
       const additionalCosts = await Estimate.getAdditionalCosts(estimateId);
       data.additional_costs_list = additionalCosts;
 
@@ -158,6 +254,11 @@ export class Estimate {
 
   static async update(estimateId, updateData) {
     try {
+     
+      const additionalCost = updateData.additional_cost;
+      delete updateData.additional_cost; 
+
+     
       const { data, error } = await supabase
         .from("estimates")
         .update(updateData)
@@ -189,7 +290,76 @@ export class Estimate {
         throw new Error(`Database error: ${error.message}`);
       }
 
-      return data;
+      
+      if (additionalCost !== undefined) {
+        
+        const { error: deleteError } = await supabase
+          .from("estimate_additional_costs")
+          .delete()
+          .eq("estimate_id", estimateId);
+
+        if (deleteError) {
+          console.error('Error deleting existing additional cost:', deleteError);
+        }
+
+       
+        if (additionalCost && additionalCost.description && additionalCost.amount) {
+          const additionalCostData = {
+            estimate_id: estimateId,
+            description: additionalCost.description,
+            amount: additionalCost.amount,
+            created_by: updateData.created_by || null,
+            system_ip: updateData.system_ip || null
+          };
+
+          const { error: additionalCostError } = await supabase
+            .from("estimate_additional_costs")
+            .insert([additionalCostData]);
+
+          if (additionalCostError) {
+            console.error('Error creating additional cost:', additionalCostError);
+          }
+        }
+      }
+
+      
+      const { data: completeEstimate, error: fetchError } = await supabase
+        .from("estimates")
+        .select(`
+          *,
+          job:jobs!estimates_job_id_fkey(
+            id,
+            job_title,
+            job_type,
+            status
+          ),
+          customer:customers!estimates_customer_id_fkey(
+            id,
+            customer_name,
+            company_name,
+            email,
+            phone
+          ),
+          created_by_user:users!estimates_created_by_fkey(
+            id,
+            full_name,
+            email
+          ),
+          additional_cost:estimate_additional_costs(
+            id,
+            description,
+            amount,
+            created_at
+          )
+        `)
+        .eq('id', estimateId)
+        .single();
+
+      if (fetchError) {
+        throw new Error(`Database error: ${fetchError.message}`);
+      }
+
+      return completeEstimate;
     } catch (error) {
       throw error;
     }
@@ -311,7 +481,7 @@ export class Estimate {
     }
   }
 
-  // Additional Costs Methods
+ 
   static async createAdditionalCost(additionalCostData) {
     try {
       const { data, error } = await supabase
@@ -403,7 +573,7 @@ export class Estimate {
       const taxAmount = (subtotal * parseFloat(estimate.tax_percentage)) / 100;
       const totalAmount = subtotal + taxAmount;
 
-      // Update estimate with calculated values
+      
       await Estimate.update(estimateId, {
         additional_costs: additionalCostsTotal,
         subtotal: subtotal,
@@ -420,6 +590,44 @@ export class Estimate {
         total_amount: totalAmount
       };
     } catch (error) {
+      throw error;
+    }
+  }
+
+ 
+  static async checkEstimateRelationships(estimateId) {
+    try {
+      if (!estimateId) {
+        throw new Error('Estimate ID is required');
+      }
+
+      const relationships = [];
+
+     
+      const { data: additionalCostsData, error: additionalCostsError } = await supabase
+        .from('estimate_additional_costs')
+        .select('id, description')
+        .eq('estimate_id', estimateId)
+        .limit(1);
+
+      if (additionalCostsError) {
+        console.error('Error checking additional costs:', additionalCostsError);
+      
+      } else if (additionalCostsData && additionalCostsData.length > 0) {
+        relationships.push({
+          table: 'estimate_additional_costs',
+          count: additionalCostsData.length,
+          message: 'This estimate has associated additional costs'
+        });
+      }
+
+      return {
+        hasRelationships: relationships.length > 0,
+        relationships: relationships,
+        canDelete: relationships.length === 0
+      };
+    } catch (error) {
+      console.error('Error in checkEstimateRelationships:', error);
       throw error;
     }
   }

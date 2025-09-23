@@ -274,7 +274,7 @@ export class Suppliers {
     }
   }
 
-  // Check if supplier has relationships with other tables before deletion
+  
   static async checkSupplierRelationships(supplierId) {
     try {
       if (!supplierId) {
@@ -283,7 +283,7 @@ export class Suppliers {
 
       const relationships = [];
 
-      // Check products table
+      
       const { data: productsData, error: productsError } = await supabase
         .from('products')
         .select('id, product_name')

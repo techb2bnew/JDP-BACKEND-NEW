@@ -233,7 +233,6 @@ export class Contractor {
     }
   }
 
-  // Check if contractor has relationships with other tables before deletion
   static async checkContractorRelationships(contractorId) {
     try {
       if (!contractorId) {
@@ -242,7 +241,6 @@ export class Contractor {
 
       const relationships = [];
 
-      // Check jobs table
       const { data: jobsData, error: jobsError } = await supabase
         .from('jobs')
         .select('id, job_title')

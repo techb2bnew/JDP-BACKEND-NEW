@@ -112,7 +112,6 @@ export async function jobRoutes(fastify, options) {
     handler: JobController.getJobsByLeadLabor
   });
 
-  // Mobile App Work Data Routes
   fastify.post('/updateWorkData/:id', {
     schema: updateWorkDataSchema,
     handler: JobController.updateWorkData
@@ -122,12 +121,10 @@ export async function jobRoutes(fastify, options) {
     handler: JobController.getWorkActivityHistory
   });
 
-  // Project Summary Route
   fastify.get('/getProjectSummary/:id', {
     handler: JobController.getProjectSummary
   });
 
-  // Job Dashboard Route
   fastify.get('/getJobDashboard/:id', {
     handler: JobController.getJobDashboard
   });

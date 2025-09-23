@@ -175,7 +175,7 @@ export class Job {
 
   static async addDetailsToJob(job) {
     const jobWithDetails = { ...job };
-    
+
     if (job.assigned_lead_labor_ids) {
       try {
         const leadLaborIds = JSON.parse(job.assigned_lead_labor_ids);
@@ -200,7 +200,6 @@ export class Job {
 
     jobWithDetails.assigned_materials = await Job.fetchMaterialsDetails(job.id);
 
-    // Add custom labor for this job
     jobWithDetails.custom_labor = await Job.fetchCustomLaborDetails(job.id);
 
     return jobWithDetails;
@@ -470,7 +469,7 @@ export class Job {
         throw new Error(`Database error: ${allJobsError.message}`);
       }
 
-      
+
       const filteredJobs = (allJobs || []).filter(job => {
         try {
           const laborIds = JSON.parse(job.assigned_labor_ids || '[]');
@@ -483,7 +482,7 @@ export class Job {
 
       const paginatedJobs = filteredJobs.slice(offset, offset + limit);
 
-     
+
       const jobsWithDetails = await Promise.all(
         paginatedJobs.map(job => Job.addDetailsToJob(job))
       );
@@ -518,7 +517,7 @@ export class Job {
         throw new Error('leadLaborId is required');
       }
 
-     
+
       let allJobsQuery = supabase
         .from("jobs")
         .select(`
@@ -551,7 +550,7 @@ export class Job {
         throw new Error(`Database error: ${allJobsError.message}`);
       }
 
-      
+
       const filteredJobs = (allJobs || []).filter(job => {
         try {
           const leadLaborIds = JSON.parse(job.assigned_lead_labor_ids || '[]');
@@ -561,10 +560,10 @@ export class Job {
         }
       });
 
-      
+
       const paginatedJobs = filteredJobs.slice(offset, offset + limit);
 
-   
+
       const jobsWithDetails = await Promise.all(
         paginatedJobs.map(job => Job.addDetailsToJob(job))
       );
@@ -649,7 +648,7 @@ export class Job {
       const completed = completedJobs?.length || 0;
       const draft = draftJobs?.length || 0;
       const pending = pendingJobs?.length || 0;
-      
+
       const totalRevenue = (revenueData || []).reduce((sum, job) => {
         return sum + (parseFloat(job.estimated_cost) || 0);
       }, 0);
@@ -754,64 +753,64 @@ export class Job {
         return null;
       }
 
-       const materialUsage = await Job.getJobMaterialUsage(jobId);
+      const materialUsage = await Job.getJobMaterialUsage(jobId);
 
-       const dashboardData = {
-         ...job,
-         
-         projectSummary: {
-           jobEstimate: parseFloat(job.estimated_cost) || 0,
-           materialCost: 0, 
-           laborCost: 0,    
-           actualProjectCost: 0,
-           projectProgress: 0 
-         },
+      const dashboardData = {
+        ...job,
 
-         keyMetrics: {
-           totalHoursWorked: 0,
-           totalMaterialUsed: 0, 
-           totalLabourEntries: 0
-         },
+        projectSummary: {
+          jobEstimate: parseFloat(job.estimated_cost) || 0,
+          materialCost: 0,
+          laborCost: 0,
+          actualProjectCost: 0,
+          projectProgress: 0
+        },
 
-         
-         materialUsage: {
-           totalCost: 0,
-           materials: materialUsage
-         },
-
-        
-         laborSummary: {
-           totalCost: 0,
-           laborEntries: [],
-           leadLaborEntries: job.assigned_lead_labor || []
-         }
-       };
-
-       
-       if (materialUsage && materialUsage.length > 0) {
-         const materialCost = materialUsage.reduce((sum, material) => {
-           return sum + (parseFloat(material.total_cost) || 0);
-         }, 0);
-         dashboardData.projectSummary.materialCost = materialCost;
-         dashboardData.materialUsage.totalCost = materialCost;
-         dashboardData.keyMetrics.totalMaterialUsed = materialUsage.length;
-       }
+        keyMetrics: {
+          totalHoursWorked: 0,
+          totalMaterialUsed: 0,
+          totalLabourEntries: 0
+        },
 
 
-       
-       if (transactions && transactions.length > 0) {
-         const invoiceCount = transactions.filter(t => 
-           t.invoice_type.includes('invoice')
-         ).length;
-         dashboardData.keyMetrics.numberOfInvoices = invoiceCount;
-       }
+        materialUsage: {
+          totalCost: 0,
+          materials: materialUsage
+        },
 
-      
-      dashboardData.projectSummary.actualProjectCost = 
-        dashboardData.projectSummary.materialCost + 
+
+        laborSummary: {
+          totalCost: 0,
+          laborEntries: [],
+          leadLaborEntries: job.assigned_lead_labor || []
+        }
+      };
+
+
+      if (materialUsage && materialUsage.length > 0) {
+        const materialCost = materialUsage.reduce((sum, material) => {
+          return sum + (parseFloat(material.total_cost) || 0);
+        }, 0);
+        dashboardData.projectSummary.materialCost = materialCost;
+        dashboardData.materialUsage.totalCost = materialCost;
+        dashboardData.keyMetrics.totalMaterialUsed = materialUsage.length;
+      }
+
+
+
+      if (transactions && transactions.length > 0) {
+        const invoiceCount = transactions.filter(t =>
+          t.invoice_type.includes('invoice')
+        ).length;
+        dashboardData.keyMetrics.numberOfInvoices = invoiceCount;
+      }
+
+
+      dashboardData.projectSummary.actualProjectCost =
+        dashboardData.projectSummary.materialCost +
         dashboardData.projectSummary.laborCost;
 
-      
+
       const progressMap = {
         'draft': 0,
         'active': 25,
@@ -822,526 +821,499 @@ export class Job {
       };
       dashboardData.projectSummary.projectProgress = progressMap[job.status] || 0;
 
-       return dashboardData;
-     } catch (error) {
-       throw error;
-     }
-   }
+      return dashboardData;
+    } catch (error) {
+      throw error;
+    }
+  }
 
 
-   
 
-  
-   static async getJobMaterialUsage(jobId) {
-     try {
-       const { data, error } = await supabase
-         .from("job_material_usage")
-         .select("*")
-         .eq("job_id", jobId)
-         .order("usage_date", { ascending: false });
 
-       if (error) {
-         throw new Error(`Database error: ${error.message}`);
-       }
 
-       return data || [];
-     } catch (error) {
-       throw error;
-     }
-   }
+  static async getJobMaterialUsage(jobId) {
+    try {
+      const { data, error } = await supabase
+        .from("job_material_usage")
+        .select("*")
+        .eq("job_id", jobId)
+        .order("usage_date", { ascending: false });
 
-   
-   static async createJobTransaction(transactionData) {
-     try {
-       const { data, error } = await supabase
-         .from("job_transactions")
-         .insert([transactionData])
-         .select()
-         .single();
+      if (error) {
+        throw new Error(`Database error: ${error.message}`);
+      }
 
-       if (error) {
-         throw new Error(`Database error: ${error.message}`);
-       }
+      return data || [];
+    } catch (error) {
+      throw error;
+    }
+  }
 
-       return data;
-     } catch (error) {
-       throw error;
-     }
-   }
 
-   
-   static async createJobTimeLog(timeLogData) {
-     try {
-       const { data, error } = await supabase
-         .from("job_time_logs")
-         .insert([timeLogData])
-         .select()
-         .single();
+  static async createJobTransaction(transactionData) {
+    try {
+      const { data, error } = await supabase
+        .from("job_transactions")
+        .insert([transactionData])
+        .select()
+        .single();
 
-       if (error) {
-         throw new Error(`Database error: ${error.message}`);
-       }
+      if (error) {
+        throw new Error(`Database error: ${error.message}`);
+      }
 
-       return data;
-     } catch (error) {
-       throw error;
-     }
-   }
+      return data;
+    } catch (error) {
+      throw error;
+    }
+  }
 
-  
-   static async createJobMaterialUsage(materialUsageData) {
-     try {
-       const { data, error } = await supabase
-         .from("job_material_usage")
-         .insert([materialUsageData])
-         .select()
-         .single();
 
-       if (error) {
-         throw new Error(`Database error: ${error.message}`);
-       }
+  static async createJobTimeLog(timeLogData) {
+    try {
+      const { data, error } = await supabase
+        .from("job_time_logs")
+        .insert([timeLogData])
+        .select()
+        .single();
 
-       return data;
-     } catch (error) {
-       throw error;
-     }
-   }
+      if (error) {
+        throw new Error(`Database error: ${error.message}`);
+      }
 
-   // Work Activity and Time Methods
-   static async updateWorkActivity(jobId, activityCount) {
-     try {
-       if (!jobId) {
-         throw new Error('Job ID is required');
-       }
+      return data;
+    } catch (error) {
+      throw error;
+    }
+  }
 
-       if (typeof activityCount !== 'number' || activityCount < 0) {
-         throw new Error('Activity count must be a positive number');
-       }
 
-       // Update job with new activity count
-       const { data, error } = await supabase
-         .from("jobs")
-         .update({
-           work_activity: activityCount,
-           updated_at: new Date().toISOString()
-         })
-         .eq("id", jobId)
-         .select()
-         .single();
+  static async createJobMaterialUsage(materialUsageData) {
+    try {
+      const { data, error } = await supabase
+        .from("job_material_usage")
+        .insert([materialUsageData])
+        .select()
+        .single();
 
-       if (error) {
-         throw new Error(`Database error: ${error.message}`);
-       }
+      if (error) {
+        throw new Error(`Database error: ${error.message}`);
+      }
 
-       return data;
-     } catch (error) {
-       throw error;
-     }
-   }
+      return data;
+    } catch (error) {
+      throw error;
+    }
+  }
 
-   static async updateTotalWorkTime(jobId, workTime) {
-     try {
-       if (!jobId) {
-         throw new Error('Job ID is required');
-       }
 
-       // Validate time format (HH:MM:SS)
-       const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/;
-       if (!timeRegex.test(workTime)) {
-         throw new Error('Invalid time format. Use HH:MM:SS');
-       }
+  static async updateWorkActivity(jobId, activityCount) {
+    try {
+      if (!jobId) {
+        throw new Error('Job ID is required');
+      }
 
-       const { data, error } = await supabase
-         .from("jobs")
-         .update({
-           total_work_time: workTime,
-           updated_at: new Date().toISOString()
-         })
-         .eq("id", jobId)
-         .select()
-         .single();
+      if (typeof activityCount !== 'number' || activityCount < 0) {
+        throw new Error('Activity count must be a positive number');
+      }
 
-       if (error) {
-         throw new Error(`Database error: ${error.message}`);
-       }
 
-       return data;
-     } catch (error) {
-       throw error;
-     }
-   }
+      const { data, error } = await supabase
+        .from("jobs")
+        .update({
+          work_activity: activityCount,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", jobId)
+        .select()
+        .single();
 
-   static async getWorkActivityHistory(jobId) {
-     try {
-       if (!jobId) {
-         throw new Error('Job ID is required');
-       }
+      if (error) {
+        throw new Error(`Database error: ${error.message}`);
+      }
 
-       const job = await Job.findById(jobId);
-       if (!job) {
-         throw new Error('Job not found');
-       }
+      return data;
+    } catch (error) {
+      throw error;
+    }
+  }
 
-       // Calculate total hours worked from labor
-       let totalHoursWorked = 0;
-       if (job.assigned_labor && job.assigned_labor.length > 0) {
-         totalHoursWorked = job.assigned_labor.reduce((total, labor) => {
-           return total + (parseFloat(labor.hours_worked) || 0);
-         }, 0);
-       }
+  static async updateTotalWorkTime(jobId, workTime) {
+    try {
+      if (!jobId) {
+        throw new Error('Job ID is required');
+      }
 
-       // Add custom labor hours
-       if (job.custom_labor && job.custom_labor.length > 0) {
-         const customHours = job.custom_labor.reduce((total, labor) => {
-           return total + (parseFloat(labor.hours_worked) || 0);
-         }, 0);
-         totalHoursWorked += customHours;
-       }
 
-       // Calculate total material items used
-       let totalMaterialUsed = 0;
-       if (job.assigned_materials && job.assigned_materials.length > 0) {
-         totalMaterialUsed = job.assigned_materials.reduce((total, material) => {
-           return total + (parseInt(material.stock_quantity) || 0);
-         }, 0);
-       }
+      const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/;
+      if (!timeRegex.test(workTime)) {
+        throw new Error('Invalid time format. Use HH:MM:SS');
+      }
 
-       // Calculate total labour entries (count of all labor workers)
-       let totalLabourEntries = 0;
-       if (job.assigned_labor) {
-         totalLabourEntries += job.assigned_labor.length;
-       }
-       if (job.custom_labor) {
-         totalLabourEntries += job.custom_labor.length;
-       }
+      const { data, error } = await supabase
+        .from("jobs")
+        .update({
+          total_work_time: workTime,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", jobId)
+        .select()
+        .single();
 
-       // TODO: Add invoice count when invoice system is implemented
-       const numberOfInvoices = 0;
+      if (error) {
+        throw new Error(`Database error: ${error.message}`);
+      }
 
-       return {
-         jobId: job.id,
-         jobTitle: job.job_title,
-         jobStatus: job.status,
-         jobPriority: job.priority,
-         dashboardMetrics: {
-           totalHoursWorked: {
-             value: totalHoursWorked,
-             unit: "hours",
-             color: "blue"
-           },
-           totalMaterialUsed: {
-             value: totalMaterialUsed,
-             unit: "items",
-             color: "green"
-           },
-           totalLabourEntries: {
-             value: totalLabourEntries,
-             unit: "entries",
-             color: "purple"
-           },
-           numberOfInvoices: {
-             value: numberOfInvoices,
-             unit: "invoices",
-             color: "orange"
-           }
-         },
-         workTracking: {
-           workActivity: job.work_activity || 0,
-           totalWorkTime: job.total_work_time || '00:00:00',
-           startTimer: job.start_timer,
-           endTimer: job.end_timer,
-           pauseTimer: job.pause_timer ? JSON.parse(job.pause_timer) : []
-         },
-         jobDetails: {
-           jobType: job.job_type,
-           estimatedHours: job.estimated_hours || 0,
-           estimatedCost: job.estimated_cost || 0,
-           dueDate: job.due_date,
-           createdAt: job.created_at,
-           updatedAt: job.updated_at
-         },
-         // Keep original fields for backward compatibility
-         totalWorkTime: job.total_work_time,
-         activityCount: job.work_activity || 0
-       };
-     } catch (error) {
-       throw error;
-     }
-   }
+      return data;
+    } catch (error) {
+      throw error;
+    }
+  }
 
-   // Unified method to update work activity, total work time, and timer fields
-   static async updateWorkData(jobId, updateData) {
-     try {
-       if (!jobId) {
-         throw new Error('Job ID is required');
-       }
+  static async getWorkActivityHistory(jobId) {
+    try {
+      if (!jobId) {
+        throw new Error('Job ID is required');
+      }
 
-       const job = await Job.findById(jobId);
-       if (!job) {
-         throw new Error('Job not found');
-       }
+      const job = await Job.findById(jobId);
+      if (!job) {
+        throw new Error('Job not found');
+      }
 
-       const updateFields = {
-         updated_at: new Date().toISOString()
-       };
 
-       // Handle work activity update (simple integer count)
-       if (updateData.work_activity !== undefined) {
-         if (typeof updateData.work_activity !== 'number' || updateData.work_activity < 0) {
-           throw new Error('Work activity must be a positive number');
-         }
-         updateFields.work_activity = updateData.work_activity;
-       }
+      let totalHoursWorked = 0;
+      if (job.assigned_labor && job.assigned_labor.length > 0) {
+        totalHoursWorked = job.assigned_labor.reduce((total, labor) => {
+          return total + (parseFloat(labor.hours_worked) || 0);
+        }, 0);
+      }
 
-       // Handle total work time update
-       if (updateData.total_work_time) {
-         // Validate time format (HH:MM:SS)
-         const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/;
-         if (!timeRegex.test(updateData.total_work_time)) {
-           throw new Error('Invalid time format. Use HH:MM:SS');
-         }
-         updateFields.total_work_time = updateData.total_work_time;
-       }
+      if (job.custom_labor && job.custom_labor.length > 0) {
+        const customHours = job.custom_labor.reduce((total, labor) => {
+          return total + (parseFloat(labor.hours_worked) || 0);
+        }, 0);
+        totalHoursWorked += customHours;
+      }
 
-       // Handle start timer update
-       if (updateData.start_timer) {
-         updateFields.start_timer = updateData.start_timer;
-       }
+      let totalMaterialUsed = 0;
+      if (job.assigned_materials && job.assigned_materials.length > 0) {
+        totalMaterialUsed = job.assigned_materials.reduce((total, material) => {
+          return total + (parseInt(material.stock_quantity) || 0);
+        }, 0);
+      }
 
-       // Handle end timer update
-       if (updateData.end_timer) {
-         updateFields.end_timer = updateData.end_timer;
-       }
+      let totalLabourEntries = 0;
+      if (job.assigned_labor) {
+        totalLabourEntries += job.assigned_labor.length;
+      }
+      if (job.custom_labor) {
+        totalLabourEntries += job.custom_labor.length;
+      }
 
-       // Handle pause timer update (array of objects with title and duration)
-       if (updateData.pause_timer) {
-         // Get current pause timer array
-         let currentPauses = [];
-         try {
-           currentPauses = job.pause_timer ? JSON.parse(job.pause_timer) : [];
-         } catch (e) {
-           currentPauses = [];
-         }
+      const numberOfInvoices = 0;
 
-         // If it's an array, append to existing pauses
-         if (Array.isArray(updateData.pause_timer)) {
-           currentPauses = currentPauses.concat(updateData.pause_timer);
-         } else {
-           // If it's a single object, add it to the array
-           currentPauses.push(updateData.pause_timer);
-         }
-
-         updateFields.pause_timer = JSON.stringify(currentPauses);
-       }
-
-       // Handle status update
-       if (updateData.status) {
-         // Validate status values
-         const validStatuses = ['draft', 'active', 'in_progress', 'completed', 'cancelled', 'on_hold'];
-         if (!validStatuses.includes(updateData.status)) {
-           throw new Error(`Invalid status. Must be one of: ${validStatuses.join(', ')}`);
-         }
-         updateFields.status = updateData.status;
-       }
-
-       const { data, error } = await supabase
-         .from("jobs")
-         .update(updateFields)
-         .eq("id", jobId)
-         .select()
-         .single();
-
-       if (error) {
-         throw new Error(`Database error: ${error.message}`);
-       }
-
-       return data;
-     } catch (error) {
-       throw error;
-     }
-   }
-
-   // Project Summary Methods
-   static async getProjectSummary(jobId) {
-     try {
-       if (!jobId) {
-         throw new Error('Job ID is required');
-       }
-
-       const job = await Job.findById(jobId);
-       if (!job) {
-         throw new Error('Job not found');
-       }
-
-       // Calculate materials cost
-       let materialsCost = 0;
-       if (job.assigned_materials && job.assigned_materials.length > 0) {
-         materialsCost = job.assigned_materials.reduce((total, material) => {
-           const quantity = material.stock_quantity || 0;
-           const unitCost = parseFloat(material.unit_cost) || 0;
-           return total + (quantity * unitCost);
-         }, 0);
-       }
-
-       // Calculate labor cost
-       let laborCost = 0;
-       if (job.assigned_labor && job.assigned_labor.length > 0) {
-         laborCost = job.assigned_labor.reduce((total, labor) => {
-           const hourlyRate = parseFloat(labor.hourly_rate) || 0;
-           const hoursWorked = parseFloat(labor.hours_worked) || 0;
-           return total + (hourlyRate * hoursWorked);
-         }, 0);
-       }
-
-       // Add custom labor cost
-       if (job.custom_labor && job.custom_labor.length > 0) {
-         const customLaborCost = job.custom_labor.reduce((total, labor) => {
-           const hourlyRate = parseFloat(labor.hourly_rate) || 0;
-           const hoursWorked = parseFloat(labor.hours_worked) || 0;
-           return total + (hourlyRate * hoursWorked);
-         }, 0);
-         laborCost += customLaborCost;
-       }
-
-       // Calculate actual project cost
-       const actualProjectCost = materialsCost + laborCost;
-
-       // Get job estimate
-       const jobEstimate = parseFloat(job.estimated_cost) || 0;
-
-       return {
-         jobId: job.id,
-         jobTitle: job.job_title,
-         projectSummary: {
-           jobEstimate: jobEstimate,
-           materialsCost: materialsCost,
-           laborCost: laborCost,
-           actualProjectCost: actualProjectCost
-         },
-         costBreakdown: {
-           materials: {
-             totalCost: materialsCost,
-             items: job.assigned_materials || [],
-             count: job.assigned_materials ? job.assigned_materials.length : 0
-           },
-           labor: {
-             totalCost: laborCost,
-             regularLabor: job.assigned_labor || [],
-             customLabor: job.custom_labor || [],
-             totalWorkers: (job.assigned_labor ? job.assigned_labor.length : 0) + (job.custom_labor ? job.custom_labor.length : 0)
-           }
-         },
-         workTracking: {
-           workActivity: job.work_activity || 0,
-           totalWorkTime: job.total_work_time || '00:00:00',
-           startTimer: job.start_timer,
-           endTimer: job.end_timer,
-           pauseTimer: job.pause_timer ? JSON.parse(job.pause_timer) : []
-         }
-       };
-     } catch (error) {
-       throw error;
-     }
-   }
-
-   // Job Dashboard Methods
-   static async getJobDashboard(jobId) {
-     try {
-       if (!jobId) {
-         throw new Error('Job ID is required');
-       }
-
-       const job = await Job.findById(jobId);
-       if (!job) {
-         throw new Error('Job not found');
-       }
-
-       // Calculate total hours worked from labor
-       let totalHoursWorked = 0;
-       if (job.assigned_labor && job.assigned_labor.length > 0) {
-         totalHoursWorked = job.assigned_labor.reduce((total, labor) => {
-           return total + (parseFloat(labor.hours_worked) || 0);
-         }, 0);
-       }
-
-       // Add custom labor hours
-       if (job.custom_labor && job.custom_labor.length > 0) {
-         const customHours = job.custom_labor.reduce((total, labor) => {
-           return total + (parseFloat(labor.hours_worked) || 0);
-         }, 0);
-         totalHoursWorked += customHours;
-       }
-
-       // Calculate total material items used
-       let totalMaterialUsed = 0;
-       if (job.assigned_materials && job.assigned_materials.length > 0) {
-         totalMaterialUsed = job.assigned_materials.reduce((total, material) => {
-           return total + (parseInt(material.stock_quantity) || 0);
-         }, 0);
-       }
-
-       // Calculate total labour entries (count of all labor workers)
-       let totalLabourEntries = 0;
-       if (job.assigned_labor) {
-         totalLabourEntries += job.assigned_labor.length;
-       }
-       if (job.custom_labor) {
-         totalLabourEntries += job.custom_labor.length;
-       }
-
-       // TODO: Add invoice count when invoice system is implemented
-       // For now, return 0 as placeholder
-       const numberOfInvoices = 0;
-
-       return {
-         jobId: job.id,
-         jobTitle: job.job_title,
-         jobStatus: job.status,
-         jobPriority: job.priority,
-         dashboardMetrics: {
-           totalHoursWorked: {
-             value: totalHoursWorked,
-             unit: "hours",
-             color: "blue"
-           },
-           totalMaterialUsed: {
-             value: totalMaterialUsed,
-             unit: "items",
-             color: "green"
-           },
-           totalLabourEntries: {
-             value: totalLabourEntries,
-             unit: "entries",
-             color: "purple"
-           },
-           numberOfInvoices: {
-             value: numberOfInvoices,
-             unit: "invoices",
-             color: "orange"
-           }
-         },
-         workTracking: {
-           workActivity: job.work_activity || 0,
-           totalWorkTime: job.total_work_time || '00:00:00',
-           startTimer: job.start_timer,
-           endTimer: job.end_timer,
-           pauseTimer: job.pause_timer ? JSON.parse(job.pause_timer) : []
-         },
-         jobDetails: {
-           jobType: job.job_type,
-           estimatedHours: job.estimated_hours || 0,
-           estimatedCost: job.estimated_cost || 0,
-           dueDate: job.due_date,
-           createdAt: job.created_at,
-           updatedAt: job.updated_at
-         }
+      return {
+        jobId: job.id,
+        jobTitle: job.job_title,
+        jobStatus: job.status,
+        jobPriority: job.priority,
+        dashboardMetrics: {
+          totalHoursWorked: {
+            value: totalHoursWorked,
+            unit: "hours",
+            color: "blue"
+          },
+          totalMaterialUsed: {
+            value: totalMaterialUsed,
+            unit: "items",
+            color: "green"
+          },
+          totalLabourEntries: {
+            value: totalLabourEntries,
+            unit: "entries",
+            color: "purple"
+          },
+          numberOfInvoices: {
+            value: numberOfInvoices,
+            unit: "invoices",
+            color: "orange"
+          }
+        },
+        workTracking: {
+          workActivity: job.work_activity || 0,
+          totalWorkTime: job.total_work_time || '00:00:00',
+          startTimer: job.start_timer,
+          endTimer: job.end_timer,
+          pauseTimer: job.pause_timer ? JSON.parse(job.pause_timer) : []
+        },
+        jobDetails: {
+          jobType: job.job_type,
+          estimatedHours: job.estimated_hours || 0,
+          estimatedCost: job.estimated_cost || 0,
+          dueDate: job.due_date,
+          createdAt: job.created_at,
+          updatedAt: job.updated_at
+        },
+        totalWorkTime: job.total_work_time,
+        activityCount: job.work_activity || 0
       };
     } catch (error) {
       throw error;
     }
   }
 
-  // Check if job has relationships with other tables before deletion
+  static async updateWorkData(jobId, updateData) {
+    try {
+      if (!jobId) {
+        throw new Error('Job ID is required');
+      }
+
+      const job = await Job.findById(jobId);
+      if (!job) {
+        throw new Error('Job not found');
+      }
+
+      const updateFields = {
+        updated_at: new Date().toISOString()
+      };
+
+
+      if (updateData.work_activity !== undefined) {
+        if (typeof updateData.work_activity !== 'number' || updateData.work_activity < 0) {
+          throw new Error('Work activity must be a positive number');
+        }
+        updateFields.work_activity = updateData.work_activity;
+      }
+
+
+      if (updateData.total_work_time) {
+
+        const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/;
+        if (!timeRegex.test(updateData.total_work_time)) {
+          throw new Error('Invalid time format. Use HH:MM:SS');
+        }
+        updateFields.total_work_time = updateData.total_work_time;
+      }
+
+      if (updateData.start_timer) {
+        updateFields.start_timer = updateData.start_timer;
+      }
+
+      if (updateData.end_timer) {
+        updateFields.end_timer = updateData.end_timer;
+      }
+
+      if (updateData.pause_timer !== undefined) {
+        // Replace the entire pause_timer array instead of appending
+        if (Array.isArray(updateData.pause_timer)) {
+          updateFields.pause_timer = JSON.stringify(updateData.pause_timer);
+        } else {
+          // If it's a single object, wrap it in an array
+          updateFields.pause_timer = JSON.stringify([updateData.pause_timer]);
+        }
+      }
+
+      if (updateData.status) {
+        const validStatuses = ['draft', 'active', 'in_progress', 'completed', 'cancelled', 'on_hold'];
+        if (!validStatuses.includes(updateData.status)) {
+          throw new Error(`Invalid status. Must be one of: ${validStatuses.join(', ')}`);
+        }
+        updateFields.status = updateData.status;
+      }
+
+      const { data, error } = await supabase
+        .from("jobs")
+        .update(updateFields)
+        .eq("id", jobId)
+        .select()
+        .single();
+
+      if (error) {
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      return data;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async getProjectSummary(jobId) {
+    try {
+      if (!jobId) {
+        throw new Error('Job ID is required');
+      }
+
+      const job = await Job.findById(jobId);
+      if (!job) {
+        throw new Error('Job not found');
+      }
+
+      let materialsCost = 0;
+      if (job.assigned_materials && job.assigned_materials.length > 0) {
+        materialsCost = job.assigned_materials.reduce((total, material) => {
+          const quantity = material.stock_quantity || 0;
+          const unitCost = parseFloat(material.unit_cost) || 0;
+          return total + (quantity * unitCost);
+        }, 0);
+      }
+
+      let laborCost = 0;
+      if (job.assigned_labor && job.assigned_labor.length > 0) {
+        laborCost = job.assigned_labor.reduce((total, labor) => {
+          const hourlyRate = parseFloat(labor.hourly_rate) || 0;
+          const hoursWorked = parseFloat(labor.hours_worked) || 0;
+          return total + (hourlyRate * hoursWorked);
+        }, 0);
+      }
+
+      if (job.custom_labor && job.custom_labor.length > 0) {
+        const customLaborCost = job.custom_labor.reduce((total, labor) => {
+          const hourlyRate = parseFloat(labor.hourly_rate) || 0;
+          const hoursWorked = parseFloat(labor.hours_worked) || 0;
+          return total + (hourlyRate * hoursWorked);
+        }, 0);
+        laborCost += customLaborCost;
+      }
+
+      const actualProjectCost = materialsCost + laborCost;
+
+
+      const jobEstimate = parseFloat(job.estimated_cost) || 0;
+
+      return {
+        jobId: job.id,
+        jobTitle: job.job_title,
+        projectSummary: {
+          jobEstimate: jobEstimate,
+          materialsCost: materialsCost,
+          laborCost: laborCost,
+          actualProjectCost: actualProjectCost
+        },
+        costBreakdown: {
+          materials: {
+            totalCost: materialsCost,
+            items: job.assigned_materials || [],
+            count: job.assigned_materials ? job.assigned_materials.length : 0
+          },
+          labor: {
+            totalCost: laborCost,
+            regularLabor: job.assigned_labor || [],
+            customLabor: job.custom_labor || [],
+            totalWorkers: (job.assigned_labor ? job.assigned_labor.length : 0) + (job.custom_labor ? job.custom_labor.length : 0)
+          }
+        },
+        workTracking: {
+          workActivity: job.work_activity || 0,
+          totalWorkTime: job.total_work_time || '00:00:00',
+          startTimer: job.start_timer,
+          endTimer: job.end_timer,
+          pauseTimer: job.pause_timer ? JSON.parse(job.pause_timer) : []
+        }
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+
+
+  static async getJobDashboard(jobId) {
+    try {
+      if (!jobId) {
+        throw new Error('Job ID is required');
+      }
+
+      const job = await Job.findById(jobId);
+      if (!job) {
+        throw new Error('Job not found');
+      }
+
+
+      let totalHoursWorked = 0;
+      if (job.assigned_labor && job.assigned_labor.length > 0) {
+        totalHoursWorked = job.assigned_labor.reduce((total, labor) => {
+          return total + (parseFloat(labor.hours_worked) || 0);
+        }, 0);
+      }
+
+
+      if (job.custom_labor && job.custom_labor.length > 0) {
+        const customHours = job.custom_labor.reduce((total, labor) => {
+          return total + (parseFloat(labor.hours_worked) || 0);
+        }, 0);
+        totalHoursWorked += customHours;
+      }
+
+
+      let totalMaterialUsed = 0;
+      if (job.assigned_materials && job.assigned_materials.length > 0) {
+        totalMaterialUsed = job.assigned_materials.reduce((total, material) => {
+          return total + (parseInt(material.stock_quantity) || 0);
+        }, 0);
+      }
+
+
+      let totalLabourEntries = 0;
+      if (job.assigned_labor) {
+        totalLabourEntries += job.assigned_labor.length;
+      }
+      if (job.custom_labor) {
+        totalLabourEntries += job.custom_labor.length;
+      }
+
+
+      const numberOfInvoices = 0;
+
+      return {
+        jobId: job.id,
+        jobTitle: job.job_title,
+        jobStatus: job.status,
+        jobPriority: job.priority,
+        dashboardMetrics: {
+          totalHoursWorked: {
+            value: totalHoursWorked,
+            unit: "hours",
+            color: "blue"
+          },
+          totalMaterialUsed: {
+            value: totalMaterialUsed,
+            unit: "items",
+            color: "green"
+          },
+          totalLabourEntries: {
+            value: totalLabourEntries,
+            unit: "entries",
+            color: "purple"
+          },
+          numberOfInvoices: {
+            value: numberOfInvoices,
+            unit: "invoices",
+            color: "orange"
+          }
+        },
+        workTracking: {
+          workActivity: job.work_activity || 0,
+          totalWorkTime: job.total_work_time || '00:00:00',
+          startTimer: job.start_timer,
+          endTimer: job.end_timer,
+          pauseTimer: job.pause_timer ? JSON.parse(job.pause_timer) : []
+        },
+        jobDetails: {
+          jobType: job.job_type,
+          estimatedHours: job.estimated_hours || 0,
+          estimatedCost: job.estimated_cost || 0,
+          dueDate: job.due_date,
+          createdAt: job.created_at,
+          updatedAt: job.updated_at
+        }
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+
+
   static async checkJobRelationships(jobId) {
     try {
       if (!jobId) {
@@ -1350,7 +1322,7 @@ export class Job {
 
       const relationships = [];
 
-      // Check labor table
+
       const { data: laborData, error: laborError } = await supabase
         .from('labor')
         .select('id, user_id, labor_code')
@@ -1365,7 +1337,7 @@ export class Job {
         });
       }
 
-      // Check products table
+
       const { data: productsData, error: productsError } = await supabase
         .from('products')
         .select('id, product_name')
@@ -1380,7 +1352,7 @@ export class Job {
         });
       }
 
-      // Check estimates table
+
       const { data: estimatesData, error: estimatesError } = await supabase
         .from('estimates')
         .select('id, estimate_title')
@@ -1395,7 +1367,7 @@ export class Job {
         });
       }
 
-      // Check job_transactions table
+
       const { data: transactionsData, error: transactionsError } = await supabase
         .from('job_transactions')
         .select('id, invoice_type')

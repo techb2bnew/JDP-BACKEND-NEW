@@ -124,7 +124,13 @@ export class EstimateController {
       if (error.message.includes('not found')) {
         return reply.status(404).send(errorResponse('Estimate not found', 404));
       }
-      return reply.status(500).send(errorResponse('Failed to delete estimate', 500));
+      if (error.message.includes('Cannot delete this estimate because it has related data')) {
+        return reply.status(400).send(errorResponse(error.message, 400));
+      }
+      if (error.message.includes('Database error')) {
+        return reply.status(500).send(errorResponse('Database error occurred', 500));
+      }
+      return reply.status(500).send(errorResponse(error.message, 500));
     }
   }
 

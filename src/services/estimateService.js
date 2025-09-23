@@ -61,6 +61,14 @@ export class EstimateService {
         throw new Error('Estimate not found');
       }
 
+      // Check if estimate has relationships with other tables
+      const relationshipCheck = await Estimate.checkEstimateRelationships(estimateId);
+      
+      if (!relationshipCheck.canDelete) {
+        const relationshipMessages = relationshipCheck.relationships.map(rel => rel.message).join(', ');
+        throw new Error(`Cannot delete this estimate because it has related data: ${relationshipMessages}. Please remove all related data first.`);
+      }
+
       await Estimate.delete(estimateId);
 
       return {
@@ -153,7 +161,6 @@ export class EstimateService {
 
   static async deleteAdditionalCost(additionalCostId) {
     try {
-      // Get the additional cost first to get estimate_id
       const { data: additionalCost, error } = await supabase
         .from('estimate_additional_costs')
         .select('*')
@@ -166,7 +173,6 @@ export class EstimateService {
 
       await Estimate.deleteAdditionalCost(additionalCostId);
       
-      // Recalculate total costs
       await Estimate.calculateTotalCosts(additionalCost.estimate_id);
 
       return {

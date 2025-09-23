@@ -109,7 +109,6 @@ export class ContractorService {
         throw new Error("Contractor not found");
       }
 
-      // Check if contractor has relationships with other tables
       const relationshipCheck = await Contractor.checkContractorRelationships(contractorId);
       
       if (!relationshipCheck.canDelete) {
