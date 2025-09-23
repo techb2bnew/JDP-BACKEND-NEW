@@ -32,7 +32,6 @@ CREATE TABLE IF NOT EXISTS jobs (
   
   assigned_material_ids   TEXT,
   
-  -- Work Activity and Time fields for mobile app
   work_activity          JSONB DEFAULT '[]',
   total_work_time        INTERVAL DEFAULT '00:00:00',
 

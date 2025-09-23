@@ -273,4 +273,38 @@ export class Suppliers {
       throw error;
     }
   }
+
+  // Check if supplier has relationships with other tables before deletion
+  static async checkSupplierRelationships(supplierId) {
+    try {
+      if (!supplierId) {
+        throw new Error('Supplier ID is required');
+      }
+
+      const relationships = [];
+
+      // Check products table
+      const { data: productsData, error: productsError } = await supabase
+        .from('products')
+        .select('id, product_name')
+        .eq('supplier_id', supplierId)
+        .limit(1);
+
+      if (!productsError && productsData && productsData.length > 0) {
+        relationships.push({
+          table: 'products',
+          count: productsData.length,
+          message: 'This supplier has associated products'
+        });
+      }
+
+      return {
+        hasRelationships: relationships.length > 0,
+        relationships: relationships,
+        canDelete: relationships.length === 0
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
 }

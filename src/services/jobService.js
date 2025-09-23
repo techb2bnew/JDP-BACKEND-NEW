@@ -82,6 +82,14 @@ export class JobService {
         throw new Error("Job not found");
       }
 
+      // Check if job has relationships with other tables
+      const relationshipCheck = await Job.checkJobRelationships(jobId);
+      
+      if (!relationshipCheck.canDelete) {
+        const relationshipMessages = relationshipCheck.relationships.map(rel => rel.message).join(', ');
+        throw new Error(`Cannot delete this job because it has related data: ${relationshipMessages}. Please remove all related data first.`);
+      }
+
       await Job.delete(jobId);
 
       return successResponse(

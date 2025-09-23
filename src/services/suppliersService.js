@@ -162,6 +162,14 @@ export class SuppliersService {
 
     static async deleteSupplier(supplierId) {
         try {
+            // Check if supplier has relationships with other tables
+            const relationshipCheck = await Suppliers.checkSupplierRelationships(supplierId);
+            
+            if (!relationshipCheck.canDelete) {
+                const relationshipMessages = relationshipCheck.relationships.map(rel => rel.message).join(', ');
+                throw new Error(`Cannot delete this supplier because it has related data: ${relationshipMessages}. Please remove all related data first.`);
+            }
+
             const result = await Suppliers.delete(supplierId);
             return result;
         } catch (error) {

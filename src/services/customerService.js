@@ -98,6 +98,14 @@ export class CustomerService {
         throw new Error("Customer not found");
       }
 
+      // Check if customer has relationships with other tables
+      const relationshipCheck = await Customer.checkCustomerRelationships(customerId);
+      
+      if (!relationshipCheck.canDelete) {
+        const relationshipMessages = relationshipCheck.relationships.map(rel => rel.message).join(', ');
+        throw new Error(`Cannot delete this customer because it has related data: ${relationshipMessages}. Please remove all related data first.`);
+      }
+
       await Customer.delete(customerId);
 
       return successResponse(

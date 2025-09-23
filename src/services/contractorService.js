@@ -109,6 +109,14 @@ export class ContractorService {
         throw new Error("Contractor not found");
       }
 
+      // Check if contractor has relationships with other tables
+      const relationshipCheck = await Contractor.checkContractorRelationships(contractorId);
+      
+      if (!relationshipCheck.canDelete) {
+        const relationshipMessages = relationshipCheck.relationships.map(rel => rel.message).join(', ');
+        throw new Error(`Cannot delete this contractor because it has related data: ${relationshipMessages}. Please remove all related data first.`);
+      }
+
       await Contractor.delete(contractorId);
 
       return successResponse(

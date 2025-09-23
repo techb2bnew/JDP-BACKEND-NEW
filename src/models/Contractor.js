@@ -232,4 +232,38 @@ export class Contractor {
       throw error;
     }
   }
+
+  // Check if contractor has relationships with other tables before deletion
+  static async checkContractorRelationships(contractorId) {
+    try {
+      if (!contractorId) {
+        throw new Error('Contractor ID is required');
+      }
+
+      const relationships = [];
+
+      // Check jobs table
+      const { data: jobsData, error: jobsError } = await supabase
+        .from('jobs')
+        .select('id, job_title')
+        .eq('contractor_id', contractorId)
+        .limit(1);
+
+      if (!jobsError && jobsData && jobsData.length > 0) {
+        relationships.push({
+          table: 'jobs',
+          count: jobsData.length,
+          message: 'This contractor has associated jobs'
+        });
+      }
+
+      return {
+        hasRelationships: relationships.length > 0,
+        relationships: relationships,
+        canDelete: relationships.length === 0
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
 }

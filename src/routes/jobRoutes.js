@@ -4,7 +4,8 @@ import {
   updateJobSchema, 
   getJobsSchema, 
   getJobByIdSchema, 
-  deleteJobSchema 
+  deleteJobSchema,
+  updateWorkDataSchema
 } from '../validations/jobValidation.js';
 import { authenticateToken } from '../middleware/authMiddleware.js';
 
@@ -113,10 +114,21 @@ export async function jobRoutes(fastify, options) {
 
   // Mobile App Work Data Routes
   fastify.post('/updateWorkData/:id', {
+    schema: updateWorkDataSchema,
     handler: JobController.updateWorkData
   });
 
   fastify.get('/getWorkActivityHistory/:id', {
     handler: JobController.getWorkActivityHistory
+  });
+
+  // Project Summary Route
+  fastify.get('/getProjectSummary/:id', {
+    handler: JobController.getProjectSummary
+  });
+
+  // Job Dashboard Route
+  fastify.get('/getJobDashboard/:id', {
+    handler: JobController.getJobDashboard
   });
 }

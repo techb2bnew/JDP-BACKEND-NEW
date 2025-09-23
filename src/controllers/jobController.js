@@ -333,4 +333,46 @@ export class JobController {
       return reply.code(500).send(errorResponse(error.message));
     }
   }
+
+  // Project Summary Controller
+  static async getProjectSummary(request, reply) {
+    try {
+      const { id } = request.params;
+      const result = await Job.getProjectSummary(parseInt(id));
+      return reply.code(200).send({
+        success: true,
+        message: 'Project summary retrieved successfully',
+        data: result
+      });
+    } catch (error) {
+      if (error.message.includes('not found')) {
+        return reply.code(404).send(errorResponse(error.message, 404));
+      }
+      if (error.message.includes('Database error')) {
+        return reply.code(500).send(errorResponse('Database error occurred', 500));
+      }
+      return reply.code(500).send(errorResponse(error.message));
+    }
+  }
+
+  // Job Dashboard Controller
+  static async getJobDashboard(request, reply) {
+    try {
+      const { id } = request.params;
+      const result = await Job.getJobDashboard(parseInt(id));
+      return reply.code(200).send({
+        success: true,
+        message: 'Job dashboard data retrieved successfully',
+        data: result
+      });
+    } catch (error) {
+      if (error.message.includes('not found')) {
+        return reply.code(404).send(errorResponse(error.message, 404));
+      }
+      if (error.message.includes('Database error')) {
+        return reply.code(500).send(errorResponse('Database error occurred', 500));
+      }
+      return reply.code(500).send(errorResponse(error.message));
+    }
+  }
 }

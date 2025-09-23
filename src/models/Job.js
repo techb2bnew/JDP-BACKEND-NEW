@@ -982,9 +982,85 @@ export class Job {
          throw new Error('Job not found');
        }
 
+       // Calculate total hours worked from labor
+       let totalHoursWorked = 0;
+       if (job.assigned_labor && job.assigned_labor.length > 0) {
+         totalHoursWorked = job.assigned_labor.reduce((total, labor) => {
+           return total + (parseFloat(labor.hours_worked) || 0);
+         }, 0);
+       }
+
+       // Add custom labor hours
+       if (job.custom_labor && job.custom_labor.length > 0) {
+         const customHours = job.custom_labor.reduce((total, labor) => {
+           return total + (parseFloat(labor.hours_worked) || 0);
+         }, 0);
+         totalHoursWorked += customHours;
+       }
+
+       // Calculate total material items used
+       let totalMaterialUsed = 0;
+       if (job.assigned_materials && job.assigned_materials.length > 0) {
+         totalMaterialUsed = job.assigned_materials.reduce((total, material) => {
+           return total + (parseInt(material.stock_quantity) || 0);
+         }, 0);
+       }
+
+       // Calculate total labour entries (count of all labor workers)
+       let totalLabourEntries = 0;
+       if (job.assigned_labor) {
+         totalLabourEntries += job.assigned_labor.length;
+       }
+       if (job.custom_labor) {
+         totalLabourEntries += job.custom_labor.length;
+       }
+
+       // TODO: Add invoice count when invoice system is implemented
+       const numberOfInvoices = 0;
+
        return {
          jobId: job.id,
          jobTitle: job.job_title,
+         jobStatus: job.status,
+         jobPriority: job.priority,
+         dashboardMetrics: {
+           totalHoursWorked: {
+             value: totalHoursWorked,
+             unit: "hours",
+             color: "blue"
+           },
+           totalMaterialUsed: {
+             value: totalMaterialUsed,
+             unit: "items",
+             color: "green"
+           },
+           totalLabourEntries: {
+             value: totalLabourEntries,
+             unit: "entries",
+             color: "purple"
+           },
+           numberOfInvoices: {
+             value: numberOfInvoices,
+             unit: "invoices",
+             color: "orange"
+           }
+         },
+         workTracking: {
+           workActivity: job.work_activity || 0,
+           totalWorkTime: job.total_work_time || '00:00:00',
+           startTimer: job.start_timer,
+           endTimer: job.end_timer,
+           pauseTimer: job.pause_timer ? JSON.parse(job.pause_timer) : []
+         },
+         jobDetails: {
+           jobType: job.job_type,
+           estimatedHours: job.estimated_hours || 0,
+           estimatedCost: job.estimated_cost || 0,
+           dueDate: job.due_date,
+           createdAt: job.created_at,
+           updatedAt: job.updated_at
+         },
+         // Keep original fields for backward compatibility
          totalWorkTime: job.total_work_time,
          activityCount: job.work_activity || 0
        };
@@ -1058,6 +1134,16 @@ export class Job {
          updateFields.pause_timer = JSON.stringify(currentPauses);
        }
 
+       // Handle status update
+       if (updateData.status) {
+         // Validate status values
+         const validStatuses = ['draft', 'active', 'in_progress', 'completed', 'cancelled', 'on_hold'];
+         if (!validStatuses.includes(updateData.status)) {
+           throw new Error(`Invalid status. Must be one of: ${validStatuses.join(', ')}`);
+         }
+         updateFields.status = updateData.status;
+       }
+
        const { data, error } = await supabase
          .from("jobs")
          .update(updateFields)
@@ -1074,4 +1160,263 @@ export class Job {
        throw error;
      }
    }
- }
+
+   // Project Summary Methods
+   static async getProjectSummary(jobId) {
+     try {
+       if (!jobId) {
+         throw new Error('Job ID is required');
+       }
+
+       const job = await Job.findById(jobId);
+       if (!job) {
+         throw new Error('Job not found');
+       }
+
+       // Calculate materials cost
+       let materialsCost = 0;
+       if (job.assigned_materials && job.assigned_materials.length > 0) {
+         materialsCost = job.assigned_materials.reduce((total, material) => {
+           const quantity = material.stock_quantity || 0;
+           const unitCost = parseFloat(material.unit_cost) || 0;
+           return total + (quantity * unitCost);
+         }, 0);
+       }
+
+       // Calculate labor cost
+       let laborCost = 0;
+       if (job.assigned_labor && job.assigned_labor.length > 0) {
+         laborCost = job.assigned_labor.reduce((total, labor) => {
+           const hourlyRate = parseFloat(labor.hourly_rate) || 0;
+           const hoursWorked = parseFloat(labor.hours_worked) || 0;
+           return total + (hourlyRate * hoursWorked);
+         }, 0);
+       }
+
+       // Add custom labor cost
+       if (job.custom_labor && job.custom_labor.length > 0) {
+         const customLaborCost = job.custom_labor.reduce((total, labor) => {
+           const hourlyRate = parseFloat(labor.hourly_rate) || 0;
+           const hoursWorked = parseFloat(labor.hours_worked) || 0;
+           return total + (hourlyRate * hoursWorked);
+         }, 0);
+         laborCost += customLaborCost;
+       }
+
+       // Calculate actual project cost
+       const actualProjectCost = materialsCost + laborCost;
+
+       // Get job estimate
+       const jobEstimate = parseFloat(job.estimated_cost) || 0;
+
+       return {
+         jobId: job.id,
+         jobTitle: job.job_title,
+         projectSummary: {
+           jobEstimate: jobEstimate,
+           materialsCost: materialsCost,
+           laborCost: laborCost,
+           actualProjectCost: actualProjectCost
+         },
+         costBreakdown: {
+           materials: {
+             totalCost: materialsCost,
+             items: job.assigned_materials || [],
+             count: job.assigned_materials ? job.assigned_materials.length : 0
+           },
+           labor: {
+             totalCost: laborCost,
+             regularLabor: job.assigned_labor || [],
+             customLabor: job.custom_labor || [],
+             totalWorkers: (job.assigned_labor ? job.assigned_labor.length : 0) + (job.custom_labor ? job.custom_labor.length : 0)
+           }
+         },
+         workTracking: {
+           workActivity: job.work_activity || 0,
+           totalWorkTime: job.total_work_time || '00:00:00',
+           startTimer: job.start_timer,
+           endTimer: job.end_timer,
+           pauseTimer: job.pause_timer ? JSON.parse(job.pause_timer) : []
+         }
+       };
+     } catch (error) {
+       throw error;
+     }
+   }
+
+   // Job Dashboard Methods
+   static async getJobDashboard(jobId) {
+     try {
+       if (!jobId) {
+         throw new Error('Job ID is required');
+       }
+
+       const job = await Job.findById(jobId);
+       if (!job) {
+         throw new Error('Job not found');
+       }
+
+       // Calculate total hours worked from labor
+       let totalHoursWorked = 0;
+       if (job.assigned_labor && job.assigned_labor.length > 0) {
+         totalHoursWorked = job.assigned_labor.reduce((total, labor) => {
+           return total + (parseFloat(labor.hours_worked) || 0);
+         }, 0);
+       }
+
+       // Add custom labor hours
+       if (job.custom_labor && job.custom_labor.length > 0) {
+         const customHours = job.custom_labor.reduce((total, labor) => {
+           return total + (parseFloat(labor.hours_worked) || 0);
+         }, 0);
+         totalHoursWorked += customHours;
+       }
+
+       // Calculate total material items used
+       let totalMaterialUsed = 0;
+       if (job.assigned_materials && job.assigned_materials.length > 0) {
+         totalMaterialUsed = job.assigned_materials.reduce((total, material) => {
+           return total + (parseInt(material.stock_quantity) || 0);
+         }, 0);
+       }
+
+       // Calculate total labour entries (count of all labor workers)
+       let totalLabourEntries = 0;
+       if (job.assigned_labor) {
+         totalLabourEntries += job.assigned_labor.length;
+       }
+       if (job.custom_labor) {
+         totalLabourEntries += job.custom_labor.length;
+       }
+
+       // TODO: Add invoice count when invoice system is implemented
+       // For now, return 0 as placeholder
+       const numberOfInvoices = 0;
+
+       return {
+         jobId: job.id,
+         jobTitle: job.job_title,
+         jobStatus: job.status,
+         jobPriority: job.priority,
+         dashboardMetrics: {
+           totalHoursWorked: {
+             value: totalHoursWorked,
+             unit: "hours",
+             color: "blue"
+           },
+           totalMaterialUsed: {
+             value: totalMaterialUsed,
+             unit: "items",
+             color: "green"
+           },
+           totalLabourEntries: {
+             value: totalLabourEntries,
+             unit: "entries",
+             color: "purple"
+           },
+           numberOfInvoices: {
+             value: numberOfInvoices,
+             unit: "invoices",
+             color: "orange"
+           }
+         },
+         workTracking: {
+           workActivity: job.work_activity || 0,
+           totalWorkTime: job.total_work_time || '00:00:00',
+           startTimer: job.start_timer,
+           endTimer: job.end_timer,
+           pauseTimer: job.pause_timer ? JSON.parse(job.pause_timer) : []
+         },
+         jobDetails: {
+           jobType: job.job_type,
+           estimatedHours: job.estimated_hours || 0,
+           estimatedCost: job.estimated_cost || 0,
+           dueDate: job.due_date,
+           createdAt: job.created_at,
+           updatedAt: job.updated_at
+         }
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Check if job has relationships with other tables before deletion
+  static async checkJobRelationships(jobId) {
+    try {
+      if (!jobId) {
+        throw new Error('Job ID is required');
+      }
+
+      const relationships = [];
+
+      // Check labor table
+      const { data: laborData, error: laborError } = await supabase
+        .from('labor')
+        .select('id, user_id, labor_code')
+        .eq('job_id', jobId)
+        .limit(1);
+
+      if (!laborError && laborData && laborData.length > 0) {
+        relationships.push({
+          table: 'labor',
+          count: laborData.length,
+          message: 'This job has assigned labor workers'
+        });
+      }
+
+      // Check products table
+      const { data: productsData, error: productsError } = await supabase
+        .from('products')
+        .select('id, product_name')
+        .eq('job_id', jobId)
+        .limit(1);
+
+      if (!productsError && productsData && productsData.length > 0) {
+        relationships.push({
+          table: 'products',
+          count: productsData.length,
+          message: 'This job has assigned materials/products'
+        });
+      }
+
+      // Check estimates table
+      const { data: estimatesData, error: estimatesError } = await supabase
+        .from('estimates')
+        .select('id, estimate_title')
+        .eq('job_id', jobId)
+        .limit(1);
+
+      if (!estimatesError && estimatesData && estimatesData.length > 0) {
+        relationships.push({
+          table: 'estimates',
+          count: estimatesData.length,
+          message: 'This job has associated estimates'
+        });
+      }
+
+      // Check job_transactions table
+      const { data: transactionsData, error: transactionsError } = await supabase
+        .from('job_transactions')
+        .select('id, invoice_type')
+        .eq('job_id', jobId)
+        .limit(1);
+
+      if (!transactionsError && transactionsData && transactionsData.length > 0) {
+        relationships.push({
+          table: 'job_transactions',
+          count: transactionsData.length,
+          message: 'This job has associated transactions/invoices'
+        });
+      }
+
+      return {
+        hasRelationships: relationships.length > 0,
+        relationships: relationships,
+        canDelete: relationships.length === 0
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+}

@@ -198,4 +198,53 @@ export class Customer {
       throw error;
     }
   }
+
+  // Check if customer has relationships with other tables before deletion
+  static async checkCustomerRelationships(customerId) {
+    try {
+      if (!customerId) {
+        throw new Error('Customer ID is required');
+      }
+
+      const relationships = [];
+
+      // Check jobs table
+      const { data: jobsData, error: jobsError } = await supabase
+        .from('jobs')
+        .select('id, job_title')
+        .eq('customer_id', customerId)
+        .limit(1);
+
+      if (!jobsError && jobsData && jobsData.length > 0) {
+        relationships.push({
+          table: 'jobs',
+          count: jobsData.length,
+          message: 'This customer has associated jobs'
+        });
+      }
+
+      // Check estimates table
+      const { data: estimatesData, error: estimatesError } = await supabase
+        .from('estimates')
+        .select('id, estimate_title')
+        .eq('customer_id', customerId)
+        .limit(1);
+
+      if (!estimatesError && estimatesData && estimatesData.length > 0) {
+        relationships.push({
+          table: 'estimates',
+          count: estimatesData.length,
+          message: 'This customer has associated estimates'
+        });
+      }
+
+      return {
+        hasRelationships: relationships.length > 0,
+        relationships: relationships,
+        canDelete: relationships.length === 0
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
 }

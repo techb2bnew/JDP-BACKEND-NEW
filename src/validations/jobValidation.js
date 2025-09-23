@@ -341,6 +341,72 @@ export const updateJobSchema = {
   }
 };
 
+export const updateWorkDataSchema = {
+  params: {
+    type: 'object',
+    properties: {
+      id: {
+        type: 'string',
+        pattern: '^[0-9]+$',
+        description: 'Job ID'
+      }
+    },
+    required: ['id'],
+    additionalProperties: false
+  },
+  body: {
+    type: 'object',
+    properties: {
+      work_activity: {
+        type: 'integer',
+        minimum: 0,
+        description: 'Number of work activities (simple count like 1, 2, 20)'
+      },
+      total_work_time: {
+        type: 'string',
+        pattern: '^\\d{2}:\\d{2}:\\d{2}$',
+        description: 'Total work time in HH:MM:SS format'
+      },
+      start_timer: {
+        type: 'string',
+        format: 'date-time',
+        description: 'Start timer timestamp'
+      },
+      end_timer: {
+        type: 'string',
+        format: 'date-time',
+        description: 'End timer timestamp'
+      },
+      pause_timer: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            title: {
+              type: 'string',
+              maxLength: 200,
+              description: 'Pause reason title (e.g., "Lunch Break", "Equipment Issue")'
+            },
+            duration: {
+              type: 'string',
+              pattern: '^\\d{2}:\\d{2}:\\d{2}$',
+              description: 'Pause duration in HH:MM:SS format'
+            }
+          },
+          required: ['title', 'duration']
+        },
+        description: 'Array of pause timer objects with title and duration (e.g., [{"title": "Lunch Break", "duration": "00:30:45"}])'
+      },
+      status: {
+        type: 'string',
+        enum: ['draft', 'active', 'in_progress', 'completed', 'cancelled', 'on_hold'],
+        description: 'Job status (draft, active, in_progress, completed, cancelled, on_hold)'
+      }
+    },
+    additionalProperties: false
+  }
+};
+
 export const getJobsSchema = {
   querystring: {
     type: 'object',
