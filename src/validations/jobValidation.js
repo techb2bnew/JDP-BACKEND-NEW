@@ -408,7 +408,7 @@ export const updateWorkDataSchema = {
           labor_id: {
             type: 'integer',
             minimum: 1,
-            description: 'Labor ID'
+            description: 'Labor ID (optional if lead_labor_id is provided)'
           },
           user_id: {
             type: 'integer',
@@ -418,6 +418,11 @@ export const updateWorkDataSchema = {
           labor_name: {
             type: 'string',
             description: 'Name of the labor'
+          },
+          lead_labor_id: {
+            type: 'integer',
+            minimum: 1,
+            description: 'Lead Labor ID (optional if labor_id is provided)'
           },
           date: {
             type: 'string',
@@ -479,8 +484,8 @@ export const updateWorkDataSchema = {
             description: 'Additional notes for this timesheet entry'
           }
         },
-        required: ['labor_id', 'date'],
-        description: 'Individual labor timesheet data'
+        required: ['date'],
+        description: 'Individual labor timesheet data (requires either labor_id or lead_labor_id)'
       },
       lead_labor_timesheet: {
         type: 'object',

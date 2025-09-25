@@ -109,15 +109,11 @@ export class Job {
           supplier_sku,
           jdp_sku,
           unit_cost,
-          jdp_price,
           stock_quantity,
           unit,
           supplier_id,
-          supplier:suppliers!products_supplier_id_fkey(
-            id,
-            company_name,
-            contact_person
-          )
+          created_at,
+          updated_at
         `)
         .eq("job_id", jobId);
 
@@ -1268,8 +1264,12 @@ export class Job {
         const timesheetData = updateData.labor_timesheet;
         
         // Validate required fields
-        if (!timesheetData.labor_id || !timesheetData.date) {
-          throw new Error('labor_id and date are required for timesheet');
+        if (!timesheetData.date) {
+          throw new Error('date is required for timesheet');
+        }
+        
+        if (!timesheetData.labor_id && !timesheetData.lead_labor_id) {
+          throw new Error('either labor_id or lead_labor_id is required for timesheet');
         }
 
         // Get current labor timesheets
@@ -1278,10 +1278,18 @@ export class Job {
         console.log(`Current timesheets before update:`, currentTimesheets.map(ts => ({ labor_id: ts.labor_id, date: ts.date })));
         console.log(`New timesheet data:`, { labor_id: timesheetData.labor_id, date: timesheetData.date });
         
+        // Determine the ID to use for lookup
+        const lookupId = timesheetData.labor_id || timesheetData.lead_labor_id;
+        const isLeadLabor = !!timesheetData.lead_labor_id;
+        
         // Check if this labor already has an entry for this date
-        const existingIndex = currentTimesheets.findIndex(
-          ts => ts.labor_id === timesheetData.labor_id && ts.date === timesheetData.date
-        );
+        const existingIndex = currentTimesheets.findIndex(ts => {
+          if (isLeadLabor) {
+            return ts.lead_labor_id === timesheetData.lead_labor_id && ts.date === timesheetData.date;
+          } else {
+            return ts.labor_id === timesheetData.labor_id && ts.date === timesheetData.date;
+          }
+        });
         
         console.log(`Existing index found: ${existingIndex} (${existingIndex >= 0 ? 'UPDATE' : 'ADD NEW'})`);
 
@@ -1310,15 +1318,31 @@ export class Job {
 
         if (!userId || !hourlyRate) {
           try {
-            const { data: laborData } = await supabase
-              .from('labor')
-              .select('user_id, hourly_rate')
-              .eq('id', timesheetData.labor_id)
-              .single();
+            let laborData = null;
+            
+            if (isLeadLabor) {
+              // Fetch lead labor details
+              const { data } = await supabase
+                .from('lead_labor')
+                .select('user_id')
+                .eq('id', timesheetData.lead_labor_id)
+                .single();
+              laborData = data;
+            } else {
+              // Fetch regular labor details
+              const { data } = await supabase
+                .from('labor')
+                .select('user_id, hourly_rate')
+                .eq('id', timesheetData.labor_id)
+                .single();
+              laborData = data;
+            }
 
             if (laborData) {
               userId = userId || laborData.user_id;
-              hourlyRate = hourlyRate || parseFloat(laborData.hourly_rate) || 0;
+              if (!isLeadLabor) {
+                hourlyRate = hourlyRate || parseFloat(laborData.hourly_rate) || 0;
+              }
             }
 
             // Get user name
@@ -1367,7 +1391,8 @@ export class Job {
 
         // Prepare timesheet entry
         const timesheetEntry = {
-          labor_id: timesheetData.labor_id,
+          labor_id: timesheetData.labor_id || null,
+          lead_labor_id: timesheetData.lead_labor_id || null,
           user_id: userId,
           labor_name: laborName,
           date: timesheetData.date,
