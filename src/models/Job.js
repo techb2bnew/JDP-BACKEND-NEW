@@ -190,7 +190,6 @@ export class Job {
 
     // Parse timesheet data
     jobWithDetails.labor_timesheets = safeJsonParse(job.labor_timesheets, []);
-    jobWithDetails.lead_labor_timesheets = safeJsonParse(job.lead_labor_timesheets, []);
 
     return jobWithDetails;
   }
