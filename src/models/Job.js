@@ -113,7 +113,12 @@ export class Job {
           unit,
           supplier_id,
           created_at,
-          updated_at
+          updated_at,
+          supplier:suppliers!products_supplier_id_fkey(
+            id,
+            company_name,
+            contact_person
+          )
         `)
         .eq("job_id", jobId);
 
