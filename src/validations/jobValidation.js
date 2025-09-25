@@ -401,6 +401,265 @@ export const updateWorkDataSchema = {
         type: 'string',
         enum: ['draft', 'active', 'in_progress', 'completed', 'cancelled', 'on_hold'],
         description: 'Job status (draft, active, in_progress, completed, cancelled, on_hold)'
+      },
+      labor_timesheet: {
+        type: 'object',
+        properties: {
+          labor_id: {
+            type: 'integer',
+            minimum: 1,
+            description: 'Labor ID'
+          },
+          user_id: {
+            type: 'integer',
+            minimum: 1,
+            description: 'User ID of the labor'
+          },
+          labor_name: {
+            type: 'string',
+            description: 'Name of the labor'
+          },
+          date: {
+            type: 'string',
+            format: 'date',
+            description: 'Date of work (YYYY-MM-DD)'
+          },
+          start_time: {
+            type: 'string',
+            pattern: '^\\d{2}:\\d{2}:\\d{2}$',
+            description: 'Start time in HH:MM:SS format'
+          },
+          end_time: {
+            type: 'string',
+            pattern: '^\\d{2}:\\d{2}:\\d{2}$',
+            description: 'End time in HH:MM:SS format'
+          },
+          total_hours: {
+            type: 'string',
+            pattern: '^\\d{2}:\\d{2}:\\d{2}$',
+            description: 'Total hours worked in HH:MM:SS format'
+          },
+          break_duration: {
+            type: 'string',
+            pattern: '^\\d{2}:\\d{2}:\\d{2}$',
+            description: 'Break duration in HH:MM:SS format'
+          },
+          work_hours: {
+            type: 'string',
+            pattern: '^\\d{2}:\\d{2}:\\d{2}$',
+            description: 'Actual work hours (total - breaks) in HH:MM:SS format'
+          },
+          hourly_rate: {
+            type: 'number',
+            minimum: 0,
+            description: 'Hourly rate for this labor'
+          },
+          total_cost: {
+            type: 'number',
+            minimum: 0,
+            description: 'Total cost for this timesheet entry'
+          },
+          work_activity: {
+            type: 'integer',
+            minimum: 0,
+            description: 'Work activity count'
+          },
+          status: {
+            type: 'string',
+            enum: ['active', 'completed', 'paused'],
+            description: 'Timesheet status'
+          },
+          job_status: {
+            type: 'string',
+            enum: ['in_progress', 'completed', 'on_hold', 'cancelled'],
+            description: 'Job status for this timesheet entry'
+          },
+          notes: {
+            type: 'string',
+            description: 'Additional notes for this timesheet entry'
+          }
+        },
+        required: ['labor_id', 'date'],
+        description: 'Individual labor timesheet data'
+      },
+      lead_labor_timesheet: {
+        type: 'object',
+        properties: {
+          lead_labor_id: {
+            type: 'integer',
+            minimum: 1,
+            description: 'Lead Labor ID'
+          },
+          user_id: {
+            type: 'integer',
+            minimum: 1,
+            description: 'User ID of the lead labor'
+          },
+          labor_name: {
+            type: 'string',
+            description: 'Name of the lead labor'
+          },
+          date: {
+            type: 'string',
+            format: 'date',
+            description: 'Date of work (YYYY-MM-DD)'
+          },
+          start_time: {
+            type: 'string',
+            pattern: '^\\d{2}:\\d{2}:\\d{2}$',
+            description: 'Start time in HH:MM:SS format'
+          },
+          end_time: {
+            type: 'string',
+            pattern: '^\\d{2}:\\d{2}:\\d{2}$',
+            description: 'End time in HH:MM:SS format'
+          },
+          total_hours: {
+            type: 'string',
+            pattern: '^\\d{2}:\\d{2}:\\d{2}$',
+            description: 'Total hours worked in HH:MM:SS format'
+          },
+          break_duration: {
+            type: 'string',
+            pattern: '^\\d{2}:\\d{2}:\\d{2}$',
+            description: 'Break duration in HH:MM:SS format'
+          },
+          work_hours: {
+            type: 'string',
+            pattern: '^\\d{2}:\\d{2}:\\d{2}$',
+            description: 'Actual work hours (total - breaks) in HH:MM:SS format'
+          },
+          hourly_rate: {
+            type: 'number',
+            minimum: 0,
+            description: 'Hourly rate for this lead labor'
+          },
+          total_cost: {
+            type: 'number',
+            minimum: 0,
+            description: 'Total cost for this timesheet entry'
+          },
+          work_activity: {
+            type: 'integer',
+            minimum: 0,
+            description: 'Work activity count'
+          },
+          status: {
+            type: 'string',
+            enum: ['active', 'completed', 'paused'],
+            description: 'Timesheet status'
+          },
+          notes: {
+            type: 'string',
+            description: 'Additional notes for this timesheet entry'
+          }
+        },
+        required: ['lead_labor_id', 'date'],
+        description: 'Individual lead labor timesheet data'
+      },
+      bulk_timesheets: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            labor_id: {
+              type: 'integer',
+              minimum: 1,
+              description: 'Labor ID'
+            },
+            user_id: {
+              type: 'integer',
+              minimum: 1,
+              description: 'User ID of the labor (optional - auto-fetched)'
+            },
+            labor_name: {
+              type: 'string',
+              description: 'Name of the labor (optional - auto-fetched)'
+            },
+            date: {
+              type: 'string',
+              format: 'date',
+              description: 'Date of work (YYYY-MM-DD)'
+            },
+            start_time: {
+              type: 'string',
+              pattern: '^\\d{2}:\\d{2}:\\d{2}$',
+              description: 'Start time in HH:MM:SS format'
+            },
+            end_time: {
+              type: 'string',
+              pattern: '^\\d{2}:\\d{2}:\\d{2}$',
+              description: 'End time in HH:MM:SS format'
+            },
+            total_hours: {
+              type: 'string',
+              pattern: '^\\d{2}:\\d{2}:\\d{2}$',
+              description: 'Total hours worked in HH:MM:SS format (optional - auto-calculated)'
+            },
+            break_duration: {
+              type: 'string',
+              pattern: '^\\d{2}:\\d{2}:\\d{2}$',
+              description: 'Break duration in HH:MM:SS format (optional - auto-calculated)'
+            },
+            work_hours: {
+              type: 'string',
+              pattern: '^\\d{2}:\\d{2}:\\d{2}$',
+              description: 'Actual work hours in HH:MM:SS format (optional - auto-calculated)'
+            },
+            hourly_rate: {
+              type: 'number',
+              minimum: 0,
+              description: 'Hourly rate for this labor (optional - auto-fetched)'
+            },
+            total_cost: {
+              type: 'number',
+              minimum: 0,
+              description: 'Total cost for this timesheet entry (optional - auto-calculated)'
+            },
+            work_activity: {
+              type: 'integer',
+              minimum: 0,
+              description: 'Work activity count'
+            },
+            status: {
+              type: 'string',
+              enum: ['active', 'completed', 'paused'],
+              description: 'Timesheet status'
+            },
+            job_status: {
+              type: 'string',
+              enum: ['in_progress', 'completed', 'on_hold', 'cancelled'],
+              description: 'Job status for this timesheet entry'
+            },
+            notes: {
+              type: 'string',
+              description: 'Additional notes for this timesheet entry'
+            },
+            pause_timer: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  title: {
+                    type: 'string',
+                    maxLength: 200,
+                    description: 'Pause reason title'
+                  },
+                  duration: {
+                    type: 'string',
+                    pattern: '^\\d{2}:\\d{2}:\\d{2}$',
+                    description: 'Pause duration in HH:MM:SS format'
+                  }
+                },
+                required: ['title', 'duration']
+              },
+              description: 'Array of pause timer objects'
+            }
+          },
+          required: ['labor_id', 'date'],
+          additionalProperties: false
+        },
+        description: 'Array of timesheet entries for bulk update'
       }
     },
     additionalProperties: false

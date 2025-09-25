@@ -16,4 +16,7 @@
 \i 02_create_estimates_table_complete.sql
 \i 11_create_job_transactions_table_complete.sql
 
+-- 6. Role Permission System
+\i 12_create_role_permission_system_complete.sql
+
 SELECT 'All migrations completed successfully!' as status;

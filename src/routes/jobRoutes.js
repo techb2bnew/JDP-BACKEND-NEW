@@ -128,4 +128,12 @@ export async function jobRoutes(fastify, options) {
   fastify.get('/getJobDashboard/:id', {
     handler: JobController.getJobDashboard
   });
+
+  fastify.get('/getTimesheetSummary/:id', {
+    handler: JobController.getTimesheetSummary
+  });
+
+  fastify.get('/getWeeklyTimesheetSummary/:id', {
+    handler: JobController.getWeeklyTimesheetSummary
+  });
 }

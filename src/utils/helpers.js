@@ -105,3 +105,16 @@ export const filterArray = (array, filters) => {
     });
   });
 };
+
+export const safeJsonParse = (jsonString, defaultValue = null) => {
+  if (!jsonString || typeof jsonString !== 'string' || jsonString.trim() === '') {
+    return defaultValue;
+  }
+  
+  try {
+    return JSON.parse(jsonString);
+  } catch (error) {
+    console.warn('Failed to parse JSON:', jsonString, error.message);
+    return defaultValue;
+  }
+};

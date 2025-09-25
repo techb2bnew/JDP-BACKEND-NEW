@@ -1,4 +1,5 @@
 import { supabase } from "../config/database.js";
+import { safeJsonParse } from "../utils/helpers.js";
 
 export class Job {
   static async fetchLeadLaborDetails(leadLaborIds) {
@@ -176,31 +177,19 @@ export class Job {
   static async addDetailsToJob(job) {
     const jobWithDetails = { ...job };
 
-    if (job.assigned_lead_labor_ids) {
-      try {
-        const leadLaborIds = JSON.parse(job.assigned_lead_labor_ids);
+    const leadLaborIds = safeJsonParse(job.assigned_lead_labor_ids, []);
         jobWithDetails.assigned_lead_labor = await Job.fetchLeadLaborDetails(leadLaborIds);
-      } catch (error) {
-        jobWithDetails.assigned_lead_labor = [];
-      }
-    } else {
-      jobWithDetails.assigned_lead_labor = [];
-    }
 
-    if (job.assigned_labor_ids) {
-      try {
-        const laborIds = JSON.parse(job.assigned_labor_ids);
+    const laborIds = safeJsonParse(job.assigned_labor_ids, []);
         jobWithDetails.assigned_labor = await Job.fetchLaborDetails(laborIds);
-      } catch (error) {
-        jobWithDetails.assigned_labor = [];
-      }
-    } else {
-      jobWithDetails.assigned_labor = [];
-    }
 
     jobWithDetails.assigned_materials = await Job.fetchMaterialsDetails(job.id);
 
     jobWithDetails.custom_labor = await Job.fetchCustomLaborDetails(job.id);
+
+    // Parse timesheet data
+    jobWithDetails.labor_timesheets = safeJsonParse(job.labor_timesheets, []);
+    jobWithDetails.lead_labor_timesheets = safeJsonParse(job.lead_labor_timesheets, []);
 
     return jobWithDetails;
   }
@@ -472,7 +461,7 @@ export class Job {
 
       const filteredJobs = (allJobs || []).filter(job => {
         try {
-          const laborIds = JSON.parse(job.assigned_labor_ids || '[]');
+          const laborIds = safeJsonParse(job.assigned_labor_ids, []);
           return laborIds.includes(parseInt(laborId));
         } catch (e) {
           return false;
@@ -553,7 +542,7 @@ export class Job {
 
       const filteredJobs = (allJobs || []).filter(job => {
         try {
-          const leadLaborIds = JSON.parse(job.assigned_lead_labor_ids || '[]');
+          const leadLaborIds = safeJsonParse(job.assigned_lead_labor_ids, []);
           return leadLaborIds.includes(parseInt(leadLaborId));
         } catch (e) {
           return false;
@@ -1045,7 +1034,7 @@ export class Job {
           totalWorkTime: job.total_work_time || '00:00:00',
           startTimer: job.start_timer,
           endTimer: job.end_timer,
-          pauseTimer: job.pause_timer ? JSON.parse(job.pause_timer) : []
+          pauseTimer: safeJsonParse(job.pause_timer, [])
         },
         jobDetails: {
           jobType: job.job_type,
@@ -1069,10 +1058,27 @@ export class Job {
         throw new Error('Job ID is required');
       }
 
-      const job = await Job.findById(jobId);
-      if (!job) {
+      // Force fresh data fetch to avoid caching issues
+      const { data: freshJobData, error: freshJobError } = await supabase
+        .from("jobs")
+        .select("*")
+        .eq("id", jobId)
+        .single();
+
+      if (freshJobError) {
+        throw new Error(`Database error: ${freshJobError.message}`);
+      }
+
+      if (!freshJobData) {
         throw new Error('Job not found');
       }
+
+      console.log(`Fresh job data fetched - labor_timesheets:`, freshJobData.labor_timesheets ? 'exists' : 'null');
+      if (freshJobData.labor_timesheets) {
+        console.log(`Raw labor_timesheets length:`, freshJobData.labor_timesheets.length);
+      }
+
+      const job = freshJobData;
 
       const updateFields = {
         updated_at: new Date().toISOString()
@@ -1105,11 +1111,9 @@ export class Job {
       }
 
       if (updateData.pause_timer !== undefined) {
-        // Replace the entire pause_timer array instead of appending
         if (Array.isArray(updateData.pause_timer)) {
           updateFields.pause_timer = JSON.stringify(updateData.pause_timer);
         } else {
-          // If it's a single object, wrap it in an array
           updateFields.pause_timer = JSON.stringify([updateData.pause_timer]);
         }
       }
@@ -1122,6 +1126,334 @@ export class Job {
         updateFields.status = updateData.status;
       }
 
+      // Handle bulk timesheet updates (multiple labor for multiple days)
+      if (updateData.bulk_timesheets) {
+        const bulkTimesheets = updateData.bulk_timesheets;
+        
+        if (!Array.isArray(bulkTimesheets)) {
+          throw new Error('bulk_timesheets must be an array');
+        }
+
+        // Get current labor timesheets
+        const currentTimesheets = safeJsonParse(job.labor_timesheets, []);
+        
+        // Process each timesheet entry
+        for (const timesheetData of bulkTimesheets) {
+          // Validate required fields
+          if (!timesheetData.labor_id || !timesheetData.date) {
+            throw new Error('labor_id and date are required for each timesheet entry');
+          }
+
+          // Check if this labor already has an entry for this date
+          const existingIndex = currentTimesheets.findIndex(
+            ts => ts.labor_id === timesheetData.labor_id && ts.date === timesheetData.date
+          );
+
+          // Auto-calculate fields from provided data
+          let totalHours = "00:00:00";
+          let workHours = timesheetData.work_hours || "00:00:00";
+          let breakDuration = "00:00:00";
+          
+          // Calculate total hours from start_time and end_time if provided
+          if (timesheetData.start_time && timesheetData.end_time) {
+            totalHours = Job.calculateTimeDifference(timesheetData.start_time, timesheetData.end_time);
+            
+            // If work_hours not provided, calculate it (total - breaks)
+            if (!timesheetData.work_hours) {
+              const totalHoursDecimal = Job.timeToHours(totalHours);
+              const breakHoursDecimal = Job.timeToHours(breakDuration);
+              const calculatedWorkHours = Math.max(0, totalHoursDecimal - breakHoursDecimal);
+              workHours = Job.hoursToTime(calculatedWorkHours);
+            }
+          }
+
+          // Get labor details to fetch hourly_rate and user_id if not provided
+          let hourlyRate = timesheetData.hourly_rate || 0;
+          let userId = timesheetData.user_id;
+          let laborName = timesheetData.labor_name || 'Unknown Labor';
+
+          if (!userId || !hourlyRate) {
+            try {
+              const { data: laborData } = await supabase
+                .from('labor')
+                .select('user_id, hourly_rate')
+                .eq('id', timesheetData.labor_id)
+                .single();
+
+              if (laborData) {
+                userId = userId || laborData.user_id;
+                hourlyRate = hourlyRate || parseFloat(laborData.hourly_rate) || 0;
+              }
+
+              // Get user name
+              if (userId) {
+                const { data: userData } = await supabase
+                  .from('users')
+                  .select('full_name')
+                  .eq('id', userId)
+                  .single();
+                
+                if (userData) {
+                  laborName = userData.full_name;
+                }
+              }
+            } catch (error) {
+              console.warn('Could not fetch labor details:', error.message);
+            }
+          }
+
+          // Calculate total cost
+          const workHoursDecimal = Job.timeToHours(workHours);
+          const totalCost = workHoursDecimal * hourlyRate;
+
+          // Handle pause_timer if provided
+          let pauseTimerData = [];
+          if (timesheetData.pause_timer && Array.isArray(timesheetData.pause_timer)) {
+            pauseTimerData = timesheetData.pause_timer;
+            
+            // Calculate total break duration from pause_timer
+            const totalBreakSeconds = pauseTimerData.reduce((total, pause) => {
+              const duration = pause.duration || "00:00:00";
+              const [hours, minutes, seconds] = duration.split(':').map(Number);
+              return total + (hours * 3600) + (minutes * 60) + seconds;
+            }, 0);
+            
+            breakDuration = Job.hoursToTime(totalBreakSeconds / 3600);
+            
+            // Recalculate work hours if pause_timer provided
+            if (timesheetData.start_time && timesheetData.end_time) {
+              const totalHoursDecimal = Job.timeToHours(totalHours);
+              const breakHoursDecimal = Job.timeToHours(breakDuration);
+              const calculatedWorkHours = Math.max(0, totalHoursDecimal - breakHoursDecimal);
+              workHours = Job.hoursToTime(calculatedWorkHours);
+            }
+          }
+
+          // Prepare timesheet entry
+          const timesheetEntry = {
+            labor_id: timesheetData.labor_id,
+            user_id: userId,
+            labor_name: laborName,
+            date: timesheetData.date,
+            start_time: timesheetData.start_time || null,
+            end_time: timesheetData.end_time || null,
+            total_hours: totalHours,
+            break_duration: breakDuration,
+            work_hours: workHours,
+            hourly_rate: hourlyRate,
+            total_cost: parseFloat(totalCost.toFixed(2)),
+            work_activity: timesheetData.work_activity || 0,
+            status: timesheetData.status || 'active',
+            job_status: timesheetData.job_status || 'in_progress',
+            notes: timesheetData.notes || '',
+            pause_timer: pauseTimerData,
+            created_at: timesheetData.created_at || new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+
+          if (existingIndex >= 0) {
+            // Update existing entry
+            currentTimesheets[existingIndex] = timesheetEntry;
+          } else {
+            // Add new entry
+            currentTimesheets.push(timesheetEntry);
+          }
+        }
+
+        updateFields.labor_timesheets = JSON.stringify(currentTimesheets);
+      }
+
+      // Handle individual labor timesheet updates
+      if (updateData.labor_timesheet) {
+        const timesheetData = updateData.labor_timesheet;
+        
+        // Validate required fields
+        if (!timesheetData.labor_id || !timesheetData.date) {
+          throw new Error('labor_id and date are required for timesheet');
+        }
+
+        // Get current labor timesheets
+        const currentTimesheets = safeJsonParse(job.labor_timesheets, []);
+        
+        console.log(`Current timesheets before update:`, currentTimesheets.map(ts => ({ labor_id: ts.labor_id, date: ts.date })));
+        console.log(`New timesheet data:`, { labor_id: timesheetData.labor_id, date: timesheetData.date });
+        
+        // Check if this labor already has an entry for this date
+        const existingIndex = currentTimesheets.findIndex(
+          ts => ts.labor_id === timesheetData.labor_id && ts.date === timesheetData.date
+        );
+        
+        console.log(`Existing index found: ${existingIndex} (${existingIndex >= 0 ? 'UPDATE' : 'ADD NEW'})`);
+
+        // Auto-calculate fields from provided data
+        let totalHours = "00:00:00";
+        let workHours = timesheetData.work_hours || "00:00:00";
+        let breakDuration = "00:00:00";
+        
+        // Calculate total hours from start_time and end_time if provided
+        if (timesheetData.start_time && timesheetData.end_time) {
+          totalHours = Job.calculateTimeDifference(timesheetData.start_time, timesheetData.end_time);
+          
+          // If work_hours not provided, calculate it (total - breaks)
+          if (!timesheetData.work_hours) {
+            const totalHoursDecimal = Job.timeToHours(totalHours);
+            const breakHoursDecimal = Job.timeToHours(breakDuration);
+            const calculatedWorkHours = Math.max(0, totalHoursDecimal - breakHoursDecimal);
+            workHours = Job.hoursToTime(calculatedWorkHours);
+          }
+        }
+
+        // Get labor details to fetch hourly_rate and user_id if not provided
+        let hourlyRate = timesheetData.hourly_rate || 0;
+        let userId = timesheetData.user_id;
+        let laborName = timesheetData.labor_name || 'Unknown Labor';
+
+        if (!userId || !hourlyRate) {
+          try {
+            const { data: laborData } = await supabase
+              .from('labor')
+              .select('user_id, hourly_rate')
+              .eq('id', timesheetData.labor_id)
+              .single();
+
+            if (laborData) {
+              userId = userId || laborData.user_id;
+              hourlyRate = hourlyRate || parseFloat(laborData.hourly_rate) || 0;
+            }
+
+            // Get user name
+            if (userId) {
+              const { data: userData } = await supabase
+                .from('users')
+                .select('full_name')
+                .eq('id', userId)
+                .single();
+              
+              if (userData) {
+                laborName = userData.full_name;
+              }
+            }
+          } catch (error) {
+            console.warn('Could not fetch labor details:', error.message);
+          }
+        }
+
+        // Calculate total cost
+        const workHoursDecimal = Job.timeToHours(workHours);
+        const totalCost = workHoursDecimal * hourlyRate;
+
+        // Handle pause_timer if provided
+        let pauseTimerData = [];
+        if (timesheetData.pause_timer && Array.isArray(timesheetData.pause_timer)) {
+          pauseTimerData = timesheetData.pause_timer;
+          
+          // Calculate total break duration from pause_timer
+          const totalBreakSeconds = pauseTimerData.reduce((total, pause) => {
+            const duration = pause.duration || "00:00:00";
+            const [hours, minutes, seconds] = duration.split(':').map(Number);
+            return total + (hours * 3600) + (minutes * 60) + seconds;
+          }, 0);
+          
+          breakDuration = Job.hoursToTime(totalBreakSeconds / 3600);
+          
+          // Recalculate work hours if pause_timer provided
+          if (timesheetData.start_time && timesheetData.end_time) {
+            const totalHoursDecimal = Job.timeToHours(totalHours);
+            const breakHoursDecimal = Job.timeToHours(breakDuration);
+            const calculatedWorkHours = Math.max(0, totalHoursDecimal - breakHoursDecimal);
+            workHours = Job.hoursToTime(calculatedWorkHours);
+          }
+        }
+
+        // Prepare timesheet entry
+        const timesheetEntry = {
+          labor_id: timesheetData.labor_id,
+          user_id: userId,
+          labor_name: laborName,
+          date: timesheetData.date,
+          start_time: timesheetData.start_time || null,
+          end_time: timesheetData.end_time || null,
+          total_hours: totalHours,
+          break_duration: breakDuration,
+          work_hours: workHours,
+          hourly_rate: hourlyRate,
+          total_cost: parseFloat(totalCost.toFixed(2)),
+          work_activity: timesheetData.work_activity || 0,
+          status: timesheetData.status || 'active',
+          job_status: timesheetData.job_status || 'in_progress',
+          notes: timesheetData.notes || '',
+          pause_timer: pauseTimerData,
+          created_at: timesheetData.created_at || new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+
+        if (existingIndex >= 0) {
+          // Update existing entry
+          console.log(`Updating existing entry at index ${existingIndex}`);
+          currentTimesheets[existingIndex] = timesheetEntry;
+        } else {
+          // Add new entry
+          console.log(`Adding new entry to timesheets array`);
+          currentTimesheets.push(timesheetEntry);
+        }
+
+        console.log(`Final timesheets after update:`, currentTimesheets.map(ts => ({ labor_id: ts.labor_id, date: ts.date })));
+        updateFields.labor_timesheets = JSON.stringify(currentTimesheets);
+      }
+
+      // Handle individual lead labor timesheet updates
+      if (updateData.lead_labor_timesheet) {
+        const timesheetData = updateData.lead_labor_timesheet;
+        
+        // Validate required fields
+        if (!timesheetData.lead_labor_id || !timesheetData.user_id || !timesheetData.date) {
+          throw new Error('lead_labor_id, user_id, and date are required for lead labor timesheet');
+        }
+
+        // Get current lead labor timesheets
+        const currentLeadTimesheets = safeJsonParse(job.lead_labor_timesheets, []);
+        
+        // Check if this lead labor already has an entry for this date
+        const existingIndex = currentLeadTimesheets.findIndex(
+          ts => ts.lead_labor_id === timesheetData.lead_labor_id && ts.date === timesheetData.date
+        );
+
+        // Prepare timesheet entry
+        const timesheetEntry = {
+          lead_labor_id: timesheetData.lead_labor_id,
+          user_id: timesheetData.user_id,
+          labor_name: timesheetData.labor_name || 'Unknown Lead Labor',
+          date: timesheetData.date,
+          start_time: timesheetData.start_time || null,
+          end_time: timesheetData.end_time || null,
+          total_hours: timesheetData.total_hours || "00:00:00",
+          break_duration: timesheetData.break_duration || "00:00:00",
+          work_hours: timesheetData.work_hours || "00:00:00",
+          hourly_rate: timesheetData.hourly_rate || 0,
+          total_cost: timesheetData.total_cost || 0,
+          work_activity: timesheetData.work_activity || 0,
+          status: timesheetData.status || 'active',
+          notes: timesheetData.notes || '',
+          created_at: timesheetData.created_at || new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+
+        if (existingIndex >= 0) {
+          // Update existing entry
+          currentLeadTimesheets[existingIndex] = timesheetEntry;
+        } else {
+          // Add new entry
+          currentLeadTimesheets.push(timesheetEntry);
+        }
+
+        updateFields.lead_labor_timesheets = JSON.stringify(currentLeadTimesheets);
+      }
+
+      console.log(`Updating job ${jobId} with fields:`, Object.keys(updateFields));
+      if (updateFields.labor_timesheets) {
+        console.log(`Labor timesheets to save:`, updateFields.labor_timesheets);
+      }
+
       const { data, error } = await supabase
         .from("jobs")
         .update(updateFields)
@@ -1130,10 +1462,339 @@ export class Job {
         .single();
 
       if (error) {
+        console.error(`Database update error:`, error);
         throw new Error(`Database error: ${error.message}`);
       }
 
-      return data;
+      console.log(`Database update successful. Returned data:`, {
+        id: data.id,
+        labor_timesheets_length: data.labor_timesheets ? data.labor_timesheets.length : 'null',
+        labor_timesheets_preview: data.labor_timesheets ? data.labor_timesheets.substring(0, 100) + '...' : 'null'
+      });
+
+      // Parse JSON fields before returning
+      const parsedData = { ...data };
+      parsedData.labor_timesheets = safeJsonParse(data.labor_timesheets, []);
+      parsedData.lead_labor_timesheets = safeJsonParse(data.lead_labor_timesheets, []);
+      parsedData.pause_timer = safeJsonParse(data.pause_timer, []);
+
+      console.log(`Final parsed data - labor_timesheets count:`, parsedData.labor_timesheets.length);
+
+      // Fetch fresh data to ensure we have the latest
+      console.log(`Fetching fresh data to verify update...`);
+      const { data: freshData, error: freshError } = await supabase
+        .from("jobs")
+        .select("labor_timesheets, lead_labor_timesheets, pause_timer")
+        .eq("id", jobId)
+        .single();
+
+      if (!freshError && freshData) {
+        console.log(`Fresh data verification - labor_timesheets length:`, freshData.labor_timesheets ? freshData.labor_timesheets.length : 'null');
+        if (freshData.labor_timesheets) {
+          const freshParsed = safeJsonParse(freshData.labor_timesheets, []);
+          console.log(`Fresh parsed data - labor_timesheets count:`, freshParsed.length);
+        }
+      }
+
+      return parsedData;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Helper method to calculate time difference in HH:MM:SS format
+  static calculateTimeDifference(startTime, endTime) {
+    if (!startTime || !endTime) return "00:00:00";
+    
+    const start = new Date(`1970-01-01T${startTime}Z`);
+    const end = new Date(`1970-01-01T${endTime}Z`);
+    const diffMs = end - start;
+    
+    if (diffMs < 0) return "00:00:00";
+    
+    const hours = Math.floor(diffMs / (1000 * 60 * 60));
+    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((diffMs % (1000 * 60)) / 1000);
+    
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  }
+
+  // Helper method to convert time string to hours (decimal)
+  static timeToHours(timeString) {
+    if (!timeString || timeString === "00:00:00") return 0;
+    
+    const [hours, minutes, seconds] = timeString.split(':').map(Number);
+    return hours + (minutes / 60) + (seconds / 3600);
+  }
+
+  // Helper method to convert hours (decimal) to time string
+  static hoursToTime(hours) {
+    const totalSeconds = Math.round(hours * 3600);
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    const s = totalSeconds % 60;
+    
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  }
+
+  // Get weekly timesheet summary for a job
+  static async getWeeklyTimesheetSummary(jobId, startDate, endDate) {
+    try {
+      const job = await Job.findById(jobId);
+      if (!job) {
+        throw new Error('Job not found');
+      }
+
+      const laborTimesheets = safeJsonParse(job.labor_timesheets, []);
+      const leadLaborTimesheets = safeJsonParse(job.lead_labor_timesheets, []);
+
+      // Filter timesheets by date range
+      const filteredLaborTimesheets = laborTimesheets.filter(ts => {
+        const tsDate = new Date(ts.date);
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        return tsDate >= start && tsDate <= end;
+      });
+
+      const filteredLeadLaborTimesheets = leadLaborTimesheets.filter(ts => {
+        const tsDate = new Date(ts.date);
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        return tsDate >= start && tsDate <= end;
+      });
+
+      // Create weekly breakdown
+      const weeklyBreakdown = {};
+      const laborSummary = {};
+      const leadLaborSummary = {};
+
+      // Process labor timesheets
+      filteredLaborTimesheets.forEach(timesheet => {
+        const date = timesheet.date;
+        const laborId = timesheet.labor_id;
+        
+        if (!weeklyBreakdown[date]) {
+          weeklyBreakdown[date] = { labor: [], lead_labor: [] };
+        }
+
+        weeklyBreakdown[date].labor.push({
+          labor_id: timesheet.labor_id,
+          labor_name: timesheet.labor_name,
+          start_time: timesheet.start_time,
+          end_time: timesheet.end_time,
+          total_hours: timesheet.total_hours,
+          work_hours: timesheet.work_hours,
+          break_duration: timesheet.break_duration,
+          hourly_rate: timesheet.hourly_rate,
+          total_cost: timesheet.total_cost,
+          work_activity: timesheet.work_activity,
+          status: timesheet.status,
+          notes: timesheet.notes,
+          pause_timer: timesheet.pause_timer
+        });
+
+        // Calculate labor summary
+        if (!laborSummary[laborId]) {
+          laborSummary[laborId] = {
+            labor_id: laborId,
+            labor_name: timesheet.labor_name,
+            total_hours: 0,
+            total_cost: 0,
+            days_worked: 0,
+            daily_breakdown: {}
+          };
+        }
+
+        const hours = Job.timeToHours(timesheet.work_hours || timesheet.total_hours);
+        const cost = parseFloat(timesheet.total_cost) || 0;
+
+        laborSummary[laborId].total_hours += hours;
+        laborSummary[laborId].total_cost += cost;
+        laborSummary[laborId].days_worked += 1;
+        laborSummary[laborId].daily_breakdown[date] = {
+          hours: timesheet.work_hours || timesheet.total_hours,
+          cost: cost,
+          work_activity: timesheet.work_activity
+        };
+      });
+
+      // Process lead labor timesheets
+      filteredLeadLaborTimesheets.forEach(timesheet => {
+        const date = timesheet.date;
+        
+        if (!weeklyBreakdown[date]) {
+          weeklyBreakdown[date] = { labor: [], lead_labor: [] };
+        }
+
+        weeklyBreakdown[date].lead_labor.push({
+          lead_labor_id: timesheet.lead_labor_id,
+          labor_name: timesheet.labor_name,
+          start_time: timesheet.start_time,
+          end_time: timesheet.end_time,
+          total_hours: timesheet.total_hours,
+          work_hours: timesheet.work_hours,
+          break_duration: timesheet.break_duration,
+          hourly_rate: timesheet.hourly_rate,
+          total_cost: timesheet.total_cost,
+          work_activity: timesheet.work_activity,
+          status: timesheet.status,
+          notes: timesheet.notes
+        });
+
+        // Calculate lead labor summary
+        const leadLaborId = timesheet.lead_labor_id;
+        if (!leadLaborSummary[leadLaborId]) {
+          leadLaborSummary[leadLaborId] = {
+            lead_labor_id: leadLaborId,
+            labor_name: timesheet.labor_name,
+            total_hours: 0,
+            total_cost: 0,
+            days_worked: 0,
+            daily_breakdown: {}
+          };
+        }
+
+        const hours = Job.timeToHours(timesheet.work_hours || timesheet.total_hours);
+        const cost = parseFloat(timesheet.total_cost) || 0;
+
+        leadLaborSummary[leadLaborId].total_hours += hours;
+        leadLaborSummary[leadLaborId].total_cost += cost;
+        leadLaborSummary[leadLaborId].days_worked += 1;
+        leadLaborSummary[leadLaborId].daily_breakdown[date] = {
+          hours: timesheet.work_hours || timesheet.total_hours,
+          cost: cost,
+          work_activity: timesheet.work_activity
+        };
+      });
+
+      // Calculate totals
+      const totalLaborHours = Object.values(laborSummary).reduce((sum, labor) => sum + labor.total_hours, 0);
+      const totalLaborCost = Object.values(laborSummary).reduce((sum, labor) => sum + labor.total_cost, 0);
+      const totalLeadLaborHours = Object.values(leadLaborSummary).reduce((sum, labor) => sum + labor.total_hours, 0);
+      const totalLeadLaborCost = Object.values(leadLaborSummary).reduce((sum, labor) => sum + labor.total_cost, 0);
+
+      return {
+        job_id: jobId,
+        period: {
+          start_date: startDate,
+          end_date: endDate,
+          total_days: Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)) + 1
+        },
+        summary: {
+          total_labor_hours: Job.hoursToTime(totalLaborHours),
+          total_lead_labor_hours: Job.hoursToTime(totalLeadLaborHours),
+          total_hours: Job.hoursToTime(totalLaborHours + totalLeadLaborHours),
+          total_labor_cost: totalLaborCost.toFixed(2),
+          total_lead_labor_cost: totalLeadLaborCost.toFixed(2),
+          total_cost: (totalLaborCost + totalLeadLaborCost).toFixed(2)
+        },
+        weekly_breakdown: weeklyBreakdown,
+        labor_summary: Object.values(laborSummary).map(labor => ({
+          ...labor,
+          total_hours: Job.hoursToTime(labor.total_hours),
+          total_cost: labor.total_cost.toFixed(2)
+        })),
+        lead_labor_summary: Object.values(leadLaborSummary).map(labor => ({
+          ...labor,
+          total_hours: Job.hoursToTime(labor.total_hours),
+          total_cost: labor.total_cost.toFixed(2)
+        }))
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Get timesheet summary for a job
+  static async getTimesheetSummary(jobId) {
+    try {
+      const job = await Job.findById(jobId);
+      if (!job) {
+        throw new Error('Job not found');
+      }
+
+      const laborTimesheets = safeJsonParse(job.labor_timesheets, []);
+      const leadLaborTimesheets = safeJsonParse(job.lead_labor_timesheets, []);
+
+      // Calculate totals for labor timesheets
+      let totalLaborHours = 0;
+      let totalLaborCost = 0;
+      const laborSummary = {};
+
+      laborTimesheets.forEach(timesheet => {
+        const hours = Job.timeToHours(timesheet.work_hours || timesheet.total_hours);
+        const cost = parseFloat(timesheet.total_cost) || (hours * (parseFloat(timesheet.hourly_rate) || 0));
+        
+        totalLaborHours += hours;
+        totalLaborCost += cost;
+
+        if (!laborSummary[timesheet.labor_id]) {
+          laborSummary[timesheet.labor_id] = {
+            labor_id: timesheet.labor_id,
+            labor_name: timesheet.labor_name,
+            total_hours: 0,
+            total_cost: 0,
+            days_worked: 0
+          };
+        }
+
+        laborSummary[timesheet.labor_id].total_hours += hours;
+        laborSummary[timesheet.labor_id].total_cost += cost;
+        laborSummary[timesheet.labor_id].days_worked += 1;
+      });
+
+      // Calculate totals for lead labor timesheets
+      let totalLeadLaborHours = 0;
+      let totalLeadLaborCost = 0;
+      const leadLaborSummary = {};
+
+      leadLaborTimesheets.forEach(timesheet => {
+        const hours = Job.timeToHours(timesheet.work_hours || timesheet.total_hours);
+        const cost = parseFloat(timesheet.total_cost) || (hours * (parseFloat(timesheet.hourly_rate) || 0));
+        
+        totalLeadLaborHours += hours;
+        totalLeadLaborCost += cost;
+
+        if (!leadLaborSummary[timesheet.lead_labor_id]) {
+          leadLaborSummary[timesheet.lead_labor_id] = {
+            lead_labor_id: timesheet.lead_labor_id,
+            labor_name: timesheet.labor_name,
+            total_hours: 0,
+            total_cost: 0,
+            days_worked: 0
+          };
+        }
+
+        leadLaborSummary[timesheet.lead_labor_id].total_hours += hours;
+        leadLaborSummary[timesheet.lead_labor_id].total_cost += cost;
+        leadLaborSummary[timesheet.lead_labor_id].days_worked += 1;
+      });
+
+      return {
+        job_id: jobId,
+        summary: {
+          total_labor_hours: Job.hoursToTime(totalLaborHours),
+          total_lead_labor_hours: Job.hoursToTime(totalLeadLaborHours),
+          total_hours: Job.hoursToTime(totalLaborHours + totalLeadLaborHours),
+          total_labor_cost: totalLaborCost.toFixed(2),
+          total_lead_labor_cost: totalLeadLaborCost.toFixed(2),
+          total_cost: (totalLaborCost + totalLeadLaborCost).toFixed(2)
+        },
+        labor_breakdown: Object.values(laborSummary).map(labor => ({
+          ...labor,
+          total_hours: Job.hoursToTime(labor.total_hours),
+          total_cost: labor.total_cost.toFixed(2)
+        })),
+        lead_labor_breakdown: Object.values(leadLaborSummary).map(labor => ({
+          ...labor,
+          total_hours: Job.hoursToTime(labor.total_hours),
+          total_cost: labor.total_cost.toFixed(2)
+        })),
+        all_timesheets: {
+          labor: laborTimesheets,
+          lead_labor: leadLaborTimesheets
+        }
+      };
     } catch (error) {
       throw error;
     }
@@ -1209,7 +1870,7 @@ export class Job {
           totalWorkTime: job.total_work_time || '00:00:00',
           startTimer: job.start_timer,
           endTimer: job.end_timer,
-          pauseTimer: job.pause_timer ? JSON.parse(job.pause_timer) : []
+          pauseTimer: safeJsonParse(job.pause_timer, [])
         }
       };
     } catch (error) {
@@ -1297,7 +1958,7 @@ export class Job {
           totalWorkTime: job.total_work_time || '00:00:00',
           startTimer: job.start_timer,
           endTimer: job.end_timer,
-          pauseTimer: job.pause_timer ? JSON.parse(job.pause_timer) : []
+          pauseTimer: safeJsonParse(job.pause_timer, [])
         },
         jobDetails: {
           jobType: job.job_type,

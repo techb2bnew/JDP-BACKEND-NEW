@@ -303,8 +303,12 @@ export class JobController {
           !updateData.total_work_time && 
           !updateData.start_timer && 
           !updateData.end_timer && 
-          !updateData.pause_timer) {
-        return reply.code(400).send(errorResponse('At least one field is required: work_activity, total_work_time, start_timer, end_timer, or pause_timer', 400));
+          !updateData.pause_timer &&
+          !updateData.labor_timesheet &&
+          !updateData.lead_labor_timesheet &&
+          !updateData.bulk_timesheets &&
+          !updateData.status) {
+        return reply.code(400).send(errorResponse('At least one field is required: work_activity, total_work_time, start_timer, end_timer, pause_timer, labor_timesheet, lead_labor_timesheet, bulk_timesheets, or status', 400));
       }
 
       // Validate work activity if provided (should be a simple number)
@@ -329,6 +333,57 @@ export class JobController {
       }
       if (error.message.includes('Database error')) {
         return reply.code(500).send(errorResponse('Database error occurred', 500));
+      }
+      return reply.code(500).send(errorResponse(error.message));
+    }
+  }
+
+  // Timesheet Summary Controller
+  static async getTimesheetSummary(request, reply) {
+    try {
+      const { id } = request.params;
+      
+      if (!id) {
+        return reply.code(400).send(errorResponse('Job ID is required', 400));
+      }
+
+      const result = await Job.getTimesheetSummary(parseInt(id));
+      return reply.code(200).send({
+        success: true,
+        message: 'Timesheet summary retrieved successfully',
+        data: result
+      });
+    } catch (error) {
+      if (error.message.includes('not found')) {
+        return reply.code(404).send(errorResponse(error.message, 404));
+      }
+      return reply.code(500).send(errorResponse(error.message));
+    }
+  }
+
+  // Weekly Timesheet Summary Controller
+  static async getWeeklyTimesheetSummary(request, reply) {
+    try {
+      const { id } = request.params;
+      const { start_date, end_date } = request.query;
+      
+      if (!id) {
+        return reply.code(400).send(errorResponse('Job ID is required', 400));
+      }
+
+      if (!start_date || !end_date) {
+        return reply.code(400).send(errorResponse('start_date and end_date are required', 400));
+      }
+
+      const result = await Job.getWeeklyTimesheetSummary(parseInt(id), start_date, end_date);
+      return reply.code(200).send({
+        success: true,
+        message: 'Weekly timesheet summary retrieved successfully',
+        data: result
+      });
+    } catch (error) {
+      if (error.message.includes('not found')) {
+        return reply.code(404).send(errorResponse(error.message, 404));
       }
       return reply.code(500).send(errorResponse(error.message));
     }
