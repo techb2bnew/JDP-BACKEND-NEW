@@ -116,8 +116,22 @@ export class Job {
           updated_at,
           supplier:suppliers!products_supplier_id_fkey(
             id,
+            user_id,
+            supplier_code,
             company_name,
-            contact_person
+            contact_person,
+            address,
+            contract_start,
+            contract_end,
+            notes,
+            created_at,
+            user:users!suppliers_user_id_fkey(
+              id,
+              full_name,
+              email,
+              phone,
+              photo_url
+            )
           )
         `)
         .eq("job_id", jobId);
