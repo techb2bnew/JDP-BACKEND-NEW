@@ -389,6 +389,91 @@ export class JobController {
     }
   }
 
+  // All Jobs Weekly Timesheet Summary Controller
+  static async getAllJobsWeeklyTimesheetSummary(request, reply) {
+    try {
+      const { start_date, end_date } = request.query;
+      
+      if (!start_date || !end_date) {
+        return reply.code(400).send(errorResponse('start_date and end_date are required', 400));
+      }
+
+      const result = await Job.getAllJobsWeeklyTimesheetSummary(start_date, end_date);
+      return reply.code(200).send({
+        success: true,
+        message: 'All jobs weekly timesheet summary retrieved successfully',
+        data: result
+      });
+    } catch (error) {
+      return reply.code(500).send(errorResponse(error.message));
+    }
+  }
+
+  // Approve Timesheet Controller
+  static async approveTimesheet(request, reply) {
+    try {
+      const { jobId, laborId, date, status, billable } = request.body;
+      const { status: queryStatus, billable: queryBillable } = request.query;
+      
+      if (!jobId || !laborId || !date) {
+        return reply.code(400).send(errorResponse('jobId, laborId, and date are required', 400));
+      }
+
+      const finalStatus = status || queryStatus || 'approved';
+      const finalBillable = billable !== undefined ? billable : (queryBillable !== undefined ? queryBillable : null);
+
+      const result = await Job.approveTimesheet(
+        parseInt(jobId), 
+        parseInt(laborId), 
+        date, 
+        finalStatus,
+        finalBillable
+      );
+      
+      return reply.code(200).send(result);
+    } catch (error) {
+      if (error.message.includes('not found')) {
+        return reply.code(404).send(errorResponse(error.message, 404));
+      }
+      if (error.message.includes('Timesheet entry not found')) {
+        return reply.code(404).send(errorResponse(error.message, 404));
+      }
+      return reply.code(500).send(errorResponse(error.message));
+    }
+  }
+
+  // Approve Week Timesheet Controller
+  static async approveWeekTimesheet(request, reply) {
+    try {
+      const { jobId, laborId, startDate, endDate, status } = request.body;
+      const { status: queryStatus } = request.query;
+      
+      if (!jobId || !laborId || !startDate || !endDate) {
+        return reply.code(400).send(errorResponse('jobId, laborId, startDate, and endDate are required', 400));
+      }
+
+      const finalStatus = status || queryStatus || 'approved';
+
+      const result = await Job.approveWeekTimesheet(
+        parseInt(jobId), 
+        parseInt(laborId), 
+        startDate, 
+        endDate,
+        finalStatus
+      );
+      
+      return reply.code(200).send(result);
+    } catch (error) {
+      if (error.message.includes('not found')) {
+        return reply.code(404).send(errorResponse(error.message, 404));
+      }
+      if (error.message.includes('No timesheet entries found')) {
+        return reply.code(404).send(errorResponse(error.message, 404));
+      }
+      return reply.code(500).send(errorResponse(error.message));
+    }
+  }
+
   // Project Summary Controller
   static async getProjectSummary(request, reply) {
     try {

@@ -136,4 +136,16 @@ export async function jobRoutes(fastify, options) {
   fastify.get('/getWeeklyTimesheetSummary/:id', {
     handler: JobController.getWeeklyTimesheetSummary
   });
+
+  fastify.get('/getAllJobsWeeklyTimesheetSummary', {
+    handler: JobController.getAllJobsWeeklyTimesheetSummary
+  });
+
+  fastify.post('/approveTimesheet', {
+    handler: JobController.approveTimesheet
+  });
+
+  fastify.post('/approveWeekTimesheet', {
+    handler: JobController.approveWeekTimesheet
+  });
 }
