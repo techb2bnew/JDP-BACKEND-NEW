@@ -23,8 +23,12 @@ export class EstimateController {
       console.error('Error in createEstimate:', error);
       
       if (error.message.includes('duplicate key') || error.message.includes('unique constraint')) {
-        return reply.status(400).send(errorResponse('Estimate with this title already exists', 400));
+        if (error.message.includes('invoice_number')) {
+          return reply.status(400).send(errorResponse('Invoice number already exists', 400));
+        }
+        return reply.status(400).send(errorResponse('Duplicate entry found', 400));
       }
+      
       
       return reply.status(500).send(errorResponse('Failed to create estimate', 500));
     }
