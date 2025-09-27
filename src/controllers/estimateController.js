@@ -1,5 +1,6 @@
 import { EstimateService } from '../services/estimateService.js';
 import { successResponse, errorResponse, validationErrorResponse } from '../helpers/responseHelper.js';
+import { createEstimateSchema } from '../validations/estimateValidation.js';
 
 export class EstimateController {
   static async createEstimate(req, reply) {
@@ -7,7 +8,15 @@ export class EstimateController {
       const estimateData = req.body;
       const createdByUserId = req.user.id;
 
-      const result = await EstimateService.createEstimate(estimateData, createdByUserId);
+      // Validate the request data
+      const { error, value } = createEstimateSchema.validate(estimateData, { abortEarly: false });
+      
+      if (error) {
+        const validationErrors = error.details.map(detail => detail.message);
+        return reply.status(400).send(validationErrorResponse(validationErrors));
+      }
+
+      const result = await EstimateService.createEstimate(value, createdByUserId);
       
       return reply.status(201).send(successResponse(result.estimate, result.message, 201));
     } catch (error) {

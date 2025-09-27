@@ -7,7 +7,7 @@ export const createEstimateSchema = Joi.object({
   priority: Joi.string().valid('low', 'medium', 'high', 'urgent').default('medium'),
   valid_until: Joi.date().optional(),
   location: Joi.string().max(200).optional(),
-  description: Joi.string().optional(),
+  description: Joi.string().allow('').optional(),
   service_type: Joi.string().valid('service_based', 'contract_based').required(),
   email_address: Joi.string().email().required(),
   estimate_date: Joi.date().required(),
@@ -34,7 +34,34 @@ export const createEstimateSchema = Joi.object({
   additional_cost: Joi.object({
     description: Joi.string().max(200).required(),
     amount: Joi.number().precision(2).min(0).required()
-  }).optional()
+  }).optional(),
+
+  // Custom labor array
+  custom_labor: Joi.array().items(
+    Joi.object({
+      full_name: Joi.string().max(100).required(),
+      email: Joi.string().email().required(),
+      hours_worked: Joi.number().precision(2).min(0).required(),
+      hourly_rate: Joi.number().precision(2).min(0).required(),
+      job_id: Joi.number().integer().positive().required(),
+      is_custom: Joi.boolean().default(true)
+    })
+  ).optional(),
+
+  // Custom products array
+  custom_products: Joi.array().items(
+    Joi.object({
+      product_name: Joi.string().max(200).required(),
+      supplier_id: Joi.number().integer().positive().required(),
+      supplier_sku: Joi.string().max(100).optional(),
+      jdp_sku: Joi.string().max(100).optional(),
+      stock_quantity: Joi.number().integer().min(0).required(),
+      unit: Joi.string().max(50).required(),
+      job_id: Joi.alternatives().try(Joi.number().integer().positive(), Joi.string()).required(),
+      is_custom: Joi.boolean().default(true),
+      unit_cost: Joi.number().precision(2).min(0).required()
+    })
+  ).optional()
 });
 
 export const updateEstimateSchema = Joi.object({
@@ -44,7 +71,7 @@ export const updateEstimateSchema = Joi.object({
   priority: Joi.string().valid('low', 'medium', 'high', 'urgent').optional(),
   valid_until: Joi.date().optional(),
   location: Joi.string().max(200).optional(),
-  description: Joi.string().optional(),
+  description: Joi.string().allow('').optional(),
   service_type: Joi.string().valid('service_based', 'contract_based').optional(),
   email_address: Joi.string().email().optional(),
   estimate_date: Joi.date().optional(),

@@ -1,5 +1,6 @@
 import { EstimateController } from '../controllers/estimateController.js';
 import { authenticateToken } from '../middleware/authMiddleware.js';
+import { createEstimateSchema } from '../validations/estimateValidation.js';
 
 export default async function estimateRoutes(fastify, options) {
   fastify.addHook('preHandler', authenticateToken);

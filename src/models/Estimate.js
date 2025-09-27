@@ -38,10 +38,84 @@ export class Estimate {
     }
   }
 
+  static async generateLaborCode() {
+    try {
+      const currentYear = new Date().getFullYear();
+      const prefix = `LB-${currentYear}-`;
+      
+      const { data, error } = await supabase
+        .from('labor')
+        .select('labor_code')
+        .like('labor_code', `${prefix}%`)
+        .order('labor_code', { ascending: false })
+        .limit(1);
+
+      if (error) {
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      let nextNumber = 1;
+      
+      if (data && data.length > 0) {
+        const lastCode = data[0].labor_code;
+        const match = lastCode.match(new RegExp(`${prefix}(\\d+)`));
+        if (match) {
+          nextNumber = parseInt(match[1]) + 1;
+        }
+      }
+
+      const formattedNumber = nextNumber.toString().padStart(3, '0');
+      
+      return `${prefix}${formattedNumber}`;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async generateProductSku() {
+    try {
+      const currentYear = new Date().getFullYear();
+      const prefix = `JDP-PROD-${currentYear}-`;
+      
+      const { data, error } = await supabase
+        .from('products')
+        .select('jdp_sku')
+        .like('jdp_sku', `${prefix}%`)
+        .order('jdp_sku', { ascending: false })
+        .limit(1);
+
+      if (error) {
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      let nextNumber = 1;
+      
+      if (data && data.length > 0) {
+        const lastSku = data[0].jdp_sku;
+        const match = lastSku.match(new RegExp(`${prefix}(\\d+)`));
+        if (match) {
+          nextNumber = parseInt(match[1]) + 1;
+        }
+      }
+
+      const formattedNumber = nextNumber.toString().padStart(4, '0');
+      
+      return `${prefix}${formattedNumber}`;
+    } catch (error) {
+      throw error;
+    }
+  }
+
   static async create(estimateData) {
     try {
       const additionalCost = estimateData.additional_cost;
-      delete estimateData.additional_cost; 
+      const customLabor = estimateData.custom_labor;
+      const customProducts = estimateData.custom_products;
+      
+      // Remove custom data from estimateData to avoid conflicts
+      delete estimateData.additional_cost;
+      delete estimateData.custom_labor;
+      delete estimateData.custom_products;
 
       if (!estimateData.invoice_number) {
         estimateData.invoice_number = await Estimate.generateInvoiceNumber();
@@ -77,6 +151,7 @@ export class Estimate {
         throw new Error(`Database error: ${error.message}`);
       }
 
+      // Create additional cost if provided
       if (additionalCost && additionalCost.description && additionalCost.amount) {
         const additionalCostData = {
           estimate_id: data.id,
@@ -92,6 +167,113 @@ export class Estimate {
 
         if (additionalCostError) {
           console.error('Error creating additional cost:', additionalCostError);
+        }
+      }
+
+      // Create custom labor if provided
+      if (customLabor && Array.isArray(customLabor) && customLabor.length > 0) {
+        for (const laborItem of customLabor) {
+          try {
+            // First create a user for the labor (following labor service pattern)
+            const { generateTemporaryPassword } = await import('../lib/generateTemporaryPassword.js');
+            const { hashPassword } = await import('../helpers/authHelper.js');
+            
+            const temporaryPassword = generateTemporaryPassword();
+            const hashedPassword = await hashPassword(temporaryPassword);
+
+            const userData = {
+              full_name: laborItem.full_name,
+              email: laborItem.email,
+              phone: null,
+              password: hashedPassword,
+              role: 'labor',
+              status: 'active'
+            };
+
+            const { data: user, error: userError } = await supabase
+              .from('users')
+              .insert([userData])
+              .select('id')
+              .single();
+
+            if (userError) {
+              console.error('Error creating user for custom labor:', userError);
+              continue;
+            }
+
+            // Generate labor code
+            const laborCode = await Estimate.generateLaborCode();
+
+            // Create labor record (following labor service pattern)
+            const laborData = {
+              user_id: user.id,
+              labor_code: laborCode,
+              dob: '1990-01-01', // Default DOB for custom labor
+              address: 'Default Address', // Default address
+              notes: null,
+              date_of_joining: new Date().toISOString().split('T')[0], // Today's date
+              trade: 'Custom Labor',
+              experience: 'Custom',
+              hourly_rate: laborItem.hourly_rate,
+              supervisor_id: null,
+              availability: null,
+              system_ip: estimateData.system_ip || null,
+              certifications: null,
+              skills: null,
+              is_custom: true,
+              job_id: laborItem.job_id,
+              hours_worked: laborItem.hours_worked
+            };
+
+            const { error: laborError } = await supabase
+              .from('labor')
+              .insert([laborData]);
+
+            if (laborError) {
+              console.error('Error creating custom labor:', laborError);
+            }
+          } catch (error) {
+            console.error('Error processing custom labor item:', error);
+          }
+        }
+      }
+
+      // Create custom products if provided
+      if (customProducts && Array.isArray(customProducts) && customProducts.length > 0) {
+        for (const productItem of customProducts) {
+          try {
+            // Generate JDP SKU if not provided
+            let jdpSku = productItem.jdp_sku;
+            if (!jdpSku) {
+              jdpSku = await Estimate.generateProductSku();
+            }
+
+            const productData = {
+              product_name: productItem.product_name,
+              supplier_id: productItem.supplier_id,
+              supplier_sku: productItem.supplier_sku || '',
+              jdp_sku: jdpSku,
+              stock_quantity: productItem.stock_quantity,
+              unit: productItem.unit,
+              job_id: parseInt(productItem.job_id),
+              is_custom: true,
+              unit_cost: productItem.unit_cost,
+              jdp_price: productItem.unit_cost, // For custom products, use unit_cost as jdp_price
+              status: 'active',
+              created_by: estimateData.created_by || null,
+              system_ip: estimateData.system_ip || null
+            };
+
+            const { error: productError } = await supabase
+              .from('products')
+              .insert([productData]);
+
+            if (productError) {
+              console.error('Error creating custom product:', productError);
+            }
+          } catch (error) {
+            console.error('Error processing custom product item:', error);
+          }
         }
       }
 
