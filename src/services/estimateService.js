@@ -84,11 +84,11 @@ export class EstimateService {
         relationshipCheck = { canDelete: true, relationships: [] };
       }
       
-      if (!relationshipCheck.canDelete) {
-        const relationshipMessages = relationshipCheck.relationships.map(rel => rel.message).join(', ');
-        console.log(`Cannot delete estimate due to relationships: ${relationshipMessages}`);
-        throw new Error(`Cannot delete this estimate because it has related data: ${relationshipMessages}. Please remove all related data first.`);
-      }
+      // if (!relationshipCheck.canDelete) {
+      //   const relationshipMessages = relationshipCheck.relationships.map(rel => rel.message).join(', ');
+      //   console.log(`Cannot delete estimate due to relationships: ${relationshipMessages}`);
+      //   throw new Error(`Cannot delete this estimate because it has related data: ${relationshipMessages}. Please remove all related data first.`);
+      // }
 
       // Proceed with deletion
       try {
