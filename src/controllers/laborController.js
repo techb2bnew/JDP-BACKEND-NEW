@@ -23,6 +23,8 @@ export class LaborController {
       return reply.status(201).send(successResponse(result, 'Labor created successfully', 201));
     } catch (error) {
       console.error('Error in createLabor:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
       
       if (error.message === 'Email already exists') {
         return reply.status(400).send(errorResponse('Email already exists', 400));
@@ -60,7 +62,9 @@ export class LaborController {
       return reply.status(200).send(successResponse(result, 'Labor retrieved successfully'));
     } catch (error) {
       console.error('Error in getAllLabor:', error);
-      return reply.status(500).send(errorResponse('Failed to retrieve labor', 500));
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      return reply.status(500).send(errorResponse(`Failed to retrieve labor: ${error.message}`, 500));
     }
   }
 
@@ -81,10 +85,14 @@ export class LaborController {
       
       return reply.status(200).send(successResponse(labor, 'Labor retrieved successfully'));
     } catch (error) {
+      console.error('Error in getLaborById:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      
       if (error.message.includes('not found')) {
         return reply.status(404).send(errorResponse('Labor not found', 404));
       }
-      return reply.status(500).send(errorResponse('Failed to retrieve labor', 500));
+      return reply.status(500).send(errorResponse(`Failed to retrieve labor: ${error.message}`, 500));
     }
   }
 
@@ -110,6 +118,10 @@ export class LaborController {
       
       return reply.status(200).send(successResponse(updatedLabor, 'Labor updated successfully'));
     } catch (error) {
+      console.error('Error in updateLabor:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      
       if (error.message.includes('not found')) {
         return reply.status(404).send(errorResponse('Labor not found', 404));
       }
@@ -125,7 +137,7 @@ export class LaborController {
         }
         return reply.status(400).send(errorResponse('Email already exists', 400));
       }
-      return reply.status(500).send(errorResponse('Failed to update labor', 500));
+      return reply.status(500).send(errorResponse(`Failed to update labor: ${error.message}`, 500));
     }
   }
 
@@ -146,10 +158,14 @@ export class LaborController {
       
       return reply.status(200).send(successResponse(result, 'Labor deleted successfully'));
     } catch (error) {
+      console.error('Error in deleteLabor:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      
       if (error.message.includes('not found')) {
         return reply.status(404).send(errorResponse('Labor not found', 404));
       }
-      return reply.status(500).send(errorResponse('Failed to delete labor', 500));
+      return reply.status(500).send(errorResponse(`Failed to delete labor: ${error.message}`, 500));
     }
   }
 
@@ -180,13 +196,17 @@ export class LaborController {
 
       return reply.status(200).send(successResponse(updatedLabor, 'Labor profile updated successfully'));
     } catch (error) {
+      console.error('Error in updateProfile:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      
       if (error.message.includes('not found')) {
         return reply.status(404).send(errorResponse('Labor not found', 404));
       }
       if (error.message.includes('Email already exists')) {
         return reply.status(400).send(errorResponse('Email already exists', 400));
       }
-      return reply.status(500).send(errorResponse('Failed to update labor profile', 500));
+      return reply.status(500).send(errorResponse(`Failed to update labor profile: ${error.message}`, 500));
     }
   }
 
@@ -200,7 +220,9 @@ export class LaborController {
       return reply.status(200).send(successResponse(result, 'Custom labor retrieved successfully'));
     } catch (error) {
       console.error('Error in getCustomLabor:', error);
-      return reply.status(500).send(errorResponse('Failed to retrieve custom labor', 500));
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      return reply.status(500).send(errorResponse(`Failed to retrieve custom labor: ${error.message}`, 500));
     }
   }
 
@@ -224,7 +246,9 @@ export class LaborController {
       return reply.status(200).send(successResponse(result, 'Job labor retrieved successfully'));
     } catch (error) {
       console.error('Error in getLaborByJob:', error);
-      return reply.status(500).send(errorResponse('Failed to retrieve job labor', 500));
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      return reply.status(500).send(errorResponse(`Failed to retrieve job labor: ${error.message}`, 500));
     }
   }
 }

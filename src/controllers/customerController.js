@@ -8,13 +8,17 @@ export class CustomerController {
       const result = await CustomerService.createCustomer(request.body, userId);
       return reply.code(201).send(result);
     } catch (error) {
+      console.error('Error in createCustomer:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      
       if (error.message.includes('already exists')) {
         return reply.code(409).send(errorResponse(error.message, 409));
       }
       if (error.message.includes('Database error')) {
         return reply.code(500).send(errorResponse('Database error occurred', 500));
       }
-      return reply.code(500).send(errorResponse(error.message));
+      return reply.code(500).send(errorResponse(`Failed to create customer: ${error.message}`));
     }
   }
 
@@ -36,10 +40,14 @@ export class CustomerController {
       const result = await CustomerService.getCustomers(filters, pagination);
       return reply.code(200).send(result);
     } catch (error) {
+      console.error('Error in getCustomers:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      
       if (error.message.includes('Database error')) {
         return reply.code(500).send(errorResponse('Database error occurred', 500));
       }
-      return reply.code(500).send(errorResponse(error.message));
+      return reply.code(500).send(errorResponse(`Failed to get customers: ${error.message}`));
     }
   }
 
@@ -49,13 +57,17 @@ export class CustomerController {
       const result = await CustomerService.getCustomerById(parseInt(id));
       return reply.code(200).send(result);
     } catch (error) {
+      console.error('Error in getCustomerById:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      
       if (error.message.includes('not found')) {
         return reply.code(404).send(errorResponse(error.message, 404));
       }
       if (error.message.includes('Database error')) {
         return reply.code(500).send(errorResponse('Database error occurred', 500));
       }
-      return reply.code(500).send(errorResponse(error.message));
+      return reply.code(500).send(errorResponse(`Failed to get customer: ${error.message}`));
     }
   }
 
@@ -65,6 +77,10 @@ export class CustomerController {
       const result = await CustomerService.updateCustomer(parseInt(id), request.body);
       return reply.code(200).send(result);
     } catch (error) {
+      console.error('Error in updateCustomer:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      
       if (error.message.includes('not found')) {
         return reply.code(404).send(errorResponse(error.message, 404));
       }
@@ -74,7 +90,7 @@ export class CustomerController {
       if (error.message.includes('Database error')) {
         return reply.code(500).send(errorResponse('Database error occurred', 500));
       }
-      return reply.code(500).send(errorResponse(error.message));
+      return reply.code(500).send(errorResponse(`Failed to update customer: ${error.message}`));
     }
   }
 
@@ -84,13 +100,17 @@ export class CustomerController {
       const result = await CustomerService.deleteCustomer(parseInt(id));
       return reply.code(200).send(result);
     } catch (error) {
+      console.error('Error in deleteCustomer:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      
       if (error.message.includes('not found')) {
         return reply.code(404).send(errorResponse(error.message, 404));
       }
       if (error.message.includes('Database error')) {
         return reply.code(500).send(errorResponse('Database error occurred', 500));
       }
-      return reply.code(500).send(errorResponse(error.message));
+      return reply.code(500).send(errorResponse(`Failed to delete customer: ${error.message}`));
     }
   }
 
@@ -99,10 +119,14 @@ export class CustomerController {
       const result = await CustomerService.getCustomerStats();
       return reply.code(200).send(result);
     } catch (error) {
+      console.error('Error in getCustomerStats:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      
       if (error.message.includes('Database error')) {
         return reply.code(500).send(errorResponse('Database error occurred', 500));
       }
-      return reply.code(500).send(errorResponse(error.message));
+      return reply.code(500).send(errorResponse(`Failed to get customer stats: ${error.message}`));
     }
   }
 }

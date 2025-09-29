@@ -16,6 +16,9 @@ export class suppliersController {
       
       return reply.status(201).send(successResponse(result, 'Supplier created successfully', 201));
     } catch (error) {
+      console.error('Error in createSupplier:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
       
       if (error.message === 'Email already exists') {
         return reply.status(400).send(errorResponse('Email already exists', 400));
@@ -52,7 +55,10 @@ export class suppliersController {
       
       return reply.status(200).send(successResponse(result, 'Suppliers retrieved successfully'));
     } catch (error) {
-      return reply.status(500).send(errorResponse('Failed to retrieve suppliers', 500));
+      console.error('Error in getAllSuppliers:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      return reply.status(500).send(errorResponse(`Failed to retrieve suppliers: ${error.message}`, 500));
     }
   }
 
@@ -73,10 +79,14 @@ export class suppliersController {
       
       return reply.status(200).send(successResponse(supplier, 'Supplier retrieved successfully'));
     } catch (error) {
+      console.error('Error in getSupplierById:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      
       if (error.message.includes('not found')) {
         return reply.status(404).send(errorResponse('Supplier not found', 404));
       }
-      return reply.status(500).send(errorResponse('Failed to retrieve supplier', 500));
+      return reply.status(500).send(errorResponse(`Failed to retrieve supplier: ${error.message}`, 500));
     }
   }
 
@@ -102,6 +112,10 @@ export class suppliersController {
       
       return reply.status(200).send(successResponse(updatedSupplier, 'Supplier updated successfully'));
     } catch (error) {
+      console.error('Error in updateSupplier:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      
       if (error.message.includes('not found')) {
         return reply.status(404).send(errorResponse('Supplier not found', 404));
       }
@@ -117,7 +131,7 @@ export class suppliersController {
         }
         return reply.status(400).send(errorResponse('Email already exists', 400));
       }
-      return reply.status(500).send(errorResponse('Failed to update supplier', 500));
+      return reply.status(500).send(errorResponse(`Failed to update supplier: ${error.message}`, 500));
     }
   }
 
@@ -138,10 +152,14 @@ export class suppliersController {
       
       return reply.status(200).send(successResponse(result, 'Supplier deleted successfully'));
     } catch (error) {
+      console.error('Error in deleteSupplier:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      
       if (error.message.includes('not found')) {
         return reply.status(404).send(errorResponse('Supplier not found', 404));
       }
-      return reply.status(500).send(errorResponse('Failed to delete supplier', 500));
+      return reply.status(500).send(errorResponse(`Failed to delete supplier: ${error.message}`, 500));
     }
   }
 }

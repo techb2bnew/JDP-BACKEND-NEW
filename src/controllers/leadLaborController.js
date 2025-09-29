@@ -31,6 +31,9 @@ export class LeadLaborController {
 
       return reply.status(201).send(successResponse(result, 'Lead Labor created successfully', 201));
     } catch (error) {
+      console.error('Error in createLeadLabor:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
 
       if (error.message.includes('duplicate key') || error.message.includes('unique constraint')) {
         return reply.status(400).send(errorResponse('Email already exists', 400));
@@ -68,7 +71,10 @@ export class LeadLaborController {
 
       return reply.status(200).send(successResponse(result, 'Lead labor retrieved successfully'));
     } catch (error) {
-      return reply.status(500).send(errorResponse('Failed to retrieve lead labor', 500));
+      console.error('Error in getAllLeadLabor:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      return reply.status(500).send(errorResponse(`Failed to retrieve lead labor: ${error.message}`, 500));
     }
   }
 
@@ -89,10 +95,14 @@ export class LeadLaborController {
 
       return reply.status(200).send(successResponse(leadLabor, 'Lead Labor retrieved successfully'));
     } catch (error) {
+      console.error('Error in getLeadLaborById:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      
       if (error.message.includes('not found')) {
         return reply.status(404).send(errorResponse('Lead Labor not found', 404));
       }
-      return reply.status(500).send(errorResponse('Failed to retrieve lead labor', 500));
+      return reply.status(500).send(errorResponse(`Failed to retrieve lead labor: ${error.message}`, 500));
     }
   }
 
@@ -119,6 +129,10 @@ export class LeadLaborController {
 
       return reply.status(200).send(successResponse(updatedLeadLabor, 'Lead Labor updated successfully'));
     } catch (error) {
+      console.error('Error in updateLeadLabor:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      
       if (error.message.includes('not found')) {
         return reply.status(404).send(errorResponse('Lead Labor not found', 404));
       }
@@ -128,7 +142,7 @@ export class LeadLaborController {
       if (error.message.includes('Email already exists')) {
         return reply.status(400).send(errorResponse('Email already exists', 400));
       }
-      return reply.status(500).send(errorResponse('Failed to update lead labor', 500));
+      return reply.status(500).send(errorResponse(`Failed to update lead labor: ${error.message}`, 500));
     }
   }
 
@@ -149,10 +163,14 @@ export class LeadLaborController {
 
       return reply.status(200).send(successResponse(result, 'Lead Labor deleted successfully'));
     } catch (error) {
+      console.error('Error in deleteLeadLabor:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      
       if (error.message.includes('not found')) {
         return reply.status(404).send(errorResponse('Lead Labor not found', 404));
       }
-      return reply.status(500).send(errorResponse('Failed to delete lead labor', 500));
+      return reply.status(500).send(errorResponse(`Failed to delete lead labor: ${error.message}`, 500));
     }
   }
 

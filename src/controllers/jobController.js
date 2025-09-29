@@ -9,13 +9,17 @@ export class JobController {
       const result = await JobService.createJob(request.body, userId);
       return reply.code(201).send(result);
     } catch (error) {
+      console.error('Error in createJob:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      
       if (error.message.includes('already exists')) {
         return reply.code(409).send(errorResponse(error.message, 409));
       }
       if (error.message.includes('Database error')) {
         return reply.code(500).send(errorResponse('Database error occurred', 500));
       }
-      return reply.code(500).send(errorResponse(error.message));
+      return reply.code(500).send(errorResponse(`Failed to create job: ${error.message}`));
     }
   }
 

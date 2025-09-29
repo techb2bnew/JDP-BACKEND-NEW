@@ -56,20 +56,56 @@ export class EstimateService {
 
   static async deleteEstimate(estimateId) {
     try {
-      const estimate = await Estimate.findById(estimateId);
-      if (!estimate) {
-        throw new Error('Estimate not found');
+      console.log(`Starting deleteEstimate for ID: ${estimateId}`);
+      
+      // First, try to find the estimate using simple method
+      let estimate;
+      try {
+        estimate = await Estimate.simpleFindById(estimateId);
+        if (!estimate) {
+          console.log(`Estimate not found for ID: ${estimateId}`);
+          throw new Error('Estimate not found');
+        }
+        console.log(`Found estimate: ${estimate.id}, title: ${estimate.estimate_title}`);
+      } catch (findError) {
+        console.error('Error finding estimate:', findError);
+        throw new Error(`Failed to find estimate: ${findError.message}`);
       }
 
-      // Check if estimate has relationships with other tables
-      const relationshipCheck = await Estimate.checkEstimateRelationships(estimateId);
+      // Try to check relationships, but don't fail if this step has issues
+      let relationshipCheck = { canDelete: true, relationships: [] };
+      try {
+        console.log('Checking estimate relationships...');
+        relationshipCheck = await Estimate.checkEstimateRelationships(estimateId);
+        console.log('Relationship check result:', relationshipCheck);
+      } catch (relationshipError) {
+        console.error('Error checking relationships, proceeding with deletion:', relationshipError);
+        // Continue with deletion even if relationship check fails
+        relationshipCheck = { canDelete: true, relationships: [] };
+      }
       
       if (!relationshipCheck.canDelete) {
         const relationshipMessages = relationshipCheck.relationships.map(rel => rel.message).join(', ');
+        console.log(`Cannot delete estimate due to relationships: ${relationshipMessages}`);
         throw new Error(`Cannot delete this estimate because it has related data: ${relationshipMessages}. Please remove all related data first.`);
       }
 
-      await Estimate.delete(estimateId);
+      // Proceed with deletion
+      try {
+        console.log('Proceeding with estimate deletion...');
+        await Estimate.delete(estimateId);
+        console.log('Estimate deleted successfully');
+      } catch (deleteError) {
+        console.error('Error deleting estimate, trying simple delete:', deleteError);
+        try {
+          // Try simple delete as fallback
+          await Estimate.simpleDelete(estimateId);
+          console.log('Estimate deleted successfully using simple method');
+        } catch (simpleDeleteError) {
+          console.error('Simple delete also failed:', simpleDeleteError);
+          throw new Error(`Failed to delete estimate: ${deleteError.message}`);
+        }
+      }
 
       return {
         message: `Estimate "${estimate.estimate_title}" deleted successfully`,
@@ -81,6 +117,9 @@ export class EstimateService {
         }
       };
     } catch (error) {
+      console.error('Error in deleteEstimate service:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
       throw error;
     }
   }

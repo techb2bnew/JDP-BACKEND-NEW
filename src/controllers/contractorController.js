@@ -8,13 +8,17 @@ export class ContractorController {
       const result = await ContractorService.createContractor(request.body, userId);
       return reply.code(201).send(result);
     } catch (error) {
+      console.error('Error in createContractor:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      
       if (error.message.includes('already exists')) {
         return reply.code(409).send(errorResponse(error.message, 409));
       }
       if (error.message.includes('Database error')) {
         return reply.code(500).send(errorResponse('Database error occurred', 500));
       }
-      return reply.code(500).send(errorResponse(error.message));
+      return reply.code(500).send(errorResponse(`Failed to create contractor: ${error.message}`));
     }
   }
 
@@ -37,10 +41,14 @@ export class ContractorController {
       const result = await ContractorService.getContractors(filters, pagination);
       return reply.code(200).send(result);
     } catch (error) {
+      console.error('Error in getContractors:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      
       if (error.message.includes('Database error')) {
         return reply.code(500).send(errorResponse('Database error occurred', 500));
       }
-      return reply.code(500).send(errorResponse(error.message));
+      return reply.code(500).send(errorResponse(`Failed to get contractors: ${error.message}`));
     }
   }
 
@@ -50,13 +58,17 @@ export class ContractorController {
       const result = await ContractorService.getContractorById(parseInt(id));
       return reply.code(200).send(result);
     } catch (error) {
+      console.error('Error in getContractorById:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      
       if (error.message.includes('not found')) {
         return reply.code(404).send(errorResponse(error.message, 404));
       }
       if (error.message.includes('Database error')) {
         return reply.code(500).send(errorResponse('Database error occurred', 500));
       }
-      return reply.code(500).send(errorResponse(error.message));
+      return reply.code(500).send(errorResponse(`Failed to get contractor: ${error.message}`));
     }
   }
 
@@ -66,10 +78,14 @@ export class ContractorController {
       const result = await ContractorService.getContractorsByJobId(jobId);
       return reply.code(200).send(result);
     } catch (error) {
+      console.error('Error in getContractorsByJobId:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      
       if (error.message.includes('Database error')) {
         return reply.code(500).send(errorResponse('Database error occurred', 500));
       }
-      return reply.code(500).send(errorResponse(error.message));
+      return reply.code(500).send(errorResponse(`Failed to get contractors by job: ${error.message}`));
     }
   }
 
@@ -79,6 +95,10 @@ export class ContractorController {
       const result = await ContractorService.updateContractor(parseInt(id), request.body);
       return reply.code(200).send(result);
     } catch (error) {
+      console.error('Error in updateContractor:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      
       if (error.message.includes('not found')) {
         return reply.code(404).send(errorResponse(error.message, 404));
       }
@@ -88,7 +108,7 @@ export class ContractorController {
       if (error.message.includes('Database error')) {
         return reply.code(500).send(errorResponse('Database error occurred', 500));
       }
-      return reply.code(500).send(errorResponse(error.message));
+      return reply.code(500).send(errorResponse(`Failed to update contractor: ${error.message}`));
     }
   }
 
@@ -98,13 +118,17 @@ export class ContractorController {
       const result = await ContractorService.deleteContractor(parseInt(id));
       return reply.code(200).send(result);
     } catch (error) {
+      console.error('Error in deleteContractor:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      
       if (error.message.includes('not found')) {
         return reply.code(404).send(errorResponse(error.message, 404));
       }
       if (error.message.includes('Database error')) {
         return reply.code(500).send(errorResponse('Database error occurred', 500));
       }
-      return reply.code(500).send(errorResponse(error.message));
+      return reply.code(500).send(errorResponse(`Failed to delete contractor: ${error.message}`));
     }
   }
 
@@ -113,10 +137,14 @@ export class ContractorController {
       const result = await ContractorService.getContractorStats();
       return reply.code(200).send(result);
     } catch (error) {
+      console.error('Error in getContractorStats:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      
       if (error.message.includes('Database error')) {
         return reply.code(500).send(errorResponse('Database error occurred', 500));
       }
-      return reply.code(500).send(errorResponse(error.message));
+      return reply.code(500).send(errorResponse(`Failed to get contractor stats: ${error.message}`));
     }
   }
 }

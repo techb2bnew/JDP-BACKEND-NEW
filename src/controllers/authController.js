@@ -7,10 +7,14 @@ export class AuthController {
       const result = await AuthService.register(request.body);
       return reply.code(201).send(result);
     } catch (error) {
+      console.error('Error in register:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      
       if (error.message.includes('already exists')) {
         return reply.code(409).send(errorResponse(error.message, 409));
       }
-      return reply.code(500).send(errorResponse(error.message));
+      return reply.code(500).send(errorResponse(`Failed to register user: ${error.message}`));
     }
   }
 
@@ -20,6 +24,10 @@ export class AuthController {
       const result = await AuthService.login(email, password, login_by);
       return reply.code(200).send(result);
     } catch (error) {
+      console.error('Error in login:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      
       if (error.message.includes('Invalid email or password') || 
           error.message.includes('Account is not active')) {
         return reply.code(401).send(errorResponse(error.message, 401));
@@ -30,7 +38,7 @@ export class AuthController {
       if (error.message.includes('Invalid login method')) {
         return reply.code(400).send(errorResponse(error.message, 400));
       }
-      return reply.code(500).send(errorResponse(error.message));
+      return reply.code(500).send(errorResponse(`Failed to login: ${error.message}`));
     }
   }
 
@@ -42,13 +50,17 @@ export class AuthController {
       const result = await AuthService.changePassword(userId, currentPassword, newPassword);
       return reply.code(200).send(result);
     } catch (error) {
+      console.error('Error in changePassword:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      
       if (error.message.includes('Current password is incorrect')) {
         return reply.code(400).send(errorResponse(error.message, 400));
       }
       if (error.message.includes('User not found')) {
         return reply.code(404).send(errorResponse(error.message, 404));
       }
-      return reply.code(500).send(errorResponse(error.message));
+      return reply.code(500).send(errorResponse(`Failed to change password: ${error.message}`));
     }
   }
 
@@ -62,13 +74,17 @@ export class AuthController {
       const result = await AuthService.changeTemporaryPassword(userId, currentPassword, newPassword);
       return reply.code(200).send(result);
     } catch (error) {
+      console.error('Error in changeTemporaryPassword:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      
       if (error.message.includes('Current password is incorrect')) {
         return reply.code(400).send(errorResponse(error.message, 400));
       }
       if (error.message.includes('User not found')) {
-        return reply.code(404).send(errorResponse(errorResponse, 404));
+        return reply.code(404).send(errorResponse(error.message, 404));
       }
-      return reply.code(500).send(errorResponse(error.message));
+      return reply.code(500).send(errorResponse(`Failed to change temporary password: ${error.message}`));
     }
   }
 
@@ -78,10 +94,14 @@ export class AuthController {
       const result = await AuthService.getProfile(userId);
       return reply.code(200).send(result);
     } catch (error) {
+      console.error('Error in getProfile:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      
       if (error.message.includes('User not found')) {
         return reply.code(404).send(errorResponse(error.message, 404));
       }
-      return reply.code(500).send(errorResponse(error.message));
+      return reply.code(500).send(errorResponse(`Failed to get profile: ${error.message}`));
     }
   }
 
@@ -91,13 +111,17 @@ export class AuthController {
       const result = await AuthService.updateProfile(userId, request.body);
       return reply.code(200).send(result);
     } catch (error) {
+      console.error('Error in updateProfile:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      
       if (error.message.includes('Email is already taken')) {
         return reply.code(409).send(errorResponse(error.message, 409));
       }
       if (error.message.includes('User not found')) {
         return reply.code(404).send(errorResponse(error.message, 404));
       }
-      return reply.code(500).send(errorResponse(error.message));
+      return reply.code(500).send(errorResponse(`Failed to update profile: ${error.message}`));
     }
   }
 
@@ -107,10 +131,14 @@ export class AuthController {
       const result = await AuthService.sendForgotPasswordOTP(email);
       return reply.code(200).send(result);
     } catch (error) {
+      console.error('Error in sendForgotPasswordOTP:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      
       if (error.message.includes('does not exist') || error.message.includes('not active')) {
         return reply.code(404).send(errorResponse(error.message, 404));
       }
-      return reply.code(500).send(errorResponse(error.message));
+      return reply.code(500).send(errorResponse(`Failed to send forgot password OTP: ${error.message}`));
     }
   }
 
@@ -120,13 +148,17 @@ export class AuthController {
       const result = await AuthService.verifyForgotPasswordOTP(email, otp);
       return reply.code(200).send(result);
     } catch (error) {
+      console.error('Error in verifyForgotPasswordOTP:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      
       if (error.message.includes('Invalid OTP') || error.message.includes('expired') || error.message.includes('No OTP found')) {
         return reply.code(400).send(errorResponse(error.message, 400));
       }
       if (error.message.includes('does not exist')) {
         return reply.code(404).send(errorResponse(error.message, 404));
       }
-      return reply.code(500).send(errorResponse(error.message));
+      return reply.code(500).send(errorResponse(`Failed to verify forgot password OTP: ${error.message}`));
     }
   }
 
@@ -136,10 +168,14 @@ export class AuthController {
       const result = await AuthService.resendForgotPasswordOTP(email);
       return reply.code(200).send(result);
     } catch (error) {
+      console.error('Error in resendForgotPasswordOTP:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      
       if (error.message.includes('does not exist') || error.message.includes('not active')) {
         return reply.code(404).send(errorResponse(error.message, 404));
       }
-      return reply.code(500).send(errorResponse(error.message));
+      return reply.code(500).send(errorResponse(`Failed to resend forgot password OTP: ${error.message}`));
     }
   }
 
@@ -154,13 +190,17 @@ export class AuthController {
       const result = await AuthService.resetPassword(email, newPassword);
       return reply.code(200).send(result);
     } catch (error) {
+      console.error('Error in resetPassword:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      
       if (error.message.includes('Invalid') || error.message.includes('expired')) {
         return reply.code(400).send(errorResponse(error.message, 400));
       }
       if (error.message.includes('User not found')) {
         return reply.code(404).send(errorResponse(error.message, 404));
       }
-      return reply.code(500).send(errorResponse(error.message));
+      return reply.code(500).send(errorResponse(`Failed to reset password: ${error.message}`));
     }
   }
 
@@ -176,7 +216,10 @@ export class AuthController {
       
       return reply.code(200).send(result);
     } catch (error) {
-      return reply.code(500).send(errorResponse('Failed to logout', 500));
+      console.error('Error in logout:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      return reply.code(500).send(errorResponse(`Failed to logout: ${error.message}`, 500));
     }
   }
 
@@ -188,7 +231,10 @@ export class AuthController {
       
       return reply.code(200).send(result);
     } catch (error) {
-      return reply.code(500).send(errorResponse('Failed to logout from all devices', 500));
+      console.error('Error in logoutAll:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      return reply.code(500).send(errorResponse(`Failed to logout from all devices: ${error.message}`, 500));
     }
   }
 }

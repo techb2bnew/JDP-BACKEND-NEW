@@ -95,7 +95,34 @@ export const updateEstimateSchema = Joi.object({
   additional_cost: Joi.object({
     description: Joi.string().max(200).required(),
     amount: Joi.number().precision(2).min(0).required()
-  }).optional()
+  }).optional(),
+
+  // Custom labor array for updates
+  custom_labor: Joi.array().items(
+    Joi.object({
+      full_name: Joi.string().max(100).required(),
+      email: Joi.string().email().required(),
+      hours_worked: Joi.number().precision(2).min(0).required(),
+      hourly_rate: Joi.number().precision(2).min(0).required(),
+      job_id: Joi.number().integer().positive().required(),
+      is_custom: Joi.boolean().default(true)
+    })
+  ).optional(),
+
+  // Custom products array for updates
+  custom_products: Joi.array().items(
+    Joi.object({
+      product_name: Joi.string().max(200).required(),
+      supplier_id: Joi.number().integer().positive().required(),
+      supplier_sku: Joi.string().max(100).optional(),
+      jdp_sku: Joi.string().max(100).optional(),
+      stock_quantity: Joi.number().integer().min(0).required(),
+      unit: Joi.string().max(50).required(),
+      job_id: Joi.alternatives().try(Joi.number().integer().positive(), Joi.string()).required(),
+      is_custom: Joi.boolean().default(true),
+      unit_cost: Joi.number().precision(2).min(0).required()
+    })
+  ).optional()
 });
 
 export const estimateQuerySchema = Joi.object({
