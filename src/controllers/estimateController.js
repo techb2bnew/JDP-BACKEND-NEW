@@ -8,7 +8,7 @@ export class EstimateController {
       const estimateData = req.body;
       const createdByUserId = req.user.id;
 
-      // Validate the request data
+     
       const { error, value } = createEstimateSchema.validate(estimateData, { abortEarly: false });
       
       if (error) {
@@ -20,10 +20,7 @@ export class EstimateController {
       
       return reply.status(201).send(successResponse(result.estimate, result.message, 201));
     } catch (error) {
-      console.error('Error in createEstimate:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-      
+
       if (error.message.includes('duplicate key') || error.message.includes('unique constraint')) {
         if (error.message.includes('invoice_number')) {
           return reply.status(400).send(errorResponse('Invoice number already exists', 400));
@@ -31,7 +28,6 @@ export class EstimateController {
         return reply.status(400).send(errorResponse('Duplicate entry found', 400));
       }
       
-      // Return detailed error message for debugging
       return reply.status(500).send(errorResponse(`Failed to create estimate: ${error.message}`, 500));
     }
   }
@@ -49,7 +45,6 @@ export class EstimateController {
         estimate_date: req.query.estimate_date
       };
 
-      // Remove undefined filters
       Object.keys(filters).forEach(key => {
         if (filters[key] === undefined) {
           delete filters[key];
@@ -60,9 +55,7 @@ export class EstimateController {
       
       return reply.status(200).send(successResponse(result, 'Estimates retrieved successfully'));
     } catch (error) {
-      console.error('Error in getEstimates:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
+
       return reply.status(500).send(errorResponse(`Failed to retrieve estimates: ${error.message}`, 500));
     }
   }
@@ -84,9 +77,7 @@ export class EstimateController {
       
       return reply.status(200).send(successResponse(estimate, 'Estimate retrieved successfully'));
     } catch (error) {
-      console.error('Error in getEstimateById:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
+ 
       
       if (error.message.includes('not found')) {
         return reply.status(404).send(errorResponse('Estimate not found', 404));
@@ -114,7 +105,6 @@ export class EstimateController {
         return reply.status(400).send(validationErrorResponse(['Update data is required']));
       }
 
-      // Validate the update data
       const { error, value } = updateEstimateSchema.validate(updateData, { abortEarly: false });
       
       if (error) {
@@ -126,9 +116,7 @@ export class EstimateController {
       
       return reply.status(200).send(successResponse(result.estimate, result.message));
     } catch (error) {
-      console.error('Error in updateEstimate:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
+     
       
       if (error.message.includes('not found')) {
         return reply.status(404).send(errorResponse('Estimate not found', 404));
@@ -147,40 +135,28 @@ export class EstimateController {
         return reply.status(400).send(errorResponse('Duplicate entry found', 400));
       }
       
-      // Return detailed error message for debugging
       return reply.status(500).send(errorResponse(`Failed to update estimate: ${error.message}`, 500));
     }
   }
 
   static async deleteEstimate(req, reply) {
     try {
-      console.log('DeleteEstimate controller called');
-      console.log('Request params:', req.params);
-      
+     
       const { estimateId } = req.params;
 
       if (!estimateId) {
-        console.log('No estimate ID provided');
         return reply.status(400).send(validationErrorResponse(['Estimate ID is required']));
       }
 
       const estimateIdNum = parseInt(estimateId);
       if (isNaN(estimateIdNum)) {
-        console.log('Invalid estimate ID:', estimateId);
         return reply.status(400).send(validationErrorResponse(['Estimate ID must be a valid number']));
       }
 
-      console.log('Calling EstimateService.deleteEstimate with ID:', estimateIdNum);
       const result = await EstimateService.deleteEstimate(estimateIdNum);
-      console.log('DeleteEstimate service result:', result);
       
       return reply.status(200).send(successResponse(result, result.message));
-    } catch (error) {
-      console.error('Error in deleteEstimate controller:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-      
-      // Ensure we always return a proper JSON response
+    } catch (error) {      
       try {
         if (error.message.includes('not found')) {
           return reply.status(404).send(errorResponse('Estimate not found', 404));
@@ -193,7 +169,6 @@ export class EstimateController {
         }
         return reply.status(500).send(errorResponse(`Failed to delete estimate: ${error.message}`, 500));
       } catch (responseError) {
-        console.error('Error sending response:', responseError);
         return reply.status(500).send({
           success: false,
           message: 'Internal server error',
@@ -210,9 +185,6 @@ export class EstimateController {
       
       return reply.status(200).send(successResponse(stats, 'Estimate statistics retrieved successfully'));
     } catch (error) {
-      console.error('Error in getEstimateStats:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
       return reply.status(500).send(errorResponse(`Failed to retrieve estimate statistics: ${error.message}`, 500));
     }
   }
@@ -236,9 +208,6 @@ export class EstimateController {
       
       return reply.status(200).send(successResponse(result, 'Job estimates retrieved successfully'));
     } catch (error) {
-      console.error('Error in getEstimatesByJob:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
       return reply.status(500).send(errorResponse(`Failed to retrieve job estimates: ${error.message}`, 500));
     }
   }
@@ -262,14 +231,11 @@ export class EstimateController {
       
       return reply.status(200).send(successResponse(result, 'Customer estimates retrieved successfully'));
     } catch (error) {
-      console.error('Error in getEstimatesByCustomer:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
       return reply.status(500).send(errorResponse(`Failed to retrieve customer estimates: ${error.message}`, 500));
     }
   }
 
-  // Additional Cost Controllers
+  
   static async createAdditionalCost(req, reply) {
     try {
       const additionalCostData = req.body;
@@ -279,9 +245,6 @@ export class EstimateController {
       
       return reply.status(201).send(successResponse(result.additionalCost, result.message, 201));
     } catch (error) {
-      console.error('Error in createAdditionalCost:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
       return reply.status(500).send(errorResponse(`Failed to create additional cost: ${error.message}`, 500));
     }
   }
@@ -303,9 +266,7 @@ export class EstimateController {
       
       return reply.status(200).send(successResponse(additionalCosts, 'Additional costs retrieved successfully'));
     } catch (error) {
-      console.error('Error in getAdditionalCosts:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
+  
       return reply.status(500).send(errorResponse(`Failed to retrieve additional costs: ${error.message}`, 500));
     }
   }
@@ -333,9 +294,7 @@ export class EstimateController {
       
       return reply.status(200).send(successResponse(result.additionalCost, result.message));
     } catch (error) {
-      console.error('Error in updateAdditionalCost:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
+
       
       if (error.message.includes('not found')) {
         return reply.status(404).send(errorResponse('Additional cost not found', 404));
@@ -361,10 +320,7 @@ export class EstimateController {
       
       return reply.status(200).send(successResponse(result, result.message));
     } catch (error) {
-      console.error('Error in deleteAdditionalCost:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-      
+
       if (error.message.includes('not found')) {
         return reply.status(404).send(errorResponse('Additional cost not found', 404));
       }
@@ -389,9 +345,7 @@ export class EstimateController {
       
       return reply.status(200).send(successResponse(costs, 'Total costs calculated successfully'));
     } catch (error) {
-      console.error('Error in calculateTotalCosts:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
+
       
       if (error.message.includes('not found')) {
         return reply.status(404).send(errorResponse('Estimate not found', 404));

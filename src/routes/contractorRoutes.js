@@ -45,4 +45,9 @@ export async function contractorRoutes(fastify, options) {
     schema: deleteContractorSchema,
     handler: ContractorController.deleteContractor
   });
+
+
+  fastify.get('/jobs/:jobId/details', {
+    handler: ContractorController.getJobDetails
+  });
 }

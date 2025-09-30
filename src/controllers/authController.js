@@ -7,10 +7,6 @@ export class AuthController {
       const result = await AuthService.register(request.body);
       return reply.code(201).send(result);
     } catch (error) {
-      console.error('Error in register:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-      
       if (error.message.includes('already exists')) {
         return reply.code(409).send(errorResponse(error.message, 409));
       }
@@ -23,11 +19,7 @@ export class AuthController {
       const { email, password, login_by = 'admin' } = request.body;
       const result = await AuthService.login(email, password, login_by);
       return reply.code(200).send(result);
-    } catch (error) {
-      console.error('Error in login:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-      
+    } catch (error) {     
       if (error.message.includes('Invalid email or password') || 
           error.message.includes('Account is not active')) {
         return reply.code(401).send(errorResponse(error.message, 401));

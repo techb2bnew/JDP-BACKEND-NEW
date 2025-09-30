@@ -22,9 +22,7 @@ export class StaffController {
 
       return reply.status(201).send(successResponse(result, 'Staff created successfully', 201));
     } catch (error) {
-      console.error('Error in createStaff:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
+
       
       if (error.message.includes('duplicate key') || error.message.includes('unique constraint')) {
         return reply.status(400).send(errorResponse('Email already exists', 400));
@@ -50,9 +48,7 @@ export class StaffController {
       
       return reply.status(200).send(successResponse(result, 'Staff retrieved successfully'));
     } catch (error) {
-      console.error('Error in getAllStaff:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
+
       return reply.status(500).send(errorResponse(`Failed to retrieve staff: ${error.message}`, 500));
     }
   }
@@ -74,9 +70,7 @@ export class StaffController {
 
       return reply.status(200).send(successResponse(staff, 'Staff retrieved successfully'));
     } catch (error) {
-      console.error('Error in getStaffById:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
+
       
       if (error.message.includes('not found')) {
         return reply.status(404).send(errorResponse('Staff not found', 404));
@@ -107,9 +101,7 @@ export class StaffController {
 
       return reply.status(200).send(successResponse(updatedStaff, 'Staff updated successfully'));
     } catch (error) {
-      console.error('Error in updateStaff:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
+
       
       if (error.message.includes('not found')) {
         return reply.status(404).send(errorResponse('Staff not found', 404));
@@ -138,9 +130,7 @@ export class StaffController {
 
       return reply.status(200).send(successResponse(result, 'Staff deleted successfully'));
     } catch (error) {
-      console.error('Error in deleteStaff:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
+
       
       if (error.message.includes('not found')) {
         return reply.status(404).send(errorResponse('Staff not found', 404));
@@ -176,9 +166,7 @@ export class StaffController {
 
       return reply.status(200).send(successResponse(updatedStaff, 'Staff profile updated successfully'));
     } catch (error) {
-      console.error('Error in updateProfile:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
+
       
       if (error.message.includes('not found')) {
         return reply.status(404).send(errorResponse('Staff not found', 404));

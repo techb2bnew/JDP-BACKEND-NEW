@@ -264,4 +264,436 @@ export class Contractor {
       throw error;
     }
   }
+
+  static async getContractorListing(filters, pagination) {
+    try {
+      console.log('Getting contractor listing with jobs...');
+      
+      let query = supabase
+        .from("contractors")
+        .select(`
+          id,
+          contractor_name,
+          company_name,
+          email,
+          phone,
+          status,
+          created_at
+        `, { count: 'exact' });
+
+      if (filters.status) {
+        query = query.eq("status", filters.status);
+      }
+      if (filters.search) {
+        query = query.or(`contractor_name.ilike.%${filters.search}%,company_name.ilike.%${filters.search}%`);
+      }
+
+      if (pagination.page && pagination.limit) {
+        const offset = (pagination.page - 1) * pagination.limit;
+        query = query.range(offset, offset + pagination.limit - 1);
+      }
+
+      query = query.order('created_at', { ascending: false });
+
+      const { data: contractors, error, count } = await query;
+
+      if (error) {
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      const contractorsWithJobs = await Promise.all(
+        (contractors || []).map(async (contractor) => {
+          try {
+            const { data: jobs, error: jobsError } = await supabase
+              .from("jobs")
+              .select(`
+                id,
+                job_title,
+                status,
+                priority,
+                due_date,
+                estimated_cost,
+                customer_id,
+                created_at
+              `)
+              .eq("contractor_id", contractor.id)
+              .order('created_at', { ascending: false });
+
+            if (jobsError) {
+              console.error(`Error fetching jobs for contractor ${contractor.id}:`, jobsError);
+            }
+
+            const jobsWithProgress = (jobs || []).map(job => {
+              let progress = 0;
+              if (job.status === 'completed') progress = 100;
+              else if (job.status === 'in_progress') progress = 50;
+              else if (job.status === 'active') progress = 25;
+              else progress = 0;
+
+              return {
+                ...job,
+                progress,
+                customer: null 
+              };
+            });
+
+            return {
+              ...contractor,
+              jobs: jobsWithProgress,
+              total_jobs: jobsWithProgress.length,
+              active_jobs: jobsWithProgress.filter(j => j.status === 'active' || j.status === 'in_progress').length,
+              completed_jobs: jobsWithProgress.filter(j => j.status === 'completed').length
+            };
+          } catch (error) {
+            console.error(`Error processing contractor ${contractor.id}:`, error);
+            return {
+              ...contractor,
+              jobs: [],
+              total_jobs: 0,
+              active_jobs: 0,
+              completed_jobs: 0
+            };
+          }
+        })
+      );
+
+      return {
+        contractors: contractorsWithJobs,
+        total: count || 0,
+        page: pagination.page || 1,
+        limit: pagination.limit || 10,
+        totalPages: pagination.limit ? Math.ceil((count || 0) / pagination.limit) : 1
+      };
+    } catch (error) {
+      console.error('Error in getContractorListing:', error);
+      throw error;
+    }
+  }
+
+  static async getJobDetails(jobId) {
+    try {
+      
+      const { data: job, error: jobError } = await supabase
+        .from("jobs")
+        .select(`
+          *,
+          customer:customers!jobs_customer_id_fkey(
+            id,
+            customer_name,
+            company_name,
+            email,
+            phone
+          ),
+          contractor:contractors!jobs_contractor_id_fkey(
+            id,
+            contractor_name,
+            company_name
+          )
+        `)
+        .eq("id", jobId)
+        .single();
+
+      if (jobError || !job) {
+        throw new Error('Job not found');
+      }
+
+      let progress = 0;
+      if (job.status === 'completed') progress = 100;
+      else if (job.status === 'in_progress') progress = 75;
+      else if (job.status === 'active') progress = 25;
+      else progress = 0;
+
+      const { data: materials, error: materialsError } = await supabase
+        .from("products")
+        .select(`
+          id,
+          product_name,
+          jdp_sku,
+          supplier_sku,
+          stock_quantity,
+          jdp_price,
+          unit,
+          status,
+          supplier_id,
+          suppliers!products_supplier_id_fkey(
+            company_name
+          )
+        `)
+        .eq("job_id", jobId)
+        .eq("status", "active");
+
+      if (materialsError) {
+        console.error('Error fetching materials:', materialsError);
+      }
+
+      const materialsFormatted = (materials || []).map(material => ({
+        id: material.id,
+        sku: material.jdp_sku || material.supplier_sku || `PROD-${material.id}`,
+        item_name: material.product_name,
+        ordered: material.stock_quantity || 0,
+        used: material.stock_quantity || 0, 
+        unit_price: parseFloat(material.jdp_price) || 0,
+        total_cost: (material.stock_quantity || 0) * (parseFloat(material.jdp_price) || 0),
+        status: "Received",
+        supplier: material.suppliers?.company_name || "Unknown"
+      }));
+
+      const totalMaterialsCost = materialsFormatted.reduce((sum, material) => sum + material.total_cost, 0);
+
+      let timesheetFormatted = [];
+      let totalLaborCost = 0;
+      let totalHours = 0;
+
+      if (job.labor_timesheets && job.labor_timesheets.length > 0) {
+        try {
+          const timesheetData = typeof job.labor_timesheets === 'string' 
+            ? JSON.parse(job.labor_timesheets) 
+            : job.labor_timesheets;
+
+          console.log('Parsed labor timesheet data:', timesheetData);
+
+          const laborEntries = timesheetData.map(entry => {
+            const hours = parseFloat(entry.work_hours || entry.total_hours || 0);
+            const rate = parseFloat(entry.hourly_rate || 0);
+            const total = hours * rate;
+            
+            totalHours += hours;
+            totalLaborCost += total;
+
+            return {
+              labor_id: entry.labor_id,
+              labor_name: entry.labor_name || "Unknown",
+              date: entry.date || new Date().toISOString().split('T')[0],
+              hours: hours,
+              rate: rate,
+              total: total,
+              status: entry.status || "Approved",
+              work_activity: entry.work_activity || 0,
+              notes: entry.notes || ""
+            };
+          });
+
+          timesheetFormatted = [...timesheetFormatted, ...laborEntries];
+        } catch (parseError) {
+          console.error('Error parsing labor timesheets:', parseError);
+        }
+      }
+
+      if (job.lead_labor_timesheets && job.lead_labor_timesheets.length > 0) {
+        try {
+          const leadTimesheetData = typeof job.lead_labor_timesheets === 'string' 
+            ? JSON.parse(job.lead_labor_timesheets) 
+            : job.lead_labor_timesheets;
+
+          console.log('Parsed lead labor timesheet data:', leadTimesheetData);
+
+          const leadEntries = leadTimesheetData.map(entry => {
+            const hours = parseFloat(entry.work_hours || entry.total_hours || 0);
+            const rate = parseFloat(entry.hourly_rate || 0);
+            const total = hours * rate;
+            
+            totalHours += hours;
+            totalLaborCost += total;
+
+            return {
+              labor_id: entry.lead_labor_id,
+              labor_name: entry.labor_name || "Unknown Lead Labor",
+              date: entry.date || new Date().toISOString().split('T')[0],
+              hours: hours,
+              rate: rate,
+              total: total,
+              status: entry.status || "Approved",
+              work_activity: entry.work_activity || 0,
+              notes: entry.notes || "",
+              is_lead_labor: true
+            };
+          });
+
+          timesheetFormatted = [...timesheetFormatted, ...leadEntries];
+        } catch (parseError) {
+          console.error('Error parsing lead labor timesheets:', parseError);
+        }
+      }
+
+      if (timesheetFormatted.length === 0) {
+        const { data: laborData, error: laborError } = await supabase
+          .from("labor")
+          .select(`
+            id,
+            labor_code,
+            trade,
+            experience,
+            hourly_rate,
+            hours_worked,
+            user_id,
+            users!labor_user_id_fkey(
+              full_name
+            )
+          `)
+          .eq("job_id", jobId);
+
+        if (!laborError && laborData && laborData.length > 0) {
+          timesheetFormatted = laborData.map(labor => {
+            const hours = parseFloat(labor.hours_worked) || 0;
+            const rate = parseFloat(labor.hourly_rate) || 0;
+            const total = hours * rate;
+            
+            totalHours += hours;
+            totalLaborCost += total;
+
+            return {
+              labor_id: labor.id,
+              labor_name: labor.users?.full_name || "Unknown",
+              date: new Date().toISOString().split('T')[0],
+              hours: hours,
+              rate: rate,
+              total: total,
+              status: "Approved"
+            };
+          });
+        }
+      }
+
+
+      const { data: estimates, error: estimatesError } = await supabase
+        .from("estimates")
+        .select(`
+          id,
+          estimate_title,
+          total_amount,
+          status,
+          created_at,
+          issue_date,
+          due_date
+        `)
+        .eq("job_id", jobId);
+
+      if (estimatesError) {
+        console.error('Error fetching estimates:', estimatesError);
+      }
+
+      const transactionsFormatted = (estimates || []).map(estimate => ({
+        type: "Estimate",
+        description: estimate.estimate_title || "Job Estimate",
+        date: estimate.issue_date ? estimate.issue_date.split('T')[0] : estimate.created_at.split('T')[0],
+        amount: parseFloat(estimate.total_amount) || 0,
+        status: estimate.status === 'accepted' ? 'Completed' : 
+                estimate.status === 'sent' ? 'Sent' : 
+                estimate.status === 'draft' ? 'Draft' : 'Pending',
+        due_date: estimate.due_date ? estimate.due_date.split('T')[0] : null
+      }));
+
+      let leadLabor = null;
+      let staffAssigned = [];
+
+      if (job.assigned_lead_labor_ids) {
+        try {
+          const leadLaborIds = JSON.parse(job.assigned_lead_labor_ids);
+          if (Array.isArray(leadLaborIds) && leadLaborIds.length > 0) {
+            const { data: leadLaborData } = await supabase
+              .from("lead_labor")
+              .select(`
+                id,
+                users!lead_labor_user_id_fkey(
+                  full_name
+                )
+              `)
+              .eq("id", leadLaborIds[0])
+              .single();
+            
+            if (leadLaborData && leadLaborData.users) {
+              leadLabor = leadLaborData.users.full_name;
+            }
+          }
+        } catch (error) {
+          console.error('Error parsing lead labor IDs:', error);
+        }
+      }
+
+      if (job.assigned_labor_ids) {
+        try {
+          const laborIds = JSON.parse(job.assigned_labor_ids);
+          if (Array.isArray(laborIds) && laborIds.length > 0) {
+            const { data: staffData } = await supabase
+              .from("labor")
+              .select(`
+                id,
+                users!labor_user_id_fkey(
+                  full_name
+                )
+              `)
+              .in("id", laborIds);
+
+            if (staffData && staffData.length > 0) {
+              staffAssigned = staffData
+                .filter(staff => staff.users)
+                .map(staff => staff.users.full_name);
+            }
+          }
+        } catch (error) {
+          console.error('Error parsing labor IDs:', error);
+        }
+      }
+
+      if (!leadLabor && timesheetFormatted.length > 0) {
+        const leadLaborEntry = timesheetFormatted.find(entry => entry.labor_name && entry.labor_name !== "Unknown");
+        if (leadLaborEntry) {
+          leadLabor = leadLaborEntry.labor_name;
+        }
+      }
+
+      let createdByUser = null;
+      if (job.created_by) {
+        const { data: userData } = await supabase
+          .from("users")
+          .select("full_name, email")
+          .eq("id", job.created_by)
+          .single();
+        
+        if (userData) {
+          createdByUser = userData.full_name;
+        }
+      }
+
+      return {
+        job: {
+          ...job,
+          progress,
+          customer_name: job.customer?.customer_name || job.customer?.company_name || "Unknown",
+          contractor_name: job.contractor?.contractor_name || job.contractor?.company_name || "Unknown"
+        },
+        materials: {
+          items: materialsFormatted,
+          total_cost: totalMaterialsCost
+        },
+        timesheet: {
+          entries: timesheetFormatted,
+          total_hours: totalHours,
+          total_amount: totalLaborCost
+        },
+        financial_transactions: transactionsFormatted,
+        team_assignment: {
+          lead_labor: leadLabor,
+          staff_assigned: staffAssigned
+        },
+        job_metadata: {
+          created_by: createdByUser,
+          admin_assigned: "System Admin", 
+          priority: job.priority,
+          created_on: job.created_at.split('T')[0]
+        },
+        estimation_details: {
+          estimated_hours: parseFloat(job.estimated_hours) || 0,
+          estimated_cost: parseFloat(job.estimated_cost) || 0,
+          actual_hours: totalHours,
+          actual_cost: totalLaborCost + totalMaterialsCost,
+          cost_difference: (totalLaborCost + totalMaterialsCost) - (parseFloat(job.estimated_cost) || 0),
+          hours_difference: totalHours - (parseFloat(job.estimated_hours) || 0)
+        }
+      };
+    } catch (error) {
+      console.error('Error in getJobDetails:', error);
+      throw error;
+    }
+  }
 }

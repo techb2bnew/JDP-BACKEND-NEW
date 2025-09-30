@@ -5,14 +5,12 @@ import { errorResponse } from '../helpers/responseHelper.js';
 export class JobController {
   static async createJob(request, reply) {
     try {
-      const userId = request.user.id; 
+      const userId = request.user.id;
       const result = await JobService.createJob(request.body, userId);
       return reply.code(201).send(result);
     } catch (error) {
-      console.error('Error in createJob:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-      
+
+
       if (error.message.includes('already exists')) {
         return reply.code(409).send(errorResponse(error.message, 409));
       }
@@ -25,11 +23,11 @@ export class JobController {
 
   static async getJobs(request, reply) {
     try {
-      const { 
-        page, limit, search, status, priority, job_type, 
-        customer_id, contractor_id, created_from, sortBy, sortOrder 
+      const {
+        page, limit, search, status, priority, job_type,
+        customer_id, contractor_id, created_from, sortBy, sortOrder
       } = request.query;
-      
+
       const filters = {};
       if (search) filters.search = search;
       if (status) filters.status = status;
@@ -163,10 +161,10 @@ export class JobController {
 
   static async getJobsByLabor(request, reply) {
     try {
-      const { 
-        laborId, 
-        page = 1, 
-        limit = 10 
+      const {
+        laborId,
+        page = 1,
+        limit = 10
       } = request.query;
 
       if (!laborId) {
@@ -178,7 +176,7 @@ export class JobController {
         parseInt(page),
         parseInt(limit)
       );
-      
+
       return reply.code(200).send(result);
     } catch (error) {
       if (error.message.includes('not found')) {
@@ -193,10 +191,10 @@ export class JobController {
 
   static async getJobsByLeadLabor(request, reply) {
     try {
-      const { 
-        leadLaborId, 
-        page = 1, 
-        limit = 10 
+      const {
+        leadLaborId,
+        page = 1,
+        limit = 10
       } = request.query;
 
       if (!leadLaborId) {
@@ -208,7 +206,7 @@ export class JobController {
         parseInt(page),
         parseInt(limit)
       );
-      
+
       return reply.code(200).send(result);
     } catch (error) {
       if (error.message.includes('not found')) {
@@ -221,7 +219,6 @@ export class JobController {
     }
   }
 
-  // Work Activity and Time Controllers
   static async updateWorkActivity(request, reply) {
     try {
       const { id } = request.params;
@@ -296,26 +293,24 @@ export class JobController {
     }
   }
 
-  // Unified method to update work activity, total work time, and timer fields
   static async updateWorkData(request, reply) {
     try {
       const { id } = request.params;
       const updateData = request.body;
 
-      // Validate that at least one field is provided
-      if (updateData.work_activity === undefined && 
-          !updateData.total_work_time && 
-          !updateData.start_timer && 
-          !updateData.end_timer && 
-          !updateData.pause_timer &&
-          !updateData.labor_timesheet &&
-          !updateData.lead_labor_timesheet &&
-          !updateData.bulk_timesheets &&
-          !updateData.status) {
+
+      if (updateData.work_activity === undefined &&
+        !updateData.total_work_time &&
+        !updateData.start_timer &&
+        !updateData.end_timer &&
+        !updateData.pause_timer &&
+        !updateData.labor_timesheet &&
+        !updateData.lead_labor_timesheet &&
+        !updateData.bulk_timesheets &&
+        !updateData.status) {
         return reply.code(400).send(errorResponse('At least one field is required: work_activity, total_work_time, start_timer, end_timer, pause_timer, labor_timesheet, lead_labor_timesheet, bulk_timesheets, or status', 400));
       }
 
-      // Validate work activity if provided (should be a simple number)
       if (updateData.work_activity !== undefined) {
         if (typeof updateData.work_activity !== 'number' || updateData.work_activity < 0) {
           return reply.code(400).send(errorResponse('work_activity must be a positive number', 400));
@@ -342,11 +337,10 @@ export class JobController {
     }
   }
 
-  // Timesheet Summary Controller
   static async getTimesheetSummary(request, reply) {
     try {
       const { id } = request.params;
-      
+
       if (!id) {
         return reply.code(400).send(errorResponse('Job ID is required', 400));
       }
@@ -365,12 +359,11 @@ export class JobController {
     }
   }
 
-  // Weekly Timesheet Summary Controller
   static async getWeeklyTimesheetSummary(request, reply) {
     try {
       const { id } = request.params;
       const { start_date, end_date } = request.query;
-      
+
       if (!id) {
         return reply.code(400).send(errorResponse('Job ID is required', 400));
       }
@@ -393,11 +386,10 @@ export class JobController {
     }
   }
 
-  // All Jobs Weekly Timesheet Summary Controller
   static async getAllJobsWeeklyTimesheetSummary(request, reply) {
     try {
       const { start_date, end_date } = request.query;
-      
+
       if (!start_date || !end_date) {
         return reply.code(400).send(errorResponse('start_date and end_date are required', 400));
       }
@@ -413,12 +405,11 @@ export class JobController {
     }
   }
 
-  // Approve Timesheet Controller
   static async approveTimesheet(request, reply) {
     try {
       const { jobId, laborId, date, status, billable } = request.body;
       const { status: queryStatus, billable: queryBillable } = request.query;
-      
+
       if (!jobId || !laborId || !date) {
         return reply.code(400).send(errorResponse('jobId, laborId, and date are required', 400));
       }
@@ -427,13 +418,13 @@ export class JobController {
       const finalBillable = billable !== undefined ? billable : (queryBillable !== undefined ? queryBillable : null);
 
       const result = await Job.approveTimesheet(
-        parseInt(jobId), 
-        parseInt(laborId), 
-        date, 
+        parseInt(jobId),
+        parseInt(laborId),
+        date,
         finalStatus,
         finalBillable
       );
-      
+
       return reply.code(200).send(result);
     } catch (error) {
       if (error.message.includes('not found')) {
@@ -446,12 +437,11 @@ export class JobController {
     }
   }
 
-  // Approve Week Timesheet Controller
   static async approveWeekTimesheet(request, reply) {
     try {
       const { jobId, laborId, startDate, endDate, status } = request.body;
       const { status: queryStatus } = request.query;
-      
+
       if (!jobId || !laborId || !startDate || !endDate) {
         return reply.code(400).send(errorResponse('jobId, laborId, startDate, and endDate are required', 400));
       }
@@ -459,13 +449,13 @@ export class JobController {
       const finalStatus = status || queryStatus || 'approved';
 
       const result = await Job.approveWeekTimesheet(
-        parseInt(jobId), 
-        parseInt(laborId), 
-        startDate, 
+        parseInt(jobId),
+        parseInt(laborId),
+        startDate,
         endDate,
         finalStatus
       );
-      
+
       return reply.code(200).send(result);
     } catch (error) {
       if (error.message.includes('not found')) {
@@ -478,7 +468,6 @@ export class JobController {
     }
   }
 
-  // Project Summary Controller
   static async getProjectSummary(request, reply) {
     try {
       const { id } = request.params;
@@ -499,7 +488,6 @@ export class JobController {
     }
   }
 
-  // Job Dashboard Controller
   static async getJobDashboard(request, reply) {
     try {
       const { id } = request.params;

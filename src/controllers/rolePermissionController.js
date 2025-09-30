@@ -30,9 +30,7 @@ export class RolePermissionController {
       
       return reply.status(201).send(successResponse(result, 'Role created successfully with permissions', 201));
     } catch (error) {
-      console.error('Error in createRoleWithPermissions:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
+
       return reply.status(500).send(errorResponse(`Failed to create role with permissions and products: ${error.message}`, 500));
     }
   }
@@ -64,9 +62,7 @@ export class RolePermissionController {
       
       return reply.status(200).send(successResponse(result, 'Role permissions updated successfully'));
     } catch (error) {
-      console.error('Error in updateRolePermissionsById:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
+
       return reply.status(500).send(errorResponse(`Failed to update role permissions: ${error.message}`, 500));
     }
   }
@@ -77,9 +73,7 @@ export class RolePermissionController {
       
       return reply.status(200).send(successResponse(roles, 'All roles with permissions retrieved successfully'));
     } catch (error) {
-      console.error('Error in getAllRolesWithAllPermissions:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
+
       return reply.status(500).send(errorResponse(`Failed to retrieve roles with permissions: ${error.message}`, 500));
     }
   }
@@ -101,9 +95,7 @@ export class RolePermissionController {
       
       return reply.status(200).send(successResponse(result, 'Role permissions retrieved successfully'));
     } catch (error) {
-      console.error('Error in getRolePermissionsById:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
+      
       
       if (error.message.includes('not found')) {
         return reply.status(404).send(errorResponse('Role not found', 404));
@@ -131,9 +123,7 @@ export class RolePermissionController {
       
       return reply.status(200).send(successResponse(result, 'Role deleted successfully'));
     } catch (error) {
-      console.error('Error in deleteRole:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
+      
       
       if (error.message.includes('not found')) {
         return reply.status(404).send(errorResponse('Role not found', 404));

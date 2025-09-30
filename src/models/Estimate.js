@@ -112,7 +112,6 @@ export class Estimate {
       const customLabor = estimateData.custom_labor;
       const customProducts = estimateData.custom_products;
       
-      // Remove custom data from estimateData to avoid conflicts
       delete estimateData.additional_cost;
       delete estimateData.custom_labor;
       delete estimateData.custom_products;
@@ -151,7 +150,6 @@ export class Estimate {
         throw new Error(`Database error: ${error.message}`);
       }
 
-      // Create additional cost if provided
       if (additionalCost && additionalCost.description && additionalCost.amount) {
         const additionalCostData = {
           estimate_id: data.id,
@@ -170,11 +168,9 @@ export class Estimate {
         }
       }
 
-      // Create custom labor if provided
       if (customLabor && Array.isArray(customLabor) && customLabor.length > 0) {
         for (const laborItem of customLabor) {
           try {
-            // First create a user for the labor (following labor service pattern)
             const { generateTemporaryPassword } = await import('../lib/generateTemporaryPassword.js');
             const { hashPassword } = await import('../helpers/authHelper.js');
             
@@ -201,17 +197,15 @@ export class Estimate {
               continue;
             }
 
-            // Generate labor code
             const laborCode = await Estimate.generateLaborCode();
 
-            // Create labor record (following labor service pattern)
             const laborData = {
               user_id: user.id,
               labor_code: laborCode,
-              dob: '1990-01-01', // Default DOB for custom labor
-              address: 'Default Address', // Default address
+              dob: '1990-01-01', 
+              address: 'Default Address', 
               notes: null,
-              date_of_joining: new Date().toISOString().split('T')[0], // Today's date
+              date_of_joining: new Date().toISOString().split('T')[0], 
               trade: 'Custom Labor',
               experience: 'Custom',
               hourly_rate: laborItem.hourly_rate,
@@ -238,11 +232,9 @@ export class Estimate {
         }
       }
 
-      // Create custom products if provided
       if (customProducts && Array.isArray(customProducts) && customProducts.length > 0) {
         for (const productItem of customProducts) {
           try {
-            // Generate JDP SKU if not provided
             let jdpSku = productItem.jdp_sku;
             if (!jdpSku) {
               jdpSku = await Estimate.generateProductSku();
@@ -258,7 +250,7 @@ export class Estimate {
               job_id: parseInt(productItem.job_id),
               is_custom: true,
               unit_cost: productItem.unit_cost,
-              jdp_price: productItem.unit_cost, // For custom products, use unit_cost as jdp_price
+              jdp_price: productItem.unit_cost, 
               status: 'active',
               created_by: estimateData.created_by || null,
               system_ip: estimateData.system_ip || null
@@ -398,7 +390,6 @@ export class Estimate {
     try {
       console.log(`Fetching estimate with ID: ${estimateId}`);
       
-      // Simple query without complex joins to avoid JSON parsing issues
       const { data, error } = await supabase
         .from("estimates")
         .select("*")
@@ -426,11 +417,10 @@ export class Estimate {
     }
   }
 
-  // Simple findById method for delete operations
   static async simpleFindById(estimateId) {
     try {
       console.log(`Simple find estimate with ID: ${estimateId}`);
-      
+
       const { data, error } = await supabase
         .from("estimates")
         .select("id, estimate_title, total_amount, status")
@@ -461,7 +451,6 @@ export class Estimate {
       const customLabor = updateData.custom_labor;
       const customProducts = updateData.custom_products;
       
-      // Remove custom data from updateData to avoid conflicts
       delete updateData.additional_cost;
       delete updateData.custom_labor;
       delete updateData.custom_products; 
@@ -530,11 +519,9 @@ export class Estimate {
         }
       }
 
-      // Create custom labor if provided
       if (customLabor && Array.isArray(customLabor) && customLabor.length > 0) {
         for (const laborItem of customLabor) {
           try {
-            // First create a user for the labor (following labor service pattern)
             const { generateTemporaryPassword } = await import('../lib/generateTemporaryPassword.js');
             const { hashPassword } = await import('../helpers/authHelper.js');
             
@@ -561,17 +548,15 @@ export class Estimate {
               continue;
             }
 
-            // Generate labor code
             const laborCode = await Estimate.generateLaborCode();
 
-            // Create labor record (following labor service pattern)
             const laborData = {
               user_id: user.id,
               labor_code: laborCode,
-              dob: '1990-01-01', // Default DOB for custom labor
-              address: 'Default Address', // Default address
+              dob: '1990-01-01', 
+              address: 'Default Address',
               notes: null,
-              date_of_joining: new Date().toISOString().split('T')[0], // Today's date
+              date_of_joining: new Date().toISOString().split('T')[0], 
               trade: 'Custom Labor',
               experience: 'Custom',
               hourly_rate: laborItem.hourly_rate,
@@ -598,11 +583,11 @@ export class Estimate {
         }
       }
 
-      // Create custom products if provided
+     
       if (customProducts && Array.isArray(customProducts) && customProducts.length > 0) {
         for (const productItem of customProducts) {
           try {
-            // Generate JDP SKU if not provided
+            
             let jdpSku = productItem.jdp_sku;
             if (!jdpSku) {
               jdpSku = await Estimate.generateProductSku();
@@ -618,7 +603,7 @@ export class Estimate {
               job_id: parseInt(productItem.job_id),
               is_custom: true,
               unit_cost: productItem.unit_cost,
-              jdp_price: productItem.unit_cost, // For custom products, use unit_cost as jdp_price
+              jdp_price: productItem.unit_cost, 
               status: 'active',
               created_by: updateData.created_by || null,
               system_ip: updateData.system_ip || null
@@ -686,9 +671,9 @@ export class Estimate {
   static async delete(estimateId) {
     try {
       console.log(`Deleting estimate with ID: ${estimateId}`);
+
       
-      // Add timeout to prevent hanging
-      const timeoutPromise = new Promise((_, reject) => 
+      const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Delete query timeout')), 15000)
       );
 
@@ -708,7 +693,7 @@ export class Estimate {
         throw new Error(`Database error: ${error.message}`);
       }
 
-      console.log(`Estimate ${estimateId} deleted successfully`);
+
       return true;
     } catch (error) {
       console.error("Error in delete method:", error);
@@ -718,11 +703,10 @@ export class Estimate {
     }
   }
 
-  // Simple delete method without relationship checks
+
   static async simpleDelete(estimateId) {
     try {
-      console.log(`Simple delete for estimate ID: ${estimateId}`);
-      
+
       const { error } = await supabase
         .from("estimates")
         .delete()
@@ -787,7 +771,7 @@ export class Estimate {
         throw new Error(`Database error: ${rejectedError.message}`);
       }
 
-      // Get additional costs for all estimates
+      
       const { data: additionalCostsData, error: additionalCostsError } = await supabase
         .from("estimate_additional_costs")
         .select("amount");
@@ -802,18 +786,16 @@ export class Estimate {
       const accepted = acceptedEstimates?.length || 0;
       const rejected = rejectedEstimates?.length || 0;
 
-      // Calculate total billed from additional costs
+
       const totalBilled = (additionalCostsData || []).reduce((sum, cost) => {
         return sum + (parseFloat(cost.amount) || 0);
       }, 0);
 
-      // Calculate paid and pending invoices
-      const paid = accepted; // Accepted estimates are considered paid
-      const pending = draft + sent; // Draft and sent are pending
-      const expired = rejected; // Rejected are expired
+      const paid = accepted; 
+      const pending = draft + sent; 
+      const expired = rejected;
 
       return {
-        // Dashboard cards format
         dashboard_cards: {
           total_invoices: {
             label: "Total Invoices",
@@ -841,7 +823,6 @@ export class Estimate {
           }
         },
         
-        // Detailed breakdown
         detailed_stats: {
         total,
         draft,
@@ -1043,8 +1024,7 @@ export class Estimate {
  
   static async checkEstimateRelationships(estimateId) {
     try {
-      console.log(`Checking relationships for estimate ID: ${estimateId}`);
-      
+
       if (!estimateId) {
         console.error('Estimate ID is required');
         return {
@@ -1056,7 +1036,6 @@ export class Estimate {
 
       const relationships = [];
 
-      // Check for additional costs with timeout and error handling
       console.log('Checking additional costs...');
       try {
         const additionalCostsQuery = supabase
@@ -1065,8 +1044,7 @@ export class Estimate {
         .eq('estimate_id', estimateId)
         .limit(1);
 
-        // Add timeout to prevent hanging
-        const timeoutPromise = new Promise((_, reject) => 
+        const timeoutPromise = new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Query timeout')), 10000)
         );
 
@@ -1078,7 +1056,6 @@ export class Estimate {
       if (additionalCostsError) {
         console.error('Error checking additional costs:', additionalCostsError);
           console.error('Error details:', JSON.stringify(additionalCostsError, null, 2));
-          // Continue with deletion even if there's an error checking relationships
       } else if (additionalCostsData && additionalCostsData.length > 0) {
           console.log(`Found ${additionalCostsData.length} additional costs`);
         relationships.push({
@@ -1092,7 +1069,6 @@ export class Estimate {
       } catch (queryError) {
         console.error('Query error in checkEstimateRelationships:', queryError);
         console.error('Query error message:', queryError.message);
-        // Continue with deletion even if query fails
       }
 
       const result = {
@@ -1101,14 +1077,10 @@ export class Estimate {
         canDelete: relationships.length === 0
       };
 
-      console.log('Relationship check completed:', result);
       return result;
     } catch (error) {
-      console.error('Error in checkEstimateRelationships:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-      
-      // Return a safe default response instead of throwing
+
+
       return {
         hasRelationships: false,
         relationships: [],

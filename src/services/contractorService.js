@@ -29,20 +29,40 @@ export class ContractorService {
 
   static async getContractors(filters, pagination) {
     try {
-      const result = await Contractor.findAll(filters, pagination);
+      // If include_jobs is true, use the contractor listing method
+      if (filters.include_jobs) {
+        console.log('Getting contractors with jobs...');
+        const result = await Contractor.getContractorListing(filters, pagination);
+        
+        return successResponse(
+          {
+            contractors: result.contractors,
+            pagination: {
+              page: result.page,
+              limit: result.limit,
+              total: result.total,
+              totalPages: result.totalPages
+            }
+          },
+          "Contractors with jobs retrieved successfully"
+        );
+      } else {
+        // Use the original method for basic contractor listing
+        const result = await Contractor.findAll(filters, pagination);
 
-      return successResponse(
-        {
-          contractors: result.contractors,
-          pagination: {
-            page: result.page,
-            limit: result.limit,
-            total: result.total,
-            totalPages: result.totalPages
-          }
-        },
-        "Contractors retrieved successfully"
-      );
+        return successResponse(
+          {
+            contractors: result.contractors,
+            pagination: {
+              page: result.page,
+              limit: result.limit,
+              total: result.total,
+              totalPages: result.totalPages
+            }
+          },
+          "Contractors retrieved successfully"
+        );
+      }
     } catch (error) {
       throw error;
     }
@@ -136,6 +156,24 @@ export class ContractorService {
         "Contractor statistics retrieved successfully"
       );
     } catch (error) {
+      throw error;
+    }
+  }
+
+
+  // Get job details with sub-jobs, materials, and timesheet
+  static async getJobDetails(jobId) {
+    try {
+      console.log(`Getting job details for job ID: ${jobId}`);
+      
+      const result = await Contractor.getJobDetails(jobId);
+      
+      return successResponse(
+        result,
+        "Job details retrieved successfully"
+      );
+    } catch (error) {
+      console.error('Error in getJobDetails service:', error);
       throw error;
     }
   }

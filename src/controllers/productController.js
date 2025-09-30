@@ -17,9 +17,7 @@ export class ProductController {
         201
       ));
     } catch (error) {
-      console.error('Error in createProduct:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
+
       
       return reply.status(400).send(errorResponse(
         `Failed to create product: ${error.message}`,
@@ -61,9 +59,7 @@ export class ProductController {
         200
       ));
     } catch (error) {
-      console.error('Error in getAllProducts:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
+
       
       return reply.status(500).send(errorResponse(
         `Failed to get products: ${error.message}`,
@@ -92,9 +88,7 @@ export class ProductController {
         200
       ));
     } catch (error) {
-      console.error('Error in getCustomProducts:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
+
       
       return reply.status(500).send(errorResponse(
         `Failed to get custom products: ${error.message}`,
@@ -123,9 +117,7 @@ export class ProductController {
         200
       ));
     } catch (error) {
-      console.error('Error in getProductsByJob:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
+
       
       return reply.status(500).send(errorResponse(
         `Failed to get job products: ${error.message}`,
@@ -153,10 +145,7 @@ export class ProductController {
         200
       ));
     } catch (error) {
-      console.error('Error in getProductById:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-      
+     
       if (error.message.includes('not found')) {
         return reply.status(404).send(errorResponse(
           error.message,
@@ -198,10 +187,7 @@ export class ProductController {
         200
       ));
     } catch (error) {
-      console.error('Error in updateProduct:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-      
+ 
       if (error.message.includes('not found')) {
         return reply.status(404).send(errorResponse(
           error.message,

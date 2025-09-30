@@ -21,6 +21,7 @@ import { customerRoutes } from './routes/customerRoutes.js';
 import { contractorRoutes } from './routes/contractorRoutes.js';
 import { jobRoutes } from './routes/jobRoutes.js';
 import estimateRoutes from './routes/estimateRoutes.js';
+import orderRoutes from './routes/orderRoutes.js';
 
 dotenv.config();
 
@@ -91,6 +92,7 @@ await fastify.register(customerRoutes, { prefix: '/api/customer' });
 await fastify.register(contractorRoutes, { prefix: '/api/contractor' });
 await fastify.register(jobRoutes, { prefix: '/api/job' });
 await fastify.register(estimateRoutes, { prefix: '/api/estimates' });
+await fastify.register(orderRoutes, { prefix: '/api/orders' });
 
 
 fastify.get('/health', async (request, reply) => {

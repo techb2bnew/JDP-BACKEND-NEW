@@ -199,7 +199,6 @@ export class Customer {
     }
   }
 
-  // Check if customer has relationships with other tables before deletion
   static async checkCustomerRelationships(customerId) {
     try {
       if (!customerId) {
@@ -208,7 +207,6 @@ export class Customer {
 
       const relationships = [];
 
-      // Check jobs table
       const { data: jobsData, error: jobsError } = await supabase
         .from('jobs')
         .select('id, job_title')
@@ -223,7 +221,6 @@ export class Customer {
         });
       }
 
-      // Check estimates table
       const { data: estimatesData, error: estimatesError } = await supabase
         .from('estimates')
         .select('id, estimate_title')

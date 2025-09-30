@@ -7,11 +7,7 @@ export class ContractorController {
       const userId = request.user.id; 
       const result = await ContractorService.createContractor(request.body, userId);
       return reply.code(201).send(result);
-    } catch (error) {
-      console.error('Error in createContractor:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-      
+    } catch (error) {     
       if (error.message.includes('already exists')) {
         return reply.code(409).send(errorResponse(error.message, 409));
       }
@@ -24,12 +20,13 @@ export class ContractorController {
 
   static async getContractors(request, reply) {
     try {
-      const { page, limit, search, status, job_id, sortBy, sortOrder } = request.query;
+      const { page, limit, search, status, job_id, sortBy, sortOrder, include_jobs } = request.query;
       
       const filters = {};
       if (search) filters.search = search;
       if (status) filters.status = status;
       if (job_id) filters.job_id = job_id;
+      if (include_jobs) filters.include_jobs = include_jobs === 'true';
 
       const pagination = {
         page: parseInt(page) || 1,
@@ -40,11 +37,7 @@ export class ContractorController {
 
       const result = await ContractorService.getContractors(filters, pagination);
       return reply.code(200).send(result);
-    } catch (error) {
-      console.error('Error in getContractors:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-      
+    } catch (error) {  
       if (error.message.includes('Database error')) {
         return reply.code(500).send(errorResponse('Database error occurred', 500));
       }
@@ -57,11 +50,7 @@ export class ContractorController {
       const { id } = request.params;
       const result = await ContractorService.getContractorById(parseInt(id));
       return reply.code(200).send(result);
-    } catch (error) {
-      console.error('Error in getContractorById:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-      
+    } catch (error) {      
       if (error.message.includes('not found')) {
         return reply.code(404).send(errorResponse(error.message, 404));
       }
@@ -77,11 +66,7 @@ export class ContractorController {
       const { jobId } = request.params;
       const result = await ContractorService.getContractorsByJobId(jobId);
       return reply.code(200).send(result);
-    } catch (error) {
-      console.error('Error in getContractorsByJobId:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-      
+    } catch (error) {      
       if (error.message.includes('Database error')) {
         return reply.code(500).send(errorResponse('Database error occurred', 500));
       }
@@ -94,11 +79,7 @@ export class ContractorController {
       const { id } = request.params;
       const result = await ContractorService.updateContractor(parseInt(id), request.body);
       return reply.code(200).send(result);
-    } catch (error) {
-      console.error('Error in updateContractor:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-      
+    } catch (error) {      
       if (error.message.includes('not found')) {
         return reply.code(404).send(errorResponse(error.message, 404));
       }
@@ -118,10 +99,7 @@ export class ContractorController {
       const result = await ContractorService.deleteContractor(parseInt(id));
       return reply.code(200).send(result);
     } catch (error) {
-      console.error('Error in deleteContractor:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-      
+    
       if (error.message.includes('not found')) {
         return reply.code(404).send(errorResponse(error.message, 404));
       }
@@ -137,14 +115,36 @@ export class ContractorController {
       const result = await ContractorService.getContractorStats();
       return reply.code(200).send(result);
     } catch (error) {
-      console.error('Error in getContractorStats:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
+      
       
       if (error.message.includes('Database error')) {
         return reply.code(500).send(errorResponse('Database error occurred', 500));
       }
       return reply.code(500).send(errorResponse(`Failed to get contractor stats: ${error.message}`));
+    }
+  }
+
+
+  static async getJobDetails(request, reply) {
+    try {
+      
+      const { jobId } = request.params;
+      
+      if (!jobId) {
+        return reply.code(400).send(errorResponse('Job ID is required', 400));
+      }
+
+      const result = await ContractorService.getJobDetails(parseInt(jobId));
+      return reply.code(200).send(result);
+    } catch (error) {
+      
+      if (error.message.includes('not found')) {
+        return reply.code(404).send(errorResponse(error.message, 404));
+      }
+      if (error.message.includes('Database error')) {
+        return reply.code(500).send(errorResponse('Database error occurred', 500));
+      }
+      return reply.code(500).send(errorResponse(`Failed to get job details: ${error.message}`));
     }
   }
 }
