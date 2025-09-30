@@ -5,11 +5,9 @@ import { supabase } from "../config/database.js";
 export class OrderService {
   static async createOrder(orderData, cartItems, userId, systemIp) {
     try {
-      // Calculate totals from cart items
       let subtotal = 0;
       const orderItemsToCreate = [];
 
-      // Validate and prepare order items
       for (const item of cartItems) {
         const { data: product, error } = await supabase
           .from("products")
@@ -21,7 +19,6 @@ export class OrderService {
           throw new Error(`Product with ID ${item.product_id} not found`);
         }
 
-        // Check stock availability
         if (product.stock_quantity < item.quantity) {
           throw new Error(`Insufficient stock for product: ${product.product_name}. Available: ${product.stock_quantity}`);
         }
@@ -39,12 +36,12 @@ export class OrderService {
         });
       }
 
-      // Calculate tax and total
+     
       const taxAmount = orderData.tax_amount || 0;
       const discountAmount = orderData.discount_amount || 0;
       const totalAmount = subtotal + taxAmount - discountAmount;
 
-      // Create order
+     
       const newOrder = await Order.create({
         ...orderData,
         total_items: cartItems.length,
@@ -56,7 +53,7 @@ export class OrderService {
         system_ip: systemIp
       });
 
-      // Create order items
+      
       const orderItemsWithOrderId = orderItemsToCreate.map(item => ({
         ...item,
         order_id: newOrder.id
@@ -64,9 +61,9 @@ export class OrderService {
 
       await OrderItem.createBulk(orderItemsWithOrderId);
 
-      // Update product stock quantities
+
       for (const item of cartItems) {
-        // Get current stock
+    
         const { data: currentProduct } = await supabase
           .from("products")
           .select("stock_quantity")
@@ -89,7 +86,7 @@ export class OrderService {
         }
       }
 
-      // Fetch complete order with items
+      
       const completeOrder = await Order.findById(newOrder.id);
       return completeOrder;
     } catch (error) {
@@ -173,11 +170,11 @@ export class OrderService {
         throw new Error("Order not found");
       }
 
-      // Restore product stock before deleting
+
       if (existingOrder.order_items && existingOrder.order_items.length > 0) {
         for (const item of existingOrder.order_items) {
           if (item.product_id) {
-            // Get current stock
+
             const { data: currentProduct } = await supabase
               .from("products")
               .select("stock_quantity")
@@ -254,7 +251,6 @@ export class OrderService {
         throw new Error(`Product with ID ${itemData.product_id} not found`);
       }
 
-      // Check stock availability
       if (product.stock_quantity < (itemData.quantity || 1)) {
         throw new Error(`Insufficient stock for product: ${product.product_name}. Available: ${product.stock_quantity}`);
       }
@@ -270,7 +266,7 @@ export class OrderService {
         total_price: totalPrice
       });
 
-      // Update product stock
+
       await supabase
         .from("products")
         .update({
@@ -278,7 +274,7 @@ export class OrderService {
         })
         .eq("id", product.id);
 
-      // Update order totals
+
       const newSubtotal = parseFloat(order.subtotal) + totalPrice;
       const newTotalAmount = newSubtotal + parseFloat(order.tax_amount) - parseFloat(order.discount_amount);
       
@@ -303,7 +299,7 @@ export class OrderService {
 
       await OrderItem.delete(orderItemId);
 
-      // Update order totals
+
       const order = await Order.findById(orderId);
       const newSubtotal = parseFloat(order.subtotal) - parseFloat(item.total_price);
       const newTotalAmount = newSubtotal + parseFloat(order.tax_amount) - parseFloat(order.discount_amount);

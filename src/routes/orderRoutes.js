@@ -1,22 +1,18 @@
 import { OrderController } from "../controllers/orderController.js";
 
 export default async function orderRoutes(fastify, options) {
-  // Create order
   fastify.post('/createOrder', {
     preHandler: [fastify.authenticateToken],
   }, OrderController.createOrder);
 
-  // Get all orders with filters
   fastify.get('/getAllOrders', {
     preHandler: [fastify.authenticateToken],
   }, OrderController.getAllOrders);
 
-  // Get order statistics
   fastify.get('/getOrderStats', {
     preHandler: [fastify.authenticateToken],
   }, OrderController.getOrderStats);
 
-  // Get order by ID
   fastify.get('/getOrderById/:id', {
     preHandler: [fastify.authenticateToken],
     schema: {
@@ -30,7 +26,6 @@ export default async function orderRoutes(fastify, options) {
     }
   }, OrderController.getOrderById);
 
-  // Update order
   fastify.post('/updateOrder/:id', {
     preHandler: [fastify.authenticateToken],
     schema: {
@@ -44,7 +39,6 @@ export default async function orderRoutes(fastify, options) {
     }
   }, OrderController.updateOrder);
 
-  // Delete order
   fastify.delete('/deleteOrder/:id', {
     preHandler: [fastify.authenticateToken],
     schema: {
@@ -58,7 +52,6 @@ export default async function orderRoutes(fastify, options) {
     }
   }, OrderController.deleteOrder);
 
-  // Update order status
   fastify.patch('/updateOrderStatus/:id', {
     preHandler: [fastify.authenticateToken],
     schema: {
@@ -72,7 +65,6 @@ export default async function orderRoutes(fastify, options) {
     }
   }, OrderController.updateOrderStatus);
 
-  // Update payment status
   fastify.patch('/updatePaymentStatus/:id', {
     preHandler: [fastify.authenticateToken],
     schema: {
@@ -86,7 +78,6 @@ export default async function orderRoutes(fastify, options) {
     }
   }, OrderController.updatePaymentStatus);
 
-  // Get orders by customer
   fastify.get('/getOrdersByCustomer/:customerId', {
     preHandler: [fastify.authenticateToken],
     schema: {
@@ -100,7 +91,6 @@ export default async function orderRoutes(fastify, options) {
     }
   }, OrderController.getOrdersByCustomer);
 
-  // Get orders by job
   fastify.get('/getOrdersByJob/:jobId', {
     preHandler: [fastify.authenticateToken],
     schema: {
@@ -114,7 +104,6 @@ export default async function orderRoutes(fastify, options) {
     }
   }, OrderController.getOrdersByJob);
 
-  // Get orders by supplier
   fastify.get('/getOrdersBySupplier/:supplierId', {
     preHandler: [fastify.authenticateToken],
     schema: {
@@ -128,7 +117,6 @@ export default async function orderRoutes(fastify, options) {
     }
   }, OrderController.getOrdersBySupplier);
 
-  // Add order item
   fastify.post('/addOrderItem/:orderId', {
     preHandler: [fastify.authenticateToken],
     schema: {
@@ -142,7 +130,6 @@ export default async function orderRoutes(fastify, options) {
     }
   }, OrderController.addOrderItem);
 
-  // Remove order item
   fastify.delete('/removeOrderItem/:orderId/:itemId', {
     preHandler: [fastify.authenticateToken],
     schema: {

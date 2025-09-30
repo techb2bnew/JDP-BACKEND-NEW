@@ -507,4 +507,22 @@ export class JobController {
       return reply.code(500).send(errorResponse(error.message));
     }
   }
+
+  static async getTimesheetDashboardStats(request, reply) {
+    try {
+      const result = await Job.getTimesheetDashboardStats();
+      return reply.code(200).send({
+        success: true,
+        message: 'Timesheet dashboard statistics retrieved successfully',
+        data: {
+          total: result.total,
+          pending: result.pending,
+          totalHours: `${result.totalHours}h`,
+          billableHours: `${result.billableHours}h`
+        }
+      });
+    } catch (error) {
+      return reply.code(500).send(errorResponse(error.message));
+    }
+  }
 }

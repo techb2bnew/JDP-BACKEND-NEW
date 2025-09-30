@@ -2792,4 +2792,88 @@ export class Job {
       throw error;
     }
   }
+
+  static async getTimesheetDashboardStats() {
+    try {
+      // Get all jobs with timesheet data
+      const { data: jobs, error } = await supabase
+        .from("jobs")
+        .select(`
+          id,
+          labor_timesheets
+        `);
+
+      if (error) {
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      let totalTimesheets = 0;
+      let pendingApproval = 0;
+      let totalHours = 0;
+      let billableHours = 0;
+
+      // Process each job's timesheets
+      jobs.forEach(job => {
+        // Parse labor_timesheets if it's a string
+        let laborTimesheets = job.labor_timesheets;
+        if (typeof laborTimesheets === 'string') {
+          try {
+            laborTimesheets = JSON.parse(laborTimesheets);
+          } catch (e) {
+            console.error('Error parsing labor_timesheets:', e);
+            laborTimesheets = [];
+          }
+        }
+
+        // Process labor timesheets
+        if (laborTimesheets && Array.isArray(laborTimesheets) && laborTimesheets.length > 0) {
+          laborTimesheets.forEach(timesheet => {
+            totalTimesheets++;
+            
+            // Check if pending approval (status not 'approved')
+            if (timesheet.status !== 'approved') {
+              pendingApproval++;
+            }
+
+            // Calculate hours
+            if (timesheet.work_hours) {
+              const hours = Job.parseHoursToDecimal(timesheet.work_hours);
+              totalHours += hours;
+              
+              // If status is approved, it's billable
+              if (timesheet.status === 'approved') {
+                billableHours += hours;
+              }
+            }
+          });
+        }
+      });
+
+      return {
+        total: totalTimesheets,
+        pending: pendingApproval,
+        totalHours: Math.round(totalHours),
+        billableHours: Math.round(billableHours)
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static parseHoursToDecimal(timeString) {
+    if (!timeString) return 0;
+    
+    // Handle format like "08:00:00" or "8h"
+    if (timeString.includes(':')) {
+      const parts = timeString.split(':');
+      const hours = parseInt(parts[0]) || 0;
+      const minutes = parseInt(parts[1]) || 0;
+      const seconds = parseInt(parts[2]) || 0;
+      return hours + (minutes / 60) + (seconds / 3600);
+    } else if (timeString.includes('h')) {
+      return parseFloat(timeString.replace('h', '')) || 0;
+    }
+    
+    return parseFloat(timeString) || 0;
+  }
 }

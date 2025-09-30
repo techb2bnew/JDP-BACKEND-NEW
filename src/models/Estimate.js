@@ -392,7 +392,32 @@ export class Estimate {
       
       const { data, error } = await supabase
         .from("estimates")
-        .select("*")
+        .select(`
+          *,
+          customer:customers!estimates_customer_id_fkey(
+            id,
+            customer_name,
+            company_name,
+            email,
+            phone,
+            address
+          ),
+          job:jobs!estimates_job_id_fkey(
+            id,
+            job_title,
+            job_type,
+            status,
+            address,
+            city_zip,
+            phone,
+            email
+          ),
+          created_by_user:users!estimates_created_by_fkey(
+            id,
+            full_name,
+            email
+          )
+        `)
         .eq("id", estimateId)
         .single();
 
@@ -407,8 +432,95 @@ export class Estimate {
         return null;
       }
 
+      // Get additional costs
+      const additionalCosts = await Estimate.getAdditionalCosts(estimateId);
+      
+      // Get products from job
+      let products = [];
+      if (data.job && data.job.id) {
+        const { data: jobProducts, error: productsError } = await supabase
+          .from("products")
+          .select(`
+            id,
+            product_name,
+            jdp_sku,
+            supplier_sku,
+            unit_cost,
+            stock_quantity,
+            unit,
+            category,
+            description
+          `)
+          .eq("job_id", data.job.id)
+          .eq("status", "active");
+
+        if (!productsError && jobProducts) {
+          products = jobProducts;
+        }
+      }
+
+      // Get labor from job
+      let labor = [];
+      if (data.job && data.job.id) {
+        const { data: jobLabor, error: laborError } = await supabase
+          .from("labor")
+          .select(`
+            id,
+            labor_code,
+            hourly_rate,
+            hours_worked,
+            trade,
+            experience,
+            user:users!labor_user_id_fkey(
+              id,
+              full_name,
+              email
+            )
+          `)
+          .eq("job_id", data.job.id);
+
+        if (!laborError && jobLabor) {
+          labor = jobLabor;
+        }
+      }
+
+      // Calculate individual totals for products
+      const productsWithTotals = products.map(product => ({
+        ...product,
+        total_price: (product.unit_cost || 0) // Using unit_cost instead of jdp_price
+      }));
+
+      // Calculate individual totals for labor
+      const laborWithTotals = labor.map(laborItem => ({
+        ...laborItem,
+        total_cost: (laborItem.hourly_rate || 0) * (laborItem.hours_worked || 0)
+      }));
+
+      // Calculate totals from individual items
+      const calculatedMaterialsCost = productsWithTotals.reduce((sum, product) => sum + product.total_price, 0);
+      const calculatedLaborCost = laborWithTotals.reduce((sum, labor) => sum + labor.total_cost, 0);
+      const calculatedAdditionalCosts = additionalCosts.reduce((sum, cost) => sum + (cost.amount || 0), 0);
+      
+      const calculatedSubtotal = calculatedMaterialsCost + calculatedLaborCost + calculatedAdditionalCosts;
+      const calculatedTaxAmount = (calculatedSubtotal * (data.tax_percentage || 0)) / 100;
+      const calculatedTotalAmount = calculatedSubtotal + calculatedTaxAmount;
+
       console.log(`Estimate found: ${data.id}, title: ${data.estimate_title}`);
-      return data;
+      return {
+        ...data,
+        additional_costs_details: additionalCosts,
+        products: productsWithTotals,
+        labor: laborWithTotals,
+        // Add calculated totals
+        calculated_totals: {
+          materials_cost: calculatedMaterialsCost,
+          labor_cost: calculatedLaborCost,
+          additional_costs: calculatedAdditionalCosts,
+          subtotal: calculatedSubtotal,
+          tax_amount: calculatedTaxAmount,
+          total_amount: calculatedTotalAmount
+        }
+      };
       } catch (error) {
       console.error("Error in findById method:", error);
       console.error("Error message:", error.message);

@@ -30,7 +30,6 @@ export class Order {
 
   static async create(orderData) {
     try {
-      // Generate order number if not provided
       if (!orderData.order_number) {
         orderData.order_number = await Order.generateOrderNumber();
       }
@@ -87,7 +86,6 @@ export class Order {
 
       if (!data) return null;
 
-      // Fetch order items
       const orderWithItems = await Order.addOrderItems(data);
       return orderWithItems;
     } catch (error) {
@@ -234,7 +232,6 @@ export class Order {
           )
         `, { count: 'exact' });
 
-      // Apply filters
       if (filters.status) {
         query = query.eq("status", filters.status);
       }
@@ -263,7 +260,6 @@ export class Order {
         query = query.or(`order_number.ilike.%${filters.search}%,notes.ilike.%${filters.search}%`);
       }
 
-      // Pagination
       if (pagination.page && pagination.limit) {
         const offset = (pagination.page - 1) * pagination.limit;
         query = query.range(offset, offset + pagination.limit - 1);
@@ -279,7 +275,6 @@ export class Order {
         throw new Error(`Database error: ${error.message}`);
       }
 
-      // Add order items to each order
       const ordersWithItems = await Promise.all(
         (data || []).map(order => Order.addOrderItems(order))
       );

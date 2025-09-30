@@ -82,7 +82,6 @@ export class JobService {
         throw new Error("Job not found");
       }
 
-      // Check if job has relationships with other tables
       const relationshipCheck = await Job.checkJobRelationships(jobId);
       
       if (!relationshipCheck.canDelete) {
