@@ -1637,8 +1637,36 @@ export class Job {
   static timeToHours(timeString) {
     if (!timeString || timeString === "00:00:00") return 0;
 
-    const [hours, minutes, seconds] = timeString.split(':').map(Number);
-    return hours + (minutes / 60) + (seconds / 3600);
+    try {
+      // Handle different time string formats
+      if (typeof timeString !== 'string') {
+        console.warn('Invalid time format - not a string:', timeString);
+        return 0;
+      }
+
+      // Check if it's a valid time format (HH:MM:SS or HH:MM)
+      const timeRegex = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/;
+      if (!timeRegex.test(timeString)) {
+        console.warn('Invalid time format:', timeString);
+        return 0;
+      }
+
+      const parts = timeString.split(':');
+      const hours = parseInt(parts[0], 10) || 0;
+      const minutes = parseInt(parts[1], 10) || 0;
+      const seconds = parseInt(parts[2] || '0', 10) || 0;
+
+      // Validate ranges
+      if (minutes >= 60 || seconds >= 60) {
+        console.warn('Invalid time values:', timeString);
+        return 0;
+      }
+
+      return hours + (minutes / 60) + (seconds / 3600);
+    } catch (error) {
+      console.warn('Error parsing time string:', timeString, error.message);
+      return 0;
+    }
   }
 
   static hoursToTime(hours) {
@@ -2315,6 +2343,73 @@ export class Job {
         throw new Error(`Database error: ${error.message}`);
       }
 
+      // If no date range provided, show current month's latest week with timesheet data
+      // If date range provided, filter by that range
+      let actualStartDate = startDate;
+      let actualEndDate = endDate;
+      let showAllData = false;
+
+      if (!startDate || !endDate) {
+        // Find the most recent timesheet date in current month
+        const currentDate = new Date();
+        const currentMonth = currentDate.getMonth();
+        const currentYear = currentDate.getFullYear();
+        
+        let latestDate = null;
+        for (const job of allJobs || []) {
+          let allTimesheets = [];
+          if (typeof job.labor_timesheets === 'string') {
+            allTimesheets = safeJsonParse(job.labor_timesheets, []);
+          } else if (Array.isArray(job.labor_timesheets)) {
+            allTimesheets = job.labor_timesheets;
+          }
+
+          for (const ts of allTimesheets) {
+            if (ts.date) {
+              const tsDate = new Date(ts.date);
+              const tsMonth = tsDate.getMonth();
+              const tsYear = tsDate.getFullYear();
+              
+              // Only consider dates from current month and year
+              if (tsMonth === currentMonth && tsYear === currentYear) {
+                if (!latestDate || ts.date > latestDate) {
+                  latestDate = ts.date;
+                }
+              }
+            }
+          }
+        }
+
+        if (latestDate) {
+          // Calculate the week containing the latest date
+          const latestDateObj = new Date(latestDate);
+          const dayOfWeek = latestDateObj.getDay();
+          const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // Monday = 1, Sunday = 0
+          
+          const mondayOfWeek = new Date(latestDateObj);
+          mondayOfWeek.setDate(latestDateObj.getDate() + daysToMonday);
+          
+          const sundayOfWeek = new Date(mondayOfWeek);
+          sundayOfWeek.setDate(mondayOfWeek.getDate() + 6);
+
+          actualStartDate = mondayOfWeek.toISOString().split('T')[0];
+          actualEndDate = sundayOfWeek.toISOString().split('T')[0];
+        } else {
+          // If no timesheet data found in current month, use current week
+          const today = new Date();
+          const dayOfWeek = today.getDay();
+          const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+          
+          const mondayOfWeek = new Date(today);
+          mondayOfWeek.setDate(today.getDate() + daysToMonday);
+          
+          const sundayOfWeek = new Date(mondayOfWeek);
+          sundayOfWeek.setDate(mondayOfWeek.getDate() + 6);
+
+          actualStartDate = mondayOfWeek.toISOString().split('T')[0];
+          actualEndDate = sundayOfWeek.toISOString().split('T')[0];
+        }
+      }
 
       const allDashboardTimesheets = [];
 
@@ -2330,12 +2425,12 @@ export class Job {
 
         const filteredLaborTimesheets = allTimesheets.filter(ts => {
           const tsDateStr = ts.date;
-          return (tsDateStr >= startDate && tsDateStr <= endDate) && ts.labor_id;
+          return (tsDateStr >= actualStartDate && tsDateStr <= actualEndDate) && ts.labor_id;
         });
 
         const filteredLeadLaborTimesheets = allTimesheets.filter(ts => {
           const tsDateStr = ts.date;
-          return (tsDateStr >= startDate && tsDateStr <= endDate) && ts.lead_labor_id;
+          return (tsDateStr >= actualStartDate && tsDateStr <= actualEndDate) && ts.lead_labor_id;
         });
 
         const laborSummary = {};
@@ -2356,14 +2451,15 @@ export class Job {
               };
             }
 
-            const hours = Job.timeToHours(timesheet.work_hours || timesheet.total_hours);
+            const timeValue = timesheet.work_hours || timesheet.total_hours || "00:00:00";
+            const hours = Job.timeToHours(timeValue);
             const cost = parseFloat(timesheet.total_cost) || 0;
 
             laborSummary[laborId].total_hours += hours;
             laborSummary[laborId].total_cost += cost;
             laborSummary[laborId].days_worked += 1;
             laborSummary[laborId].daily_breakdown[timesheet.date] = {
-              hours: timesheet.work_hours || timesheet.total_hours,
+              hours: timeValue,
               cost: cost,
               work_activity: timesheet.work_activity,
               status: timesheet.status || 'pending',
@@ -2382,14 +2478,15 @@ export class Job {
               };
             }
 
-            const hours = Job.timeToHours(timesheet.work_hours || timesheet.total_hours);
+            const timeValue = timesheet.work_hours || timesheet.total_hours || "00:00:00";
+            const hours = Job.timeToHours(timeValue);
             const cost = parseFloat(timesheet.total_cost) || 0;
 
             leadLaborSummary[leadLaborId].total_hours += hours;
             leadLaborSummary[leadLaborId].total_cost += cost;
             leadLaborSummary[leadLaborId].days_worked += 1;
             leadLaborSummary[leadLaborId].daily_breakdown[timesheet.date] = {
-              hours: timesheet.work_hours || timesheet.total_hours,
+              hours: timeValue,
               cost: cost,
               work_activity: timesheet.work_activity,
               status: timesheet.status || 'pending',
@@ -2404,7 +2501,11 @@ export class Job {
           let billableHours = 0;
           let weekDays = [];
 
-          const start = new Date(startDate);
+          let laborStatus = "Draft";
+          const statusCounts = {};
+
+          // Use calculated date range for weekly view
+          const start = new Date(actualStartDate);
           const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
           for (let i = 0; i < 7; i++) {
@@ -2412,11 +2513,6 @@ export class Job {
             day.setDate(start.getDate() + i);
             weekDays.push(day.toISOString().split('T')[0]);
           }
-
-          let laborStatus = "Draft";
-          const statusCounts = {};
-
-          console.log(`DEBUG Processing labor ${labor.labor_name} - checking ${weekDays.length} weekdays`)
 
           weekDays.forEach((dayDate) => {
             const actualDay = new Date(dayDate);
@@ -2427,7 +2523,8 @@ export class Job {
             const dailyData = labor.daily_breakdown[dayDate];
 
             if (dailyData) {
-              const hoursValue = Job.timeToHours(dailyData.hours);
+              const timeValue = dailyData.hours || "00:00:00";
+              const hoursValue = Job.timeToHours(timeValue);
               employeeHours[dayName.toLowerCase()] = `${Math.round(hoursValue)}h`;
               totalHours += hoursValue;
 
@@ -2472,7 +2569,7 @@ export class Job {
           allDashboardTimesheets.push({
             employee: labor.labor_name,
             job: `${job.job_title} (Job-${job.id})`,
-            week: `${startDate} - ${endDate}`,
+            week: `${actualStartDate} - ${actualEndDate}`,
             ...employeeHours,
             total: `${Math.round(totalHours)}h`,
             billable: `${Math.round(billableHours)}h`,
@@ -2487,7 +2584,11 @@ export class Job {
           let billableHours = 0;
           let weekDays = [];
 
-          const start = new Date(startDate);
+          let laborStatus = "Draft";
+          const statusCounts = {};
+
+          // Use calculated date range for weekly view
+          const start = new Date(actualStartDate);
           const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
           for (let i = 0; i < 7; i++) {
@@ -2495,9 +2596,6 @@ export class Job {
             day.setDate(start.getDate() + i);
             weekDays.push(day.toISOString().split('T')[0]);
           }
-
-          let laborStatus = "Draft";
-          const statusCounts = {};
 
           weekDays.forEach((dayDate) => {
             const actualDay = new Date(dayDate);
@@ -2508,7 +2606,8 @@ export class Job {
             const dailyData = labor.daily_breakdown[dayDate];
 
             if (dailyData) {
-              const hoursValue = Job.timeToHours(dailyData.hours);
+              const timeValue = dailyData.hours || "00:00:00";
+              const hoursValue = Job.timeToHours(timeValue);
               employeeHours[dayName.toLowerCase()] = `${Math.round(hoursValue)}h`;
               totalHours += hoursValue;
 
@@ -2552,7 +2651,7 @@ export class Job {
           allDashboardTimesheets.push({
             employee: labor.labor_name,
             job: `${job.job_title} (Job-${job.id})`,
-            week: `${startDate} - ${endDate}`,
+            week: `${actualStartDate} - ${actualEndDate}`,
             ...employeeHours,
             total: `${Math.round(totalHours)}h`,
             billable: `${Math.round(billableHours)}h`,
@@ -2564,9 +2663,9 @@ export class Job {
 
       return {
         period: {
-          start_date: startDate,
-          end_date: endDate,
-          week_range: `${startDate} - ${endDate}`
+          start_date: actualStartDate,
+          end_date: actualEndDate,
+          week_range: `${actualStartDate} - ${actualEndDate}`
         },
         dashboard_timesheets: allDashboardTimesheets
       };

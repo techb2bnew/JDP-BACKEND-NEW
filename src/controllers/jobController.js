@@ -441,9 +441,8 @@ export class JobController {
     try {
       const { start_date, end_date } = request.query;
 
-      if (!start_date || !end_date) {
-        return reply.code(400).send(errorResponse('start_date and end_date are required', 400));
-      }
+      // start_date and end_date are now optional
+      // If not provided, will return all timesheet data
 
       const result = await Job.getAllJobsWeeklyTimesheetSummary(start_date, end_date);
       return reply.code(200).send({
