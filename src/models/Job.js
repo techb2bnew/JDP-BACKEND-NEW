@@ -2569,6 +2569,8 @@ export class Job {
           allDashboardTimesheets.push({
             employee: labor.labor_name,
             job: `${job.job_title} (Job-${job.id})`,
+            job_id: job.id,
+            labor_id: labor.labor_id,
             week: `${actualStartDate} - ${actualEndDate}`,
             ...employeeHours,
             total: `${Math.round(totalHours)}h`,
@@ -2651,6 +2653,8 @@ export class Job {
           allDashboardTimesheets.push({
             employee: labor.labor_name,
             job: `${job.job_title} (Job-${job.id})`,
+            job_id: job.id,
+            labor_id: labor.labor_id,
             week: `${actualStartDate} - ${actualEndDate}`,
             ...employeeHours,
             total: `${Math.round(totalHours)}h`,
