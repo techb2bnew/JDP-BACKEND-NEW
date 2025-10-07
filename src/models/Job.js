@@ -1669,6 +1669,31 @@ export class Job {
     }
   }
 
+  static formatLocalDate(dateInput) {
+    const d = new Date(dateInput);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  static formatTimeDisplay(totalHours) {
+    if (totalHours === 0) return "0h";
+    
+    const hours = Math.floor(totalHours);
+    const minutes = Math.round((totalHours - hours) * 60);
+    
+    if (hours === 0 && minutes > 0) {
+      return `${minutes}m`;
+    } else if (hours > 0 && minutes === 0) {
+      return `${hours}h`;
+    } else if (hours > 0 && minutes > 0) {
+      return `${hours}h ${minutes}m`;
+    } else {
+      return "0h";
+    }
+  }
+
   static hoursToTime(hours) {
     const totalSeconds = Math.round(hours * 3600);
     const h = Math.floor(totalSeconds / 3600);
@@ -1933,7 +1958,7 @@ export class Job {
         for (let i = 0; i < 7; i++) {
           const day = new Date(start);
           day.setDate(start.getDate() + i);
-          weekDays.push(day.toISOString().split('T')[0]);
+          weekDays.push(Job.formatLocalDate(day));
         }
 
         let laborStatus = "Draft"; 
@@ -1951,8 +1976,8 @@ export class Job {
           const dailyData = labor.daily_breakdown[dayDate];
 
           if (dailyData) {
-            const hoursValue = Job.timeToHours(dailyData.hours);
-            employeeHours[dayName.toLowerCase()] = `${Math.round(hoursValue)}h`;
+            const hoursValue = Job.timeToHours(dailyData.hours || '00:00:00');
+            employeeHours[dayName.toLowerCase()] = Job.formatTimeDisplay(hoursValue);
             totalHours += hoursValue;
             billableHours += hoursValue; 
 
@@ -1992,8 +2017,8 @@ export class Job {
           job: `${jobInfo.job_title} (Job-${jobId})`,
           week: `${startDate} - ${endDate}`,
           ...employeeHours,
-          total: `${Math.round(totalHours)}h`,
-          billable: `${Math.round(billableHours)}h`,
+          total: Job.formatTimeDisplay(totalHours),
+          billable: Job.formatTimeDisplay(billableHours),
           status: laborStatus, 
           actions: ["approve", "reject"]
         });
@@ -2013,7 +2038,7 @@ export class Job {
         for (let i = 0; i < 7; i++) {
           const day = new Date(start);
           day.setDate(start.getDate() + i);
-          weekDays.push(day.toISOString().split('T')[0]);
+          weekDays.push(Job.formatLocalDate(day));
         }
 
         let leadStatus = "Draft"; 
@@ -2030,8 +2055,8 @@ export class Job {
           const dailyData = labor.daily_breakdown[dayDate];
 
           if (dailyData) {
-            const hoursValue = Job.timeToHours(dailyData.hours);
-            employeeHours[dayName.toLowerCase()] = `${Math.round(hoursValue)}h`;
+            const hoursValue = Job.timeToHours(dailyData.hours || '00:00:00');
+            employeeHours[dayName.toLowerCase()] = Job.formatTimeDisplay(hoursValue);
             totalHours += hoursValue;
             billableHours += hoursValue;
 
@@ -2069,8 +2094,8 @@ export class Job {
           job: `${jobInfo.job_title} (Job-${jobId})`,
           week: `${startDate} - ${endDate}`,
           ...employeeHours,
-          total: `${Math.round(totalHours)}h`,
-          billable: `${Math.round(billableHours)}h`,
+          total: Job.formatTimeDisplay(totalHours),
+          billable: Job.formatTimeDisplay(billableHours),
           status: leadStatus, 
           actions: ["approve", "reject"]
         });
@@ -2350,11 +2375,7 @@ export class Job {
       let showAllData = false;
 
       if (!startDate || !endDate) {
-        // Find the most recent timesheet date in current month
-        const currentDate = new Date();
-        const currentMonth = currentDate.getMonth();
-        const currentYear = currentDate.getFullYear();
-        
+        // Find the most recent timesheet date from all data
         let latestDate = null;
         for (const job of allJobs || []) {
           let allTimesheets = [];
@@ -2366,15 +2387,8 @@ export class Job {
 
           for (const ts of allTimesheets) {
             if (ts.date) {
-              const tsDate = new Date(ts.date);
-              const tsMonth = tsDate.getMonth();
-              const tsYear = tsDate.getFullYear();
-              
-              // Only consider dates from current month and year
-              if (tsMonth === currentMonth && tsYear === currentYear) {
-                if (!latestDate || ts.date > latestDate) {
-                  latestDate = ts.date;
-                }
+              if (!latestDate || ts.date > latestDate) {
+                latestDate = ts.date;
               }
             }
           }
@@ -2392,8 +2406,8 @@ export class Job {
           const sundayOfWeek = new Date(mondayOfWeek);
           sundayOfWeek.setDate(mondayOfWeek.getDate() + 6);
 
-          actualStartDate = mondayOfWeek.toISOString().split('T')[0];
-          actualEndDate = sundayOfWeek.toISOString().split('T')[0];
+          actualStartDate = Job.formatLocalDate(mondayOfWeek);
+          actualEndDate = Job.formatLocalDate(sundayOfWeek);
         } else {
           // If no timesheet data found in current month, use current week
           const today = new Date();
@@ -2406,8 +2420,8 @@ export class Job {
           const sundayOfWeek = new Date(mondayOfWeek);
           sundayOfWeek.setDate(mondayOfWeek.getDate() + 6);
 
-          actualStartDate = mondayOfWeek.toISOString().split('T')[0];
-          actualEndDate = sundayOfWeek.toISOString().split('T')[0];
+          actualStartDate = Job.formatLocalDate(mondayOfWeek);
+          actualEndDate = Job.formatLocalDate(sundayOfWeek);
         }
       }
 
@@ -2525,7 +2539,7 @@ export class Job {
             if (dailyData) {
               const timeValue = dailyData.hours || "00:00:00";
               const hoursValue = Job.timeToHours(timeValue);
-              employeeHours[dayName.toLowerCase()] = `${Math.round(hoursValue)}h`;
+              employeeHours[dayName.toLowerCase()] = Job.formatTimeDisplay(hoursValue);
               totalHours += hoursValue;
 
               const rawStatus = dailyData.status || 'pending';
@@ -2573,8 +2587,8 @@ export class Job {
             labor_id: labor.labor_id,
             week: `${actualStartDate} - ${actualEndDate}`,
             ...employeeHours,
-            total: `${Math.round(totalHours)}h`,
-            billable: `${Math.round(billableHours)}h`,
+            total: Job.formatTimeDisplay(totalHours),
+            billable: Job.formatTimeDisplay(billableHours),
             status: laborStatus,
             actions: ["approve", "reject"]
           });
@@ -2610,7 +2624,7 @@ export class Job {
             if (dailyData) {
               const timeValue = dailyData.hours || "00:00:00";
               const hoursValue = Job.timeToHours(timeValue);
-              employeeHours[dayName.toLowerCase()] = `${Math.round(hoursValue)}h`;
+              employeeHours[dayName.toLowerCase()] = Job.formatTimeDisplay(hoursValue);
               totalHours += hoursValue;
 
               const rawStatus = dailyData.status || 'pending';
@@ -2657,8 +2671,8 @@ export class Job {
             labor_id: labor.labor_id,
             week: `${actualStartDate} - ${actualEndDate}`,
             ...employeeHours,
-            total: `${Math.round(totalHours)}h`,
-            billable: `${Math.round(billableHours)}h`,
+            total: Job.formatTimeDisplay(totalHours),
+            billable: Job.formatTimeDisplay(billableHours),
             status: laborStatus,
             actions: ["approve", "reject"]
           });
