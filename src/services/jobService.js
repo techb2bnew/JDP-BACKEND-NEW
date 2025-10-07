@@ -20,6 +20,64 @@ export class JobService {
     }
   }
 
+  static async searchJobs(searchText, pagination) {
+    try {
+      const result = await Job.search(searchText, pagination);
+      return successResponse(
+        {
+          jobs: result.jobs,
+          pagination: {
+            page: result.page,
+            limit: result.limit,
+            total: result.total,
+            totalPages: result.totalPages
+          }
+        },
+        "Jobs searched successfully"
+      );
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async getJobTypes() {
+    try {
+      const types = await Job.getDistinctJobTypes();
+      return successResponse(types, "Job types retrieved successfully");
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async searchMyJobs(user, searchText, pagination) {
+    try {
+      const result = await Job.searchMyJobs(user, searchText, pagination);
+      return successResponse(
+        {
+          jobs: result.jobs,
+          pagination: {
+            page: result.page,
+            limit: result.limit,
+            total: result.total,
+            totalPages: result.totalPages
+          }
+        },
+        "My jobs searched successfully"
+      );
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async getJobTypes() {
+    try {
+      const result = await Job.getDistinctJobTypes();
+      return successResponse(result, "Job types retrieved successfully");
+    } catch (error) {
+      throw error;
+    }
+  }
+
   static async getJobs(filters, pagination) {
     try {
       const result = await Job.findAll(filters, pagination);

@@ -113,6 +113,50 @@ export class OrderController {
     }
   }
 
+  static async searchOrders(request, reply) {
+    try {
+      const { 
+        q, 
+        page, 
+        limit, 
+        order_id, 
+        job_id, 
+        customer, 
+        contractor, 
+        status,
+        order_date_from,
+        order_date_to
+      } = request.query;
+
+      const pagination = {
+        page: parseInt(page) || 1,
+        limit: parseInt(limit) || 10,
+        sortBy: 'created_at',
+        sortOrder: 'desc'
+      };
+
+      const filters = {
+        q: q || '',
+        order_id,
+        job_id,
+        customer,
+        contractor,
+        status,
+        order_date_from: order_date_from ? new Date(order_date_from) : null,
+        order_date_to: order_date_to ? new Date(order_date_to) : null
+      };
+
+      const result = await OrderService.searchOrders(filters, pagination);
+      return reply.status(200).send(result);
+    } catch (error) {
+      return reply.status(500).send({
+        success: false,
+        message: `Failed to search orders: ${error.message}`,
+        statusCode: 500
+      });
+    }
+  }
+
   static async updateOrder(request, reply) {
     try {
       const { id } = request.params;

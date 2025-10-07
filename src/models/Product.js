@@ -842,4 +842,109 @@ export class Product {
       throw error;
     }
   }
+
+  static async search(filters, pagination = {}) {
+    try {
+      const q = (filters.q || '').toLowerCase().trim();
+
+      // Fetch all products with relationships
+      const { data, error } = await supabase
+        .from("products")
+        .select(`
+          *,
+          created_by_user:users!products_created_by_fkey(
+            id,
+            full_name,
+            email
+          ),
+          job:jobs!products_job_id_fkey(
+            id,
+            job_title,
+            job_type,
+            status,
+            priority
+          ),
+          suppliers (
+            id,
+            user_id,
+            supplier_code,
+            company_name,
+            contact_person,
+            address,
+            contract_start,
+            contract_end,
+            notes,
+            created_at,
+            users (
+              id,
+              full_name,
+              email,
+              phone,
+              role,
+              status,
+              photo_url,
+              created_at
+            )
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      const inStr = (s) => (s || '').toString().toLowerCase().includes(q);
+
+      const matches = (product) => {
+        // Text search across multiple fields
+        if (q) {
+          const productMatch = inStr(product.product_name) || 
+                              inStr(product.description) || 
+                              inStr(product.supplier_sku) || 
+                              inStr(product.jdp_sku) ||
+                              inStr(product.category) ||
+                              inStr(product.suppliers?.company_name) ||
+                              inStr(product.suppliers?.users?.full_name);
+          if (!productMatch) return false;
+        }
+
+        // Exact field filters
+        if (filters.product_name && !inStr(product.product_name)) return false;
+        if (filters.supplier_sku && !inStr(product.supplier_sku)) return false;
+        if (filters.jdp_sku && !inStr(product.jdp_sku)) return false;
+        if (filters.status && product.status !== filters.status) return false;
+        if (filters.category && product.category !== filters.category) return false;
+        if (filters.supplier_id && product.supplier_id !== filters.supplier_id) return false;
+
+        // Range filters
+        if (filters.supplier_cost_price_min && product.supplier_cost_price < filters.supplier_cost_price_min) return false;
+        if (filters.supplier_cost_price_max && product.supplier_cost_price > filters.supplier_cost_price_max) return false;
+        if (filters.markup_percentage_min && product.markup_percentage < filters.markup_percentage_min) return false;
+        if (filters.markup_percentage_max && product.markup_percentage > filters.markup_percentage_max) return false;
+        if (filters.jdp_price_min && product.jdp_price < filters.jdp_price_min) return false;
+        if (filters.jdp_price_max && product.jdp_price > filters.jdp_price_max) return false;
+        if (filters.stock_quantity_min && product.stock_quantity < filters.stock_quantity_min) return false;
+        if (filters.stock_quantity_max && product.stock_quantity > filters.stock_quantity_max) return false;
+
+        return true;
+      };
+
+      const filtered = (data || []).filter(matches);
+
+      const page = parseInt(pagination.page) || 1;
+      const limit = parseInt(pagination.limit) || 10;
+      const offset = (page - 1) * limit;
+      const sliced = filtered.slice(offset, offset + limit);
+
+      return {
+        products: sliced,
+        total: filtered.length,
+        page,
+        limit,
+        totalPages: Math.ceil(filtered.length / limit) || 1
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
 }

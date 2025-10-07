@@ -307,4 +307,78 @@ export class Suppliers {
       throw error;
     }
   }
+
+  static async search(filters, pagination = {}) {
+    try {
+      const q = (filters.q || '').toLowerCase().trim();
+
+      // Fetch all suppliers with user relationships
+      const { data, error } = await supabase
+        .from("suppliers")
+        .select(`
+          *,
+          users (
+            id,
+            full_name,
+            email,
+            phone,
+            role,
+            status,
+            photo_url,
+            created_at
+          )
+        `);
+
+      if (error) {
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      const inStr = (s) => (s || '').toString().toLowerCase().includes(q);
+
+      const matches = (supplier) => {
+        // Text search across multiple fields
+        if (q) {
+          const supplierMatch = inStr(supplier.users?.full_name) || 
+                               inStr(supplier.users?.email) || 
+                               inStr(supplier.users?.phone) || 
+                               inStr(supplier.company_name) ||
+                               inStr(supplier.contact_person);
+          if (!supplierMatch) return false;
+        }
+
+        // Exact field filters
+        if (filters.name && !inStr(supplier.users?.full_name)) return false;
+        if (filters.email && !inStr(supplier.users?.email)) return false;
+        if (filters.company && !inStr(supplier.company_name)) return false;
+        if (filters.contact && !inStr(supplier.contact_person) && !inStr(supplier.users?.phone)) return false;
+        if (filters.status && supplier.users?.status !== filters.status) return false;
+
+        return true;
+      };
+
+      let filtered = (data || []).filter(matches);
+
+      // Sort by created_at (most recent first)
+      filtered = filtered.sort((a, b) => {
+        const dateA = new Date(a.created_at || 0);
+        const dateB = new Date(b.created_at || 0);
+        return dateB - dateA;
+      });
+
+      const page = parseInt(pagination.page) || 1;
+      const limit = parseInt(pagination.limit) || 10;
+      const offset = (page - 1) * limit;
+      const sliced = filtered.slice(offset, offset + limit);
+
+      return {
+        suppliers: sliced,
+        total: filtered.length,
+        page,
+        limit,
+        totalPages: Math.ceil(filtered.length / limit) || 1
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
 }

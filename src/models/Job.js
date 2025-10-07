@@ -372,6 +372,132 @@ export class Job {
     }
   }
 
+  static async search(searchText, pagination = {}) {
+    try {
+      const q = (searchText || '').toLowerCase().trim();
+
+      let baseQuery = supabase
+        .from("jobs")
+        .select(`
+          *,
+          customer:customers!jobs_customer_id_fkey(
+            id,
+            customer_name,
+            company_name,
+            email,
+            phone
+          ),
+          contractor:contractors!jobs_contractor_id_fkey(
+            id,
+            contractor_name,
+            company_name,
+            email,
+            phone
+          ),
+          created_by_user:users!jobs_created_by_fkey(
+            id,
+            full_name,
+            email
+          )
+        `);
+
+      const { data, error } = await baseQuery.order('created_at', { ascending: false });
+
+      if (error) {
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      const jobsWithDetails = await Promise.all(
+        (data || []).map(job => Job.addDetailsToJob(job))
+      );
+
+      const normalizeType = (val) => (val || '')
+        .toString()
+        .toLowerCase()
+        .replace(/[\s-]+/g, '_')
+        .trim();
+
+      const matches = (job) => {
+        const inStr = (s) => (s || '').toString().toLowerCase().includes(q);
+
+        const jobMatch = inStr(job.job_title) || inStr(job.description);
+        const customerMatch = inStr(job.customer?.customer_name) || inStr(job.customer?.company_name);
+        const contractorMatch = inStr(job.contractor?.contractor_name) || inStr(job.contractor?.company_name);
+
+        const laborMatch = Array.isArray(job.assigned_labor)
+          ? job.assigned_labor.some(l => inStr(l.user?.full_name))
+          : false;
+
+        const leadLaborMatch = Array.isArray(job.assigned_lead_labor)
+          ? job.assigned_lead_labor.some(l => inStr(l.user?.full_name))
+          : false;
+
+        let typeMatch = true;
+        if (pagination.job_type && pagination.job_type.toString().trim().length > 0) {
+          const jt = normalizeType(pagination.job_type);
+          if (jt !== 'all' && jt !== 'all_types') {
+            typeMatch = normalizeType(job.job_type) === jt;
+          }
+        }
+
+        let statusMatch = true;
+        if (pagination.status && pagination.status.toString().trim().length > 0) {
+          const raw = pagination.status.toString().toLowerCase();
+          const list = raw.split(',').map(s => s.trim()).filter(Boolean);
+          if (list.length > 0) {
+            const jobStatus = (job.status || '').toString().toLowerCase();
+            statusMatch = list.includes(jobStatus);
+          }
+        }
+
+        let priorityMatch = true;
+        if (pagination.priority && pagination.priority.toString().trim().length > 0) {
+          const rawP = pagination.priority.toString().toLowerCase();
+          const listP = rawP.split(',').map(s => s.trim()).filter(Boolean);
+          if (listP.length > 0) {
+            const jobPriority = (job.priority || '').toString().toLowerCase();
+            priorityMatch = listP.includes(jobPriority);
+          }
+        }
+
+        if (!q) {
+          return typeMatch && statusMatch && priorityMatch;
+        }
+        return (jobMatch || customerMatch || contractorMatch || laborMatch || leadLaborMatch) && typeMatch && statusMatch && priorityMatch;
+      };
+
+      const filtered = jobsWithDetails.filter(matches);
+
+      // Debug logging
+      console.log('Total jobs fetched:', jobsWithDetails.length);
+      console.log('Filter params:', { job_type: pagination.job_type, status: pagination.status, q });
+      console.log('Filtered jobs count:', filtered.length);
+      if (pagination.job_type) {
+        const typeCounts = {};
+        jobsWithDetails.forEach(job => {
+          const type = job.job_type || 'null';
+          typeCounts[type] = (typeCounts[type] || 0) + 1;
+        });
+        console.log('Job type distribution:', typeCounts);
+      }
+
+      const page = parseInt(pagination.page) || 1;
+      const limit = parseInt(pagination.limit) || 10;
+      const offset = (page - 1) * limit;
+      const sliced = filtered.slice(offset, offset + limit);
+
+      return {
+        jobs: sliced,
+        total: filtered.length,
+        page,
+        limit,
+        totalPages: Math.ceil(filtered.length / limit) || 1
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+
   static async update(jobId, updateData) {
     try {
       const { data, error } = await supabase
@@ -2855,6 +2981,144 @@ export class Job {
         totalHours: Math.round(totalHours),
         billableHours: Math.round(billableHours)
       };
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async searchMyJobs(user, searchText, pagination = {}) {
+    try {
+      const q = (searchText || '').toLowerCase().trim();
+
+      // Fetch all jobs with relationships
+      const { data, error } = await supabase
+        .from("jobs")
+        .select(`
+          *,
+          customer:customers!jobs_customer_id_fkey(
+            id,
+            customer_name,
+            company_name,
+            email,
+            phone
+          ),
+          contractor:contractors!jobs_contractor_id_fkey(
+            id,
+            contractor_name,
+            company_name,
+            email,
+            phone
+          ),
+          created_by_user:users!jobs_created_by_fkey(
+            id,
+            full_name,
+            email
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      const jobsWithDetails = await Promise.all(
+        (data || []).map(job => Job.addDetailsToJob(job))
+      );
+
+      const inStr = (s) => (s || '').toString().toLowerCase().includes(q);
+      const normalizeType = (val) => (val || '').toString().toLowerCase().replace(/[\s-]+/g, '_').trim();
+
+      // Determine user context
+      const userRole = (user?.role || '').toString();
+
+      // Helper to check assignment
+      const isAssignedToLabor = (job, userId) => {
+        const hasLabor = Array.isArray(job.assigned_labor) && job.assigned_labor.some(l => l.user?.id === userId);
+        const hasCustomLabor = Array.isArray(job.custom_labor) && job.custom_labor.some(l => l.user?.id === userId);
+        return hasLabor || hasCustomLabor;
+      };
+      const isAssignedToLead = (job, userId) => Array.isArray(job.assigned_lead_labor) && job.assigned_lead_labor.some(l => l.user?.id === userId);
+
+      const matches = (job) => {
+        // Filter by assignment based on role
+        let assignedMatch = true;
+        if (userRole && userRole.toLowerCase().includes('lead')) {
+          assignedMatch = isAssignedToLead(job, user.id);
+        } else if (userRole && userRole.toLowerCase().includes('labor')) {
+          assignedMatch = isAssignedToLabor(job, user.id);
+        }
+
+        if (!assignedMatch) return false;
+
+        // Optional text search
+        if (q) {
+          const jobMatch = inStr(job.job_title) || inStr(job.description);
+          const custMatch = inStr(job.customer?.customer_name) || inStr(job.customer?.company_name);
+          const contrMatch = inStr(job.contractor?.contractor_name) || inStr(job.contractor?.company_name);
+          const laborMatch = Array.isArray(job.assigned_labor) ? job.assigned_labor.some(l => inStr(l.user?.full_name)) : false;
+          const leadMatch = Array.isArray(job.assigned_lead_labor) ? job.assigned_lead_labor.some(l => inStr(l.user?.full_name)) : false;
+          if (!(jobMatch || custMatch || contrMatch || laborMatch || leadMatch)) return false;
+        }
+
+        // job_type filter
+        if (pagination.job_type && pagination.job_type.toString().trim().length > 0) {
+          const jt = normalizeType(pagination.job_type);
+          if (jt !== 'all' && jt !== 'all_types') {
+            if (normalizeType(job.job_type) !== jt) return false;
+          }
+        }
+
+        // status filter (single or list)
+        if (pagination.status && pagination.status.toString().trim().length > 0) {
+          const list = pagination.status.toString().toLowerCase().split(',').map(s => s.trim()).filter(Boolean);
+          if (list.length > 0) {
+            if (!list.includes((job.status || '').toString().toLowerCase())) return false;
+          }
+        }
+
+        // priority filter (single or list)
+        if (pagination.priority && pagination.priority.toString().trim().length > 0) {
+          const list = pagination.priority.toString().toLowerCase().split(',').map(s => s.trim()).filter(Boolean);
+          if (list.length > 0) {
+            if (!list.includes((job.priority || '').toString().toLowerCase())) return false;
+          }
+        }
+
+        return true;
+      };
+
+      const filtered = jobsWithDetails.filter(matches);
+
+      const page = parseInt(pagination.page) || 1;
+      const limit = parseInt(pagination.limit) || 10;
+      const offset = (page - 1) * limit;
+      const sliced = filtered.slice(offset, offset + limit);
+
+      return {
+        jobs: sliced,
+        total: filtered.length,
+        page,
+        limit,
+        totalPages: Math.ceil(filtered.length / limit) || 1
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async getDistinctJobTypes() {
+    try {
+      const { data, error } = await supabase
+        .from("jobs")
+        .select("job_type")
+        .not('job_type', 'is', null);
+
+      if (error) {
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      const unique = Array.from(new Set((data || []).map(r => (r.job_type || '').toString()))).filter(v => v.trim().length > 0);
+      return unique;
     } catch (error) {
       throw error;
     }

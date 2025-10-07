@@ -318,4 +318,9 @@ export default async function productRoutes(fastify, options) {
     preHandler: [fastify.authenticateToken],
     handler: ProductController.getProductStats
   });
+
+  fastify.get('/searchProducts', {
+    preHandler: [fastify.authenticateToken],
+    handler: ProductController.searchProducts
+  });
 }

@@ -53,6 +53,59 @@ export class StaffController {
     }
   }
 
+  static async searchStaff(req, reply) {
+    try {
+      const { 
+        q, 
+        page, 
+        limit, 
+        name, 
+        phone, 
+        email, 
+        address, 
+        position, 
+        department, 
+        dob_from,
+        dob_to,
+        date_of_joining_from,
+        date_of_joining_to,
+        status,
+        role
+      } = req.query;
+
+      const pagination = {
+        page: parseInt(page) || 1,
+        limit: parseInt(limit) || 10,
+        sortBy: 'created_at',
+        sortOrder: 'desc'
+      };
+
+      const filters = {
+        q: q || '',
+        name,
+        phone,
+        email,
+        address,
+        position,
+        department,
+        dob_from: dob_from ? new Date(dob_from) : null,
+        dob_to: dob_to ? new Date(dob_to) : null,
+        date_of_joining_from: date_of_joining_from ? new Date(date_of_joining_from) : null,
+        date_of_joining_to: date_of_joining_to ? new Date(date_of_joining_to) : null,
+        status,
+        role
+      };
+
+      const result = await StaffService.searchStaff(filters, pagination);
+      return reply.status(200).send(result);
+    } catch (error) {
+      return reply.status(500).send(errorResponse(
+        `Failed to search staff: ${error.message}`,
+        500
+      ));
+    }
+  }
+
   static async getStaffById(req, reply) {
     try {
       const { staffId } = req.params;

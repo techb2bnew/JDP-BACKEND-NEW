@@ -1,5 +1,6 @@
 import { Product } from '../models/Product.js';
 import { Suppliers } from '../models/Suppliers.js';
+import { successResponse } from '../helpers/responseHelper.js';
 
 export class ProductService {
   static async createProduct(productData, createdByUserId) {
@@ -252,6 +253,26 @@ export class ProductService {
         message: 'Product statistics retrieved successfully',
         data: stats
       };
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async searchProducts(filters, pagination) {
+    try {
+      const result = await Product.search(filters, pagination);
+      return successResponse(
+        {
+          products: result.products,
+          pagination: {
+            page: result.page,
+            limit: result.limit,
+            total: result.total,
+            totalPages: result.totalPages
+          }
+        },
+        "Products searched successfully"
+      );
     } catch (error) {
       throw error;
     }

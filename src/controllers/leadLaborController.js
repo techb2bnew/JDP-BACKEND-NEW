@@ -74,6 +74,49 @@ export class LeadLaborController {
     }
   }
 
+  static async searchLeadLabor(req, reply) {
+    try {
+      const { 
+        q, 
+        page, 
+        limit, 
+        name, 
+        contact, 
+        department, 
+        specialization, 
+        experience, 
+        status,
+        trade
+      } = req.query;
+
+      const pagination = {
+        page: parseInt(page) || 1,
+        limit: parseInt(limit) || 10,
+        sortBy: 'created_at',
+        sortOrder: 'desc'
+      };
+
+      const filters = {
+        q: q || '',
+        name,
+        contact,
+        department,
+        specialization,
+        experience,
+        status,
+        trade
+      };
+
+      const result = await LeadLaborService.searchLeadLabor(filters, pagination);
+      return reply.status(200).send(result);
+    } catch (error) {
+      return reply.status(500).send(errorResponse(
+        `Failed to search lead labor: ${error.message}`,
+        500
+      ));
+    }
+  }
+
   static async getLeadLaborById(req, reply) {
     try {
       const { leadLaborId } = req.params;

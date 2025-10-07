@@ -63,6 +63,47 @@ export class LaborController {
     }
   }
 
+  static async searchLabor(req, reply) {
+    try {
+      const { 
+        q, 
+        page, 
+        limit, 
+        name, 
+        contact, 
+        trade, 
+        experience, 
+        availability, 
+        status
+      } = req.query;
+
+      const pagination = {
+        page: parseInt(page) || 1,
+        limit: parseInt(limit) || 10,
+        sortBy: 'created_at',
+        sortOrder: 'desc'
+      };
+
+      const filters = {
+        q: q || '',
+        name,
+        contact,
+        trade,
+        experience,
+        availability,
+        status
+      };
+
+      const result = await LaborService.searchLabor(filters, pagination);
+      return reply.status(200).send(result);
+    } catch (error) {
+      return reply.status(500).send(errorResponse(
+        `Failed to search labor: ${error.message}`,
+        500
+      ));
+    }
+  }
+
   static async getLaborById(req, reply) {
     try {
       const { laborId } = req.params;

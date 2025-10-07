@@ -54,6 +54,57 @@ export class JobController {
     }
   }
 
+  static async searchJobs(request, reply) {
+    try {
+      const { q, page, limit, job_type, status, priority } = request.query;
+      const pagination = {
+        page: parseInt(page) || 1,
+        limit: parseInt(limit) || 10,
+        sortBy: 'created_at',
+        sortOrder: 'desc'
+      };
+      const result = await JobService.searchJobs(q || '', { ...pagination, job_type, status, priority });
+      return reply.code(200).send(result);
+    } catch (error) {
+      if (error.message.includes('Database error')) {
+        return reply.code(500).send(errorResponse('Database error occurred', 500));
+      }
+      return reply.code(500).send(errorResponse(error.message));
+    }
+  }
+
+  static async getJobTypes(request, reply) {
+    try {
+      const result = await JobService.getJobTypes();
+      return reply.code(200).send(result);
+    } catch (error) {
+      if (error.message.includes('Database error')) {
+        return reply.code(500).send(errorResponse('Database error occurred', 500));
+      }
+      return reply.code(500).send(errorResponse(error.message));
+    }
+  }
+
+  static async searchMyJobs(request, reply) {
+    try {
+      const { q, page, limit, job_type, status, priority } = request.query;
+      const pagination = {
+        page: parseInt(page) || 1,
+        limit: parseInt(limit) || 10,
+        sortBy: 'created_at',
+        sortOrder: 'desc'
+      };
+      const user = request.user;
+      const result = await JobService.searchMyJobs(user, q || '', { ...pagination, job_type, status, priority });
+      return reply.code(200).send(result);
+    } catch (error) {
+      if (error.message.includes('Database error')) {
+        return reply.code(500).send(errorResponse('Database error occurred', 500));
+      }
+      return reply.code(500).send(errorResponse(error.message));
+    }
+  }
+
   static async getJobById(request, reply) {
     try {
       const { id } = request.params;

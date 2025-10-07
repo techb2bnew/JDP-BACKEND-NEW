@@ -22,6 +22,18 @@ export async function jobRoutes(fastify, options) {
     handler: JobController.getJobs
   });
 
+  fastify.get('/searchJobs', {
+    handler: JobController.searchJobs
+  });
+
+  fastify.get('/getJobTypes', {
+    handler: JobController.getJobTypes
+  });
+
+  fastify.get('/searchMyJobs', {
+    handler: JobController.searchMyJobs
+  });
+
   fastify.get('/getJobStats/stats', {
     handler: JobController.getJobStats
   });

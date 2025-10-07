@@ -7,6 +7,7 @@ import {
   generateToken,
   sendWelcomeEmail
 } from "../helpers/authHelper.js";
+import { successResponse } from "../helpers/responseHelper.js";
 
 export class LeadLaborService {
   static async createLeadLaborWithUser(leadLaborData, files = null) {
@@ -317,6 +318,26 @@ export class LeadLaborService {
 
     if (errors.length > 0) {
       throw new Error(errors.join(', '));
+    }
+  }
+
+  static async searchLeadLabor(filters, pagination) {
+    try {
+      const result = await LeadLabor.search(filters, pagination);
+      return successResponse(
+        {
+          leadLabor: result.leadLabor,
+          pagination: {
+            page: result.page,
+            limit: result.limit,
+            total: result.total,
+            totalPages: result.totalPages
+          }
+        },
+        "Lead labor searched successfully"
+      );
+    } catch (error) {
+      throw error;
     }
   }
 }

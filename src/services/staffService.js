@@ -7,6 +7,7 @@ import {
   generateToken,
   sendWelcomeEmail
 } from "../helpers/authHelper.js";
+import { successResponse } from "../helpers/responseHelper.js";
 export class StaffService {
   static async createStaffWithUser(staffData) {
     try {
@@ -240,6 +241,26 @@ export class StaffService {
     }
     if (errors.length > 0) {
       throw new Error(errors.join(', '));
+    }
+  }
+
+  static async searchStaff(filters, pagination) {
+    try {
+      const result = await Staff.search(filters, pagination);
+      return successResponse(
+        {
+          staff: result.staff,
+          pagination: {
+            page: result.page,
+            limit: result.limit,
+            total: result.total,
+            totalPages: result.totalPages
+          }
+        },
+        "Staff searched successfully"
+      );
+    } catch (error) {
+      throw error;
     }
   }
 }

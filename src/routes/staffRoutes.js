@@ -12,6 +12,10 @@ export default async function staffRoutes(fastify, options) {
     preHandler: authenticateToken
   }, StaffController.getAllStaff);
 
+  fastify.get('/searchStaff', {
+    preHandler: authenticateToken
+  }, StaffController.searchStaff);
+
   fastify.get('/getStaffById/:staffId', {
     preHandler: authenticateToken,
     schema: {

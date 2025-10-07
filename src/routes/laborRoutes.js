@@ -10,6 +10,9 @@ export default async function laborRoutes(fastify, options) {
   fastify.get('/getAllLabor', {
   }, LaborController.getAllLabor);
 
+  fastify.get('/searchLabor', {
+  }, LaborController.searchLabor);
+
   fastify.get('/getCustomLabor', {
   }, LaborController.getCustomLabor);
 

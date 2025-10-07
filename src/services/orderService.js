@@ -1,6 +1,7 @@
 import { Order } from "../models/Order.js";
 import { OrderItem } from "../models/OrderItem.js";
 import { supabase } from "../config/database.js";
+import { successResponse } from "../helpers/responseHelper.js";
 
 export class OrderService {
   static async createOrder(orderData, cartItems, userId, systemIp) {
@@ -311,6 +312,26 @@ export class OrderService {
       });
 
       return { message: "Order item removed successfully" };
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async searchOrders(filters, pagination) {
+    try {
+      const result = await Order.search(filters, pagination);
+      return successResponse(
+        {
+          orders: result.orders,
+          pagination: {
+            page: result.page,
+            limit: result.limit,
+            total: result.total,
+            totalPages: result.totalPages
+          }
+        },
+        "Orders searched successfully"
+      );
     } catch (error) {
       throw error;
     }

@@ -418,4 +418,61 @@ export class ProductController {
       ));
     }
   }
+
+  static async searchProducts(request, reply) {
+    try {
+      const { 
+        q, 
+        page, 
+        limit, 
+        product_name, 
+        supplier_sku, 
+        jdp_sku, 
+        supplier_cost_price_min, 
+        supplier_cost_price_max,
+        markup_percentage_min,
+        markup_percentage_max,
+        jdp_price_min,
+        jdp_price_max,
+        stock_quantity_min,
+        stock_quantity_max,
+        status,
+        category,
+        supplier_id
+      } = request.query;
+
+      const pagination = {
+        page: parseInt(page) || 1,
+        limit: parseInt(limit) || 10,
+        sortBy: 'created_at',
+        sortOrder: 'desc'
+      };
+
+      const filters = {
+        q: q || '',
+        product_name,
+        supplier_sku,
+        jdp_sku,
+        supplier_cost_price_min: supplier_cost_price_min ? parseFloat(supplier_cost_price_min) : null,
+        supplier_cost_price_max: supplier_cost_price_max ? parseFloat(supplier_cost_price_max) : null,
+        markup_percentage_min: markup_percentage_min ? parseFloat(markup_percentage_min) : null,
+        markup_percentage_max: markup_percentage_max ? parseFloat(markup_percentage_max) : null,
+        jdp_price_min: jdp_price_min ? parseFloat(jdp_price_min) : null,
+        jdp_price_max: jdp_price_max ? parseFloat(jdp_price_max) : null,
+        stock_quantity_min: stock_quantity_min ? parseInt(stock_quantity_min) : null,
+        stock_quantity_max: stock_quantity_max ? parseInt(stock_quantity_max) : null,
+        status,
+        category,
+        supplier_id: supplier_id ? parseInt(supplier_id) : null
+      };
+
+      const result = await ProductService.searchProducts(filters, pagination);
+      return reply.status(200).send(result);
+    } catch (error) {
+      return reply.status(500).send(errorResponse(
+        `Failed to search products: ${error.message}`,
+        500
+      ));
+    }
+  }
 }

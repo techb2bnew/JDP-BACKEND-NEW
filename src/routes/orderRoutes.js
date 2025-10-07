@@ -9,6 +9,10 @@ export default async function orderRoutes(fastify, options) {
     preHandler: [fastify.authenticateToken],
   }, OrderController.getAllOrders);
 
+  fastify.get('/searchOrders', {
+    preHandler: [fastify.authenticateToken],
+  }, OrderController.searchOrders);
+
   fastify.get('/getOrderStats', {
     preHandler: [fastify.authenticateToken],
   }, OrderController.getOrderStats);

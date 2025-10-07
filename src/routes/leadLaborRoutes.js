@@ -47,6 +47,9 @@ export default async function leadLaborRoutes(fastify, options) {
   fastify.get('/getAllLeadLabor', {
   }, LeadLaborController.getAllLeadLabor);
 
+  fastify.get('/searchLeadLabor', {
+  }, LeadLaborController.searchLeadLabor);
+
   fastify.get('/getLeadLaborById/:leadLaborId', {
   }, LeadLaborController.getLeadLaborById);
 

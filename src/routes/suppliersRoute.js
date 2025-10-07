@@ -10,6 +10,8 @@ export default async function suppliersRoutes(fastify, options) {
 
   fastify.get('/getAllSuppliers', suppliersController.getAllSuppliers);
 
+  fastify.get('/searchSuppliers', suppliersController.searchSuppliers);
+
 
   fastify.get('/getSupplierById/:supplierId', {
     schema: {

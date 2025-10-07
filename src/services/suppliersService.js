@@ -9,6 +9,7 @@ import {
     sendWelcomeEmail,
     sendSupplierWelcomeEmail
 } from "../helpers/authHelper.js";
+import { successResponse } from "../helpers/responseHelper.js";
 export class SuppliersService {
     static async createSuppliersWithUser(suppliersData) {
         try {
@@ -199,6 +200,26 @@ export class SuppliersService {
 
         if (errors.length > 0) {
             throw new Error(errors.join(', '));
+        }
+    }
+
+    static async searchSuppliers(filters, pagination) {
+        try {
+            const result = await Suppliers.search(filters, pagination);
+            return successResponse(
+                {
+                    suppliers: result.suppliers,
+                    pagination: {
+                        page: result.page,
+                        limit: result.limit,
+                        total: result.total,
+                        totalPages: result.totalPages
+                    }
+                },
+                "Suppliers searched successfully"
+            );
+        } catch (error) {
+            throw error;
         }
     }
 }

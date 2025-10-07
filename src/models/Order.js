@@ -105,6 +105,7 @@ export class Order {
             jdp_sku,
             supplier_sku,
             jdp_price,
+            unit_cost,
             stock_quantity,
             unit,
             category,
@@ -119,7 +120,34 @@ export class Order {
         return { ...order, order_items: [] };
       }
 
-      return { ...order, order_items: items || [] };
+      // Recalculate totals from order items
+      let recalculatedSubtotal = 0;
+      if (items && items.length > 0) {
+        recalculatedSubtotal = items.reduce((sum, item) => {
+          const unitCost = parseFloat(item.product?.unit_cost || 0);
+          const quantity = parseInt(item.quantity || 0);
+          return sum + (unitCost * quantity);
+        }, 0);
+      }
+
+      const recalculatedTaxAmount = parseFloat(order.tax_amount || 0);
+      const recalculatedDiscountAmount = parseFloat(order.discount_amount || 0);
+      const recalculatedTotalAmount = recalculatedSubtotal + recalculatedTaxAmount - recalculatedDiscountAmount;
+
+      // Add formatted currency fields
+      const formattedOrder = {
+        ...order,
+        order_items: items || [],
+        // Use recalculated values
+        subtotal: recalculatedSubtotal,
+        total_amount: recalculatedTotalAmount,
+        subtotal_formatted: `$${recalculatedSubtotal.toFixed(2)}`,
+        tax_amount_formatted: `$${recalculatedTaxAmount.toFixed(2)}`,
+        discount_amount_formatted: `$${recalculatedDiscountAmount.toFixed(2)}`,
+        total_amount_formatted: `$${recalculatedTotalAmount.toFixed(2)}`
+      };
+
+      return formattedOrder;
     } catch (error) {
       console.error("Error in addOrderItems:", error);
       return { ...order, order_items: [] };
@@ -150,7 +178,11 @@ export class Order {
             id,
             job_title,
             job_type,
-            status
+            status,
+            bill_to_address,
+            bill_to_city_zip,
+            bill_to_phone,
+            bill_to_email
           ),
           supplier:suppliers!orders_supplier_id_fkey(
             id,
@@ -415,6 +447,134 @@ export class Order {
         pendingPercentage: total > 0 ? ((pending / total) * 100).toFixed(1) : "0.0",
         processingPercentage: total > 0 ? ((processing / total) * 100).toFixed(1) : "0.0",
         completedPercentage: total > 0 ? ((completed / total) * 100).toFixed(1) : "0.0"
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async search(filters, pagination = {}) {
+    try {
+      const q = (filters.q || '').toLowerCase().trim();
+
+      // Fetch all orders with relationships
+      const { data, error } = await supabase
+        .from("orders")
+        .select(`
+          *,
+          customer:customers!orders_customer_id_fkey(
+            id,
+            customer_name,
+            company_name,
+            email,
+            phone
+          ),
+          contractor:contractors!orders_contractor_id_fkey(
+            id,
+            contractor_name,
+            company_name,
+            email,
+            phone
+          ),
+          job:jobs!orders_job_id_fkey(
+            id,
+            job_title,
+            job_type,
+            status,
+            priority
+          ),
+          supplier:suppliers!orders_supplier_id_fkey(
+            id,
+            company_name,
+            contact_person,
+            address,
+            users (
+              id,
+              full_name,
+              email,
+              phone
+            )
+          ),
+          lead_labor:lead_labor!orders_lead_labour_id_fkey(
+            id,
+            labor_code,
+            department,
+            specialization,
+            users (
+              id,
+              full_name,
+              email,
+              phone
+            )
+          ),
+          created_by_user:users!orders_created_by_fkey(
+            id,
+            full_name,
+            email
+          )
+        `);
+
+      if (error) {
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      const inStr = (s) => (s || '').toString().toLowerCase().includes(q);
+
+      const matches = (order) => {
+        // Text search across multiple fields
+        if (q) {
+          const orderMatch = inStr(order.order_number) ||
+                            inStr(order.id.toString()) ||
+                            inStr(order.job_id?.toString()) ||
+                            inStr(order.customer_id?.toString()) ||
+                            inStr(order.contractor_id?.toString()) ||
+                            inStr(order.customer?.customer_name) ||
+                            inStr(order.customer?.company_name) ||
+                            inStr(order.customer?.email) ||
+                            inStr(order.contractor?.contractor_name) ||
+                            inStr(order.contractor?.company_name) ||
+                            inStr(order.contractor?.email) ||
+                            inStr(order.job?.job_title) ||
+                            inStr(order.supplier?.company_name) ||
+                            inStr(order.supplier?.users?.full_name) ||
+                            inStr(order.lead_labor?.users?.full_name);
+          if (!orderMatch) return false;
+        }
+
+        // Exact field filters
+        if (filters.order_id && order.id !== parseInt(filters.order_id)) return false;
+        if (filters.job_id && order.job_id !== parseInt(filters.job_id)) return false;
+        if (filters.customer && !inStr(order.customer?.customer_name) && !inStr(order.customer?.company_name) && !inStr(order.customer?.email)) return false;
+        if (filters.contractor && !inStr(order.contractor?.contractor_name) && !inStr(order.contractor?.company_name) && !inStr(order.contractor?.email)) return false;
+        if (filters.status && order.status !== filters.status) return false;
+
+        // Date range filters
+        if (filters.order_date_from && order.order_date && new Date(order.order_date) < filters.order_date_from) return false;
+        if (filters.order_date_to && order.order_date && new Date(order.order_date) > filters.order_date_to) return false;
+
+        return true;
+      };
+
+      let filtered = (data || []).filter(matches);
+
+      // Sort by created_at (most recent first)
+      filtered = filtered.sort((a, b) => {
+        const dateA = new Date(a.created_at || 0);
+        const dateB = new Date(b.created_at || 0);
+        return dateB - dateA;
+      });
+
+      const page = parseInt(pagination.page) || 1;
+      const limit = parseInt(pagination.limit) || 10;
+      const offset = (page - 1) * limit;
+      const sliced = filtered.slice(offset, offset + limit);
+
+      return {
+        orders: sliced,
+        total: filtered.length,
+        page,
+        limit,
+        totalPages: Math.ceil(filtered.length / limit) || 1
       };
     } catch (error) {
       throw error;

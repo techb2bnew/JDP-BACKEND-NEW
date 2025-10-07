@@ -262,4 +262,82 @@ export class LeadLabor {
       throw error;
     }
   }
+
+  static async search(filters, pagination = {}) {
+    try {
+      const q = (filters.q || '').toLowerCase().trim();
+
+      // Fetch all lead labor with user relationships
+      const { data, error } = await supabase
+        .from("lead_labor")
+        .select(`
+          *,
+          users (
+            id,
+            full_name,
+            email,
+            phone,
+            role,
+            status,
+            photo_url,
+            created_at
+          )
+        `);
+
+      if (error) {
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      const inStr = (s) => (s || '').toString().toLowerCase().includes(q);
+
+      const matches = (leadLabor) => {
+        // Text search across multiple fields
+        if (q) {
+          const leadLaborMatch = inStr(leadLabor.users?.full_name) || 
+                                inStr(leadLabor.users?.email) || 
+                                inStr(leadLabor.users?.phone) || 
+                                inStr(leadLabor.department) ||
+                                inStr(leadLabor.specialization) ||
+                                inStr(leadLabor.trade) ||
+                                inStr(leadLabor.experience);
+          if (!leadLaborMatch) return false;
+        }
+
+        // Exact field filters
+        if (filters.name && !inStr(leadLabor.users?.full_name)) return false;
+        if (filters.contact && !inStr(leadLabor.users?.phone) && !inStr(leadLabor.users?.email)) return false;
+        if (filters.department && !inStr(leadLabor.department)) return false;
+        if (filters.specialization && !inStr(leadLabor.specialization)) return false;
+        if (filters.experience && !inStr(leadLabor.experience)) return false;
+        if (filters.trade && !inStr(leadLabor.trade)) return false;
+        if (filters.status && leadLabor.users?.status !== filters.status) return false;
+
+        return true;
+      };
+
+      let filtered = (data || []).filter(matches);
+
+      // Sort by created_at (most recent first)
+      filtered = filtered.sort((a, b) => {
+        const dateA = new Date(a.created_at || 0);
+        const dateB = new Date(b.created_at || 0);
+        return dateB - dateA;
+      });
+
+      const page = parseInt(pagination.page) || 1;
+      const limit = parseInt(pagination.limit) || 10;
+      const offset = (page - 1) * limit;
+      const sliced = filtered.slice(offset, offset + limit);
+
+      return {
+        leadLabor: sliced,
+        total: filtered.length,
+        page,
+        limit,
+        totalPages: Math.ceil(filtered.length / limit) || 1
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
 }

@@ -9,6 +9,7 @@ import {
   generateToken,
   sendWelcomeEmail
 } from "../helpers/authHelper.js";
+import { successResponse } from "../helpers/responseHelper.js";
 export class LaborService {
   static async createLaborWithUser(laborData) {
     try {
@@ -358,6 +359,26 @@ export class LaborService {
     try {
       const result = await Labor.getLaborByJob(jobId, page, limit);
       return result;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async searchLabor(filters, pagination) {
+    try {
+      const result = await Labor.search(filters, pagination);
+      return successResponse(
+        {
+          labor: result.labor,
+          pagination: {
+            page: result.page,
+            limit: result.limit,
+            total: result.total,
+            totalPages: result.totalPages
+          }
+        },
+        "Labor searched successfully"
+      );
     } catch (error) {
       throw error;
     }

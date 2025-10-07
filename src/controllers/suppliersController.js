@@ -58,6 +58,45 @@ export class suppliersController {
     }
   }
 
+  static async searchSuppliers(req, reply) {
+    try {
+      const { 
+        q, 
+        page, 
+        limit, 
+        name, 
+        email, 
+        company, 
+        contact, 
+        status
+      } = req.query;
+
+      const pagination = {
+        page: parseInt(page) || 1,
+        limit: parseInt(limit) || 10,
+        sortBy: 'created_at',
+        sortOrder: 'desc'
+      };
+
+      const filters = {
+        q: q || '',
+        name,
+        email,
+        company,
+        contact,
+        status
+      };
+
+      const result = await SuppliersService.searchSuppliers(filters, pagination);
+      return reply.status(200).send(result);
+    } catch (error) {
+      return reply.status(500).send(errorResponse(
+        `Failed to search suppliers: ${error.message}`,
+        500
+      ));
+    }
+  }
+
   static async getSupplierById(req, reply) {
     try {
       const { supplierId } = req.params;
