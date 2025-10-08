@@ -21,6 +21,34 @@ export class JobController {
     }
   }
 
+  static async searchTimesheets(request, reply) {
+    try {
+      const { q, employee, job, status, page, limit } = request.query;
+
+      const pagination = {
+        page: parseInt(page) || 1,
+        limit: parseInt(limit) || 10,
+        sortBy: 'date',
+        sortOrder: 'desc'
+      };
+
+      const filters = {
+        q: (q || '').trim(),
+        employee: employee || '',
+        job: job || '',
+        status: status || ''
+      };
+
+      const result = await JobService.searchTimesheets(filters, pagination);
+      return reply.code(200).send(result);
+    } catch (error) {
+      if (error.message.includes('Database error')) {
+        return reply.code(500).send(errorResponse('Database error occurred', 500));
+      }
+      return reply.code(500).send(errorResponse(error.message));
+    }
+  }
+
   static async getJobs(request, reply) {
     try {
       const {

@@ -7,6 +7,8 @@ export default async function estimateRoutes(fastify, options) {
 
   fastify.post('/createEstimate', EstimateController.createEstimate);
 
+  fastify.get('/searchEstimates', EstimateController.searchEstimates);
+
   fastify.get('/getEstimates', EstimateController.getEstimates);
 
   fastify.get('/getEstimateById/:estimateId', EstimateController.getEstimateById);

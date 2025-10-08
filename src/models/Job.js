@@ -2,6 +2,154 @@ import { supabase } from "../config/database.js";
 import { safeJsonParse } from "../utils/helpers.js";
 
 export class Job {
+  static async searchTimesheets(filters, pagination = {}) {
+    try {
+      // Fetch jobs with minimal fields needed
+      const { data: jobs, error } = await supabase
+        .from('jobs')
+        .select('id, job_title, labor_timesheets, updated_at')
+        .order('updated_at', { ascending: false });
+
+      if (error) {
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      const q = (filters.q || '').toLowerCase().trim();
+      const employeeFilter = (filters.employee || '').toLowerCase().trim();
+      const jobFilter = (filters.job || '').toLowerCase().trim();
+      const statusFilter = (filters.status || '').toLowerCase().trim();
+
+      const timesheetRows = [];
+
+      for (const job of jobs || []) {
+        const allTimesheets = Array.isArray(job.labor_timesheets)
+          ? job.labor_timesheets
+          : safeJsonParse(job.labor_timesheets, []);
+
+        for (const ts of allTimesheets) {
+          const isEmployee = (ts.labor_name || '').toLowerCase();
+          const isStatus = (ts.status || '').toLowerCase();
+          const jobTitle = (job.job_title || '').toLowerCase();
+          const jobIdStr = (job.id || '').toString();
+
+          // text search across employee, job title, job id
+          if (q) {
+            const hit = isEmployee.includes(q) || jobTitle.includes(q) || jobIdStr.includes(q);
+            if (!hit) continue;
+          }
+
+          if (employeeFilter && !isEmployee.includes(employeeFilter)) continue;
+          if (jobFilter && !(jobTitle.includes(jobFilter) || jobIdStr.includes(jobFilter))) continue;
+          if (statusFilter && isStatus !== statusFilter) continue;
+
+          timesheetRows.push({
+            employee: ts.labor_name,
+            job: `${job.job_title} (Job-${job.id})`,
+            job_id: job.id,
+            labor_id: ts.labor_id || ts.lead_labor_id || null,
+            date: ts.date,
+            hours: ts.work_hours || ts.total_hours || '00:00:00',
+            status: ts.status || 'pending'
+          });
+        }
+      }
+
+      // If no matches, return empty dashboard structure
+      if (timesheetRows.length === 0) {
+        return {
+          period: {
+            start_date: null,
+            end_date: null,
+            week_range: null
+          },
+          dashboard_timesheets: []
+        };
+      }
+
+      // Determine latest date among results, build week (Mon-Sun)
+      const latest = timesheetRows.reduce((max, r) => (new Date(r.date) > new Date(max) ? r.date : max), timesheetRows[0].date);
+      const latestDateObj = new Date(latest);
+      const dayOfWeek = latestDateObj.getDay();
+      const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+      const monday = new Date(latestDateObj);
+      monday.setDate(latestDateObj.getDate() + daysToMonday);
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      const startDate = Job.formatLocalDate(monday);
+      const endDate = Job.formatLocalDate(sunday);
+
+      // Aggregate to weekly dashboard rows per employee+job
+      const buckets = new Map();
+      const dayNames = ['mon','tue','wed','thu','fri','sat','sun'];
+
+      // Pre-fill function
+      const ensureRow = (key, employee, jobTitle, jobId, laborId) => {
+        if (!buckets.has(key)) {
+          const base = { employee, job: `${jobTitle} (Job-${jobId})`, job_id: jobId, labor_id: laborId };
+          dayNames.forEach(d => base[d] = '0h');
+          base.total = '0h';
+          base.billable = '0h';
+          base.status = 'Draft';
+          buckets.set(key, base);
+        }
+        return buckets.get(key);
+      };
+
+      const statusCountsByKey = new Map();
+
+      timesheetRows.forEach(r => {
+        // Only include entries within the computed week
+        if (r.date < startDate || r.date > endDate) return;
+        const key = `${r.employee}|${r.job_id}|${r.labor_id||''}`;
+        const row = ensureRow(key, r.employee, r.job.split(' (Job-')[0], r.job_id, r.labor_id);
+
+        // Day index
+        const dt = new Date(r.date);
+        const dow = dt.getDay();
+        const idx = dow === 0 ? 6 : dow - 1;
+        const dayKey = dayNames[idx];
+
+        const hoursVal = Job.timeToHours(r.hours || '00:00:00');
+
+        // Sum day hours if multiple entries same day
+        const existing = parseFloat((row[dayKey] || '0h').replace('h','').replace('m',''));
+        // existing is coarse; recompute by storing numeric map would be ideal, but keep simple: override with formatted hours
+        row[dayKey] = Job.formatTimeDisplay(hoursVal + (isNaN(existing) ? 0 : existing));
+
+        const currentTotal = Job.timeToHours(row.total.replace('h','').replace('m','').includes('m') ? '00:00:00' : row.total);
+        row.total = Job.formatTimeDisplay(currentTotal + hoursVal);
+        row.billable = row.total;
+
+        const normalized = (r.status || 'pending').toLowerCase();
+        const sc = statusCountsByKey.get(key) || {};
+        sc[normalized] = (sc[normalized] || 0) + 1;
+        statusCountsByKey.set(key, sc);
+      });
+
+      // Derive status per row
+      buckets.forEach((row, key) => {
+        const sc = statusCountsByKey.get(key) || {};
+        if (sc.approved > 0) row.status = 'Approved';
+        else if (sc.submitted > 0) row.status = 'Submitted';
+        else if (sc.active > 0) row.status = 'Active';
+        else if (sc.pending > 0) row.status = 'Pending';
+        else if (sc.rejected > 0) row.status = 'Rejected';
+      });
+
+      const dashboard = Array.from(buckets.values());
+
+      return {
+        period: {
+          start_date: startDate,
+          end_date: endDate,
+          week_range: `${startDate} - ${endDate}`
+        },
+        dashboard_timesheets: dashboard
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
   static async fetchLeadLaborDetails(leadLaborIds) {
     try {
       if (!Array.isArray(leadLaborIds) || leadLaborIds.length === 0) {
@@ -603,9 +751,19 @@ export class Job {
 
       const filteredJobs = (allJobs || []).filter(job => {
         try {
-          const laborIds = safeJsonParse(job.assigned_labor_ids, []);
-          return laborIds.includes(parseInt(laborId));
+          let laborIds = [];
+          if (typeof job.assigned_labor_ids === 'string') {
+            laborIds = safeJsonParse(job.assigned_labor_ids, []);
+          } else if (Array.isArray(job.assigned_labor_ids)) {
+            laborIds = job.assigned_labor_ids;
+          }
+          
+          const targetId = parseInt(laborId);
+          const hasMatch = laborIds.some(id => parseInt(id) === targetId);
+          
+          return hasMatch;
         } catch (e) {
+          console.error('Error parsing labor IDs:', e);
           return false;
         }
       });
@@ -684,9 +842,19 @@ export class Job {
 
       const filteredJobs = (allJobs || []).filter(job => {
         try {
-          const leadLaborIds = safeJsonParse(job.assigned_lead_labor_ids, []);
-          return leadLaborIds.includes(parseInt(leadLaborId));
+          let leadLaborIds = [];
+          if (typeof job.assigned_lead_labor_ids === 'string') {
+            leadLaborIds = safeJsonParse(job.assigned_lead_labor_ids, []);
+          } else if (Array.isArray(job.assigned_lead_labor_ids)) {
+            leadLaborIds = job.assigned_lead_labor_ids;
+          }
+          
+          const targetId = parseInt(leadLaborId);
+          const hasMatch = leadLaborIds.some(id => parseInt(id) === targetId);
+          
+          return hasMatch;
         } catch (e) {
+          console.error('Error parsing lead labor IDs:', e);
           return false;
         }
       });

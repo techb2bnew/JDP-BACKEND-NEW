@@ -20,6 +20,15 @@ export class JobService {
     }
   }
 
+  static async searchTimesheets(filters, pagination) {
+    try {
+      const result = await Job.searchTimesheets(filters, pagination);
+      return successResponse(result, "Timesheets searched successfully");
+    } catch (error) {
+      throw error;
+    }
+  }
+
   static async searchJobs(searchText, pagination) {
     try {
       const result = await Job.search(searchText, pagination);

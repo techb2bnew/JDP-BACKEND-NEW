@@ -3,6 +3,40 @@ import { successResponse, errorResponse, validationErrorResponse } from '../help
 import { createEstimateSchema, updateEstimateSchema } from '../validations/estimateValidation.js';
 
 export class EstimateController {
+  static async searchEstimates(req, reply) {
+    try {
+      const {
+        q,
+        page,
+        limit,
+        status,
+        invoice_type,
+        type,
+        customer,
+        job
+      } = req.query;
+
+      const pagination = {
+        page: parseInt(page) || 1,
+        limit: parseInt(limit) || 10,
+        sortBy: 'created_at',
+        sortOrder: 'desc'
+      };
+
+      const filters = {
+        q: (q || '').trim(),
+        status: status ? String(status).toLowerCase() : undefined,
+        invoice_type: (invoice_type ? String(invoice_type) : (type ? String(type) : undefined)),
+        customer,
+        job
+      };
+
+      const result = await EstimateService.searchEstimates(filters, pagination);
+      return reply.status(200).send(successResponse(result, 'Estimates searched successfully'));
+    } catch (error) {
+      return reply.status(500).send(errorResponse(`Failed to search estimates: ${error.message}`, 500));
+    }
+  }
   static async createEstimate(req, reply) {
     try {
       const estimateData = req.body;

@@ -1,6 +1,85 @@
 import { supabase } from '../config/database.js';
 
 export class Estimate {
+  static inStr(haystack, needle) {
+    return (haystack || '').toString().toLowerCase().includes((needle || '').toString().toLowerCase());
+  }
+
+  static async search(filters, pagination = {}) {
+    try {
+      const q = (filters.q || '').toLowerCase().trim();
+
+      const { data, error } = await supabase
+        .from('estimates')
+        .select(`
+          *,
+          job:jobs!estimates_job_id_fkey(
+            id,
+            job_title,
+            job_type,
+            status
+          ),
+          customer:customers!estimates_customer_id_fkey(
+            id,
+            customer_name,
+            company_name,
+            email,
+            phone
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      const matches = (est) => {
+        if (q) {
+          const textHit =
+            Estimate.inStr(est.invoice_number, q) ||
+            Estimate.inStr(est.customer?.customer_name, q) ||
+            Estimate.inStr(est.customer?.company_name, q) ||
+            Estimate.inStr(est.customer?.email, q) ||
+            Estimate.inStr(est.job?.job_title, q) ||
+            Estimate.inStr(est.job?.id?.toString(), q);
+          if (!textHit) return false;
+        }
+
+        if (filters.status && (est.status || '').toLowerCase() !== String(filters.status).toLowerCase()) return false;
+        if (filters.invoice_type && (est.invoice_type || '').toLowerCase() !== String(filters.invoice_type).toLowerCase()) return false;
+        if (filters.customer &&
+            !(
+              Estimate.inStr(est.customer?.customer_name, filters.customer) ||
+              Estimate.inStr(est.customer?.company_name, filters.customer) ||
+              Estimate.inStr(est.customer?.email, filters.customer)
+            )) return false;
+        if (filters.job &&
+            !(
+              Estimate.inStr(est.job?.job_title, filters.job) ||
+              Estimate.inStr(est.job?.id?.toString(), filters.job)
+            )) return false;
+
+        return true;
+      };
+
+      const filtered = (data || []).filter(matches);
+
+      const page = parseInt(pagination.page) || 1;
+      const limit = parseInt(pagination.limit) || 10;
+      const offset = (page - 1) * limit;
+      const sliced = filtered.slice(offset, offset + limit);
+
+      return {
+        estimates: sliced,
+        total: filtered.length,
+        page,
+        limit,
+        totalPages: Math.ceil(filtered.length / limit) || 1
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
   static async generateInvoiceNumber() {
     try {
       const { data, error } = await supabase.rpc('generate_invoice_number');

@@ -20,6 +20,23 @@ export class EstimateService {
     }
   }
 
+  static async searchEstimates(filters, pagination) {
+    try {
+      const result = await Estimate.search(filters, pagination);
+      return {
+        estimates: result.estimates,
+        pagination: {
+          page: result.page,
+          limit: result.limit,
+          total: result.total,
+          totalPages: result.totalPages
+        }
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+
   static async getEstimates(page = 1, limit = 10, filters = {}) {
     try {
       const result = await Estimate.findAll(filters, { page, limit });

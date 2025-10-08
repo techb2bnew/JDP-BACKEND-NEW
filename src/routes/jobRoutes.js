@@ -34,6 +34,10 @@ export async function jobRoutes(fastify, options) {
     handler: JobController.searchMyJobs
   });
 
+  fastify.get('/searchTimesheets', {
+    handler: JobController.searchTimesheets
+  });
+
   fastify.get('/getJobStats/stats', {
     handler: JobController.getJobStats
   });
