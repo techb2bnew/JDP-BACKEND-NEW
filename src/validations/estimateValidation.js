@@ -25,7 +25,7 @@ export const createEstimateSchema = Joi.object({
   status: Joi.string().valid('draft', 'sent', 'accepted', 'rejected', 'expired').default('draft'),
   
 
-  invoice_type: Joi.string().valid('estimate', 'proposal_invoice', 'progressive_invoice', 'final_invoice').default('estimate'),
+  invoice_type: Joi.string().valid('estimate', 'proposal_invoice', 'progressive_invoice', 'final_invoice', 'down_payment').default('estimate'),
   invoice_number: Joi.string().max(50).optional(),
   issue_date: Joi.date().optional(),
   due_date: Joi.date().optional(),
@@ -43,6 +43,7 @@ export const createEstimateSchema = Joi.object({
       email: Joi.string().email().required(),
       hours_worked: Joi.number().precision(2).min(0).required(),
       hourly_rate: Joi.number().precision(2).min(0).required(),
+      total_cost: Joi.number().precision(2).min(0).optional(),
       job_id: Joi.number().integer().positive().required(),
       is_custom: Joi.boolean().default(true)
     })
@@ -59,7 +60,8 @@ export const createEstimateSchema = Joi.object({
       unit: Joi.string().max(50).required(),
       job_id: Joi.alternatives().try(Joi.number().integer().positive(), Joi.string()).required(),
       is_custom: Joi.boolean().default(true),
-      unit_cost: Joi.number().precision(2).min(0).required()
+      unit_cost: Joi.number().precision(2).min(0).required(),
+      total_cost: Joi.number().precision(2).min(0).optional()
     })
   ).optional()
 });
@@ -87,7 +89,7 @@ export const updateEstimateSchema = Joi.object({
 
   status: Joi.string().valid('draft', 'sent', 'accepted', 'rejected', 'expired').optional(),
   
-  invoice_type: Joi.string().valid('estimate', 'proposal_invoice', 'progressive_invoice', 'final_invoice').optional(),
+  invoice_type: Joi.string().valid('estimate', 'proposal_invoice', 'progressive_invoice', 'final_invoice', 'down_payment').optional(),
   invoice_number: Joi.string().max(50).optional(),
   issue_date: Joi.date().optional(),
   due_date: Joi.date().optional(),
@@ -104,6 +106,7 @@ export const updateEstimateSchema = Joi.object({
       email: Joi.string().email().required(),
       hours_worked: Joi.number().precision(2).min(0).required(),
       hourly_rate: Joi.number().precision(2).min(0).required(),
+      total_cost: Joi.number().precision(2).min(0).optional(),
       job_id: Joi.number().integer().positive().required(),
       is_custom: Joi.boolean().default(true)
     })
@@ -120,7 +123,8 @@ export const updateEstimateSchema = Joi.object({
       unit: Joi.string().max(50).required(),
       job_id: Joi.alternatives().try(Joi.number().integer().positive(), Joi.string()).required(),
       is_custom: Joi.boolean().default(true),
-      unit_cost: Joi.number().precision(2).min(0).required()
+      unit_cost: Joi.number().precision(2).min(0).required(),
+      total_cost: Joi.number().precision(2).min(0).optional()
     })
   ).optional()
 });

@@ -527,6 +527,7 @@ export class Estimate {
             jdp_sku,
             supplier_sku,
             unit_cost,
+            total_cost,
             stock_quantity,
             unit,
             category,
@@ -550,6 +551,7 @@ export class Estimate {
             labor_code,
             hourly_rate,
             hours_worked,
+            total_cost,
             trade,
             experience,
             user:users!labor_user_id_fkey(
@@ -568,13 +570,14 @@ export class Estimate {
       // Calculate individual totals for products
       const productsWithTotals = products.map(product => ({
         ...product,
-        total_price: (product.unit_cost || 0) // Using unit_cost instead of jdp_price
+        total_cost: product.total_cost || (product.unit_cost || 0),
+        total_price: product.total_cost || (product.unit_cost || 0) // Keep for backward compatibility
       }));
 
       // Calculate individual totals for labor
       const laborWithTotals = labor.map(laborItem => ({
         ...laborItem,
-        total_cost: (laborItem.hourly_rate || 0) * (laborItem.hours_worked || 0)
+        total_cost: laborItem.total_cost || ((laborItem.hourly_rate || 0) * (laborItem.hours_worked || 0))
       }));
 
       // Calculate totals from individual items

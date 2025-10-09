@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS estimates (
   total_amount        DECIMAL(12,2) DEFAULT 0,
   
 
-  invoice_type        VARCHAR(50) DEFAULT 'estimate' CHECK (invoice_type IN ('estimate', 'proposal_invoice', 'progressive_invoice', 'final_invoice')),
+  invoice_type        VARCHAR(50) DEFAULT 'estimate' CHECK (invoice_type IN ('estimate', 'proposal_invoice', 'progressive_invoice', 'final_invoice' ,'down_payment')),
   invoice_number      VARCHAR(50) UNIQUE,
   issue_date          DATE,
   due_date            DATE,
