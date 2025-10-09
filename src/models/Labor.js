@@ -26,6 +26,17 @@ export class Labor {
   }
   static async create(laborData) {
     try {
+      // Use frontend total_cost if provided, otherwise calculate
+      if (!laborData.total_cost || laborData.total_cost === 0) {
+        if (laborData.hours_worked && laborData.hourly_rate) {
+          laborData.total_cost = laborData.hours_worked * laborData.hourly_rate;
+        } else {
+          laborData.total_cost = 0;
+        }
+      }
+      
+     
+      
       const { data, error } = await supabase
         .from('labor')
         .insert([laborData])
@@ -172,6 +183,14 @@ export class Labor {
 
   static async update(laborId, updateData) {
     try {
+      // Auto-calculate total_cost if not provided but hours_worked or hourly_rate is updated
+      if (!updateData.total_cost && (updateData.hours_worked || updateData.hourly_rate)) {
+        const currentLabor = await this.getLaborById(laborId);
+        const hours = updateData.hours_worked || currentLabor.hours_worked || 0;
+        const rate = updateData.hourly_rate || currentLabor.hourly_rate || 0;
+        updateData.total_cost = hours * rate;
+      }
+      
       const { data, error } = await supabase
         .from('labor')
         .update(updateData)

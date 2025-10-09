@@ -76,6 +76,8 @@ export class LaborService {
         trade: laborData.trade || null,
         experience: laborData.experience || null,
         hourly_rate: laborData.hourly_rate || null,
+        hours_worked: laborData.hours_worked || 0,
+        total_cost: laborData.total_cost || 0,
         supervisor_id: supervisorId,
         availability: laborData.availability || null,
         system_ip: laborData.system_ip,

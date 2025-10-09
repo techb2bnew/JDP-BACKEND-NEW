@@ -211,6 +211,7 @@ export class Job {
           experience,
           hourly_rate,
           hours_worked,
+          total_cost,
           availability,
           user_id
         `)
@@ -257,6 +258,7 @@ export class Job {
           supplier_sku,
           jdp_sku,
           unit_cost,
+          total_cost,
           stock_quantity,
           unit,
           supplier_id,
@@ -311,6 +313,7 @@ export class Job {
           experience,
           hourly_rate,
           hours_worked,
+          total_cost,
           availability,
           is_custom,
           job_id,

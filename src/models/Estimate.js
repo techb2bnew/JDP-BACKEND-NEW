@@ -295,7 +295,8 @@ export class Estimate {
               skills: null,
               is_custom: true,
               job_id: laborItem.job_id,
-              hours_worked: laborItem.hours_worked
+              hours_worked: laborItem.hours_worked,
+              total_cost: laborItem.hours_worked * laborItem.hourly_rate
             };
 
             const { error: laborError } = await supabase
@@ -330,6 +331,7 @@ export class Estimate {
               is_custom: true,
               unit_cost: productItem.unit_cost,
               jdp_price: productItem.unit_cost, 
+              total_cost: productItem.unit_cost,
               status: 'active',
               created_by: estimateData.created_by || null,
               system_ip: estimateData.system_ip || null

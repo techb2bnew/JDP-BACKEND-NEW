@@ -3,6 +3,11 @@ import { supabase } from '../config/database.js';
 export class Product {
   static async create(productData) {
     try {
+      // Auto-calculate total_cost if not provided
+      if (!productData.total_cost && (productData.jdp_price || productData.supplier_cost_price)) {
+        productData.total_cost = productData.jdp_price || productData.supplier_cost_price || 0;
+      }
+      
       const { data, error } = await supabase
         .from('products')
         .insert([productData])
@@ -281,6 +286,11 @@ export class Product {
     try {
       updateData.updated_at = new Date().toISOString();
       
+      // Auto-calculate total_cost if not provided but jdp_price or supplier_cost_price is updated
+      if (!updateData.total_cost && (updateData.jdp_price || updateData.supplier_cost_price)) {
+        updateData.total_cost = updateData.jdp_price || updateData.supplier_cost_price || 0;
+      }
+      
       const { data, error } = await supabase
         .from('products')
         .update(updateData)
@@ -302,6 +312,7 @@ export class Product {
           stock_quantity,
           unit,
           status,
+          total_cost,
           system_ip,
           created_by,
           created_at,
@@ -408,6 +419,7 @@ export class Product {
           stock_quantity,
           unit,
           status,
+          total_cost,
           system_ip,
           created_by,
           created_at,
