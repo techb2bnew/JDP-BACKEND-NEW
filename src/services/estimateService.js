@@ -270,11 +270,16 @@ export class EstimateService {
       
       // Send email
       const { sendEmail } = await import('../email/emailConfig.js');
+      const invoiceTypeDisplay = estimate.invoice_type === 'down_payment' ? 'Down Payment' : 
+                                estimate.invoice_type === 'proposal_invoice' ? 'Proposal Invoice' :
+                                estimate.invoice_type === 'progressive_invoice' ? 'Progressive Invoice' :
+                                estimate.invoice_type === 'final_invoice' ? 'Final Invoice' : 'Invoice';
+      
       await sendEmail({
         to: estimate.customer.email,
-        subject: `Invoice ${estimate.invoice_number} - ${estimate.job?.job_title || 'Project Invoice'}`,
+        subject: `${invoiceTypeDisplay} ${estimate.invoice_number} - ${estimate.job?.job_title || 'Project'}`,
         html: invoiceHtml,
-        text: `Invoice ${estimate.invoice_number} for ${estimate.job?.job_title || 'Project'}. Please see attached invoice details.`
+        text: `${invoiceTypeDisplay} ${estimate.invoice_number} for ${estimate.job?.job_title || 'Project'}. Please see attached invoice details.`
       });
 
       // Update estimate status to 'sent' if it was 'draft'
@@ -546,7 +551,7 @@ export class EstimateService {
             <div class="section-title">Job Details:</div>
             <div>Job ID: ${estimate.job?.id || 'N/A'}</div>
             <div>Project: ${estimate.job?.job_title || 'N/A'}</div>
-            <div>Type: ${estimate.invoice_type || 'Invoice'}</div>
+            <div>Type: ${estimate.invoice_type === 'down_payment' ? 'Down Payment' : (estimate.invoice_type || 'Invoice')}</div>
         </div>
     </div>
 
