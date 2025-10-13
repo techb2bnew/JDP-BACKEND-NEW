@@ -84,6 +84,7 @@ export default async function productRoutes(fastify, options) {
                 profit_margin: { type: 'number' },
                 stock_quantity: { type: 'integer' },
                 unit: { type: 'string' },
+                unit_cost: { type: 'number' },
                 status: { type: 'string' },
                 system_ip: { type: 'string' },
                 created_by: { type: 'integer' },
@@ -194,7 +195,7 @@ export default async function productRoutes(fastify, options) {
     }
   }, ProductController.getProductsBySupplier);
 
-  
+
   fastify.get('/categories/list', {
     preHandler: [fastify.authenticateToken],
     schema: {
@@ -220,7 +221,7 @@ export default async function productRoutes(fastify, options) {
     }
   }, ProductController.getProductCategories);
 
-  
+
   fastify.patch('/:id/stock', {
     preHandler: [fastify.authenticateToken],
     schema: {
@@ -313,7 +314,7 @@ export default async function productRoutes(fastify, options) {
     }
   }, ProductController.getProductStatistics);
 
-  
+
   fastify.get('/getProductStats/stats', {
     preHandler: [fastify.authenticateToken],
     handler: ProductController.getProductStats
