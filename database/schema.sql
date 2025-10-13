@@ -168,6 +168,7 @@ CREATE TABLE IF NOT EXISTS products (
   supplier_sku        TEXT,
   jdp_sku             TEXT,
   supplier_cost_price NUMERIC(10,2),
+  estimated_price     NUMERIC(10,2),
   markup_percentage   NUMERIC(5,2),
   markup_amount       NUMERIC(10,2),
   jdp_price           NUMERIC(10,2),

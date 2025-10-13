@@ -25,6 +25,13 @@ export class Estimate {
             company_name,
             email,
             phone
+          ),
+          contractor:contractors!estimates_contractor_id_fkey(
+            id,
+            contractor_name,
+            company_name,
+            email,
+            phone
           )
         `)
         .order('created_at', { ascending: false });
@@ -217,6 +224,13 @@ export class Estimate {
             email,
             phone
           ),
+          contractor:contractors!estimates_contractor_id_fkey(
+            id,
+            contractor_name,
+            company_name,
+            email,
+            phone
+          ),
           created_by_user:users!estimates_created_by_fkey(
             id,
             full_name,
@@ -315,34 +329,71 @@ export class Estimate {
       if (customProducts && Array.isArray(customProducts) && customProducts.length > 0) {
         for (const productItem of customProducts) {
           try {
-            let jdpSku = productItem.jdp_sku;
-            if (!jdpSku) {
-              jdpSku = await Estimate.generateProductSku();
-            }
+            // Check if product_id exists in payload (for update)
+            if (productItem.id || productItem.product_id) {
+              const productId = productItem.id || productItem.product_id;
+              
+              // Update existing product
+              const updateData = {
+                product_name: productItem.product_name,
+                supplier_id: productItem.supplier_id,
+                supplier_sku: productItem.supplier_sku || '',
+                stock_quantity: productItem.stock_quantity,
+                unit: productItem.unit,
+                unit_cost: productItem.unit_cost,
+                jdp_price: productItem.unit_cost,
+                total_cost: productItem.total_cost || productItem.unit_cost,
+                status: 'active'
+              };
 
-            const productData = {
-              product_name: productItem.product_name,
-              supplier_id: productItem.supplier_id,
-              supplier_sku: productItem.supplier_sku || '',
-              jdp_sku: jdpSku,
-              stock_quantity: productItem.stock_quantity,
-              unit: productItem.unit,
-              job_id: parseInt(productItem.job_id),
-              is_custom: true,
-              unit_cost: productItem.unit_cost,
-              jdp_price: productItem.unit_cost, 
-              total_cost: productItem.total_cost || productItem.unit_cost,
-              status: 'active',
-              created_by: estimateData.created_by || null,
-              system_ip: estimateData.system_ip || null
-            };
+              // Only update jdp_sku if provided
+              if (productItem.jdp_sku) {
+                updateData.jdp_sku = productItem.jdp_sku;
+              }
 
-            const { error: productError } = await supabase
-              .from('products')
-              .insert([productData]);
+              const { error: updateError } = await supabase
+                .from('products')
+                .update(updateData)
+                .eq('id', productId);
 
-            if (productError) {
-              console.error('Error creating custom product:', productError);
+              if (updateError) {
+                console.error('Error updating product:', updateError);
+              } else {
+                console.log(`Product ${productId} updated successfully`);
+              }
+            } else {
+              // Create new product
+              let jdpSku = productItem.jdp_sku;
+              if (!jdpSku) {
+                jdpSku = await Estimate.generateProductSku();
+              }
+
+              const productData = {
+                product_name: productItem.product_name,
+                supplier_id: productItem.supplier_id,
+                supplier_sku: productItem.supplier_sku || '',
+                jdp_sku: jdpSku,
+                stock_quantity: productItem.stock_quantity,
+                unit: productItem.unit,
+                job_id: parseInt(productItem.job_id),
+                is_custom: true,
+                unit_cost: productItem.unit_cost,
+                jdp_price: productItem.unit_cost, 
+                total_cost: productItem.total_cost || productItem.unit_cost,
+                status: 'active',
+                created_by: estimateData.created_by || null,
+                system_ip: estimateData.system_ip || null
+              };
+
+              const { error: productError } = await supabase
+                .from('products')
+                .insert([productData]);
+
+              if (productError) {
+                console.error('Error creating custom product:', productError);
+              } else {
+                console.log('New product created successfully');
+              }
             }
           } catch (error) {
             console.error('Error processing custom product item:', error);
@@ -363,6 +414,13 @@ export class Estimate {
           customer:customers!estimates_customer_id_fkey(
             id,
             customer_name,
+            company_name,
+            email,
+            phone
+          ),
+          contractor:contractors!estimates_contractor_id_fkey(
+            id,
+            contractor_name,
             company_name,
             email,
             phone
@@ -410,6 +468,13 @@ export class Estimate {
           customer:customers!estimates_customer_id_fkey(
             id,
             customer_name,
+            company_name,
+            email,
+            phone
+          ),
+          contractor:contractors!estimates_contractor_id_fkey(
+            id,
+            contractor_name,
             company_name,
             email,
             phone
@@ -478,6 +543,14 @@ export class Estimate {
           customer:customers!estimates_customer_id_fkey(
             id,
             customer_name,
+            company_name,
+            email,
+            phone,
+            address
+          ),
+          contractor:contractors!estimates_contractor_id_fkey(
+            id,
+            contractor_name,
             company_name,
             email,
             phone,
@@ -667,6 +740,13 @@ export class Estimate {
           customer:customers!estimates_customer_id_fkey(
             id,
             customer_name,
+            company_name,
+            email,
+            phone
+          ),
+          contractor:contractors!estimates_contractor_id_fkey(
+            id,
+            contractor_name,
             company_name,
             email,
             phone

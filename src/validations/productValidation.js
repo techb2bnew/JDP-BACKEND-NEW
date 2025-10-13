@@ -43,6 +43,10 @@ export const createProductSchema = {
       type: 'number',
       minimum: 0
     },
+    estimated_price: {
+      type: 'number',
+      minimum: 0
+    },
     markup_percentage: {
       type: 'number',
       minimum: 0,
@@ -122,6 +126,10 @@ export const updateProductSchema = {
       minimum: 0
     },
     unit_cost: {
+      type: 'number',
+      minimum: 0
+    },
+    estimated_price: {
       type: 'number',
       minimum: 0
     },

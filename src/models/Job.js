@@ -298,6 +298,112 @@ export class Job {
     }
   }
 
+  static async fetchOrdersDetails(jobId) {
+    try {
+      if (!jobId) {
+        return [];
+      }
+
+      const { data: ordersData, error } = await supabase
+        .from("orders")
+        .select(`
+          id,
+          order_number,
+          order_date,
+          status,
+          total_amount,
+          payment_status,
+          payment_method,
+          notes,
+          created_at,
+          updated_at,
+          customer:customers!orders_customer_id_fkey(
+            id,
+            customer_name,
+            company_name,
+            email,
+            phone
+          ),
+          contractor:contractors!orders_contractor_id_fkey(
+            id,
+            contractor_name,
+            company_name,
+            email,
+            phone
+          ),
+          supplier:suppliers!orders_supplier_id_fkey(
+            id,
+            supplier_code,
+            company_name,
+            contact_person
+          ),
+          lead_labour:lead_labor!orders_lead_labour_id_fkey(
+            id,
+            labor_code,
+            user_id,
+            department,
+            specialization
+          ),
+          created_by_user:users!orders_created_by_fkey(
+            id,
+            full_name,
+            email
+          )
+        `)
+        .eq("job_id", jobId)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error fetching orders:", error);
+        return [];
+      }
+
+      // Fetch order items for each order
+      const ordersWithItems = await Promise.all(
+        (ordersData || []).map(async (order) => {
+          const { data: items, error: itemsError } = await supabase
+            .from("order_items")
+            .select(`
+              id,
+              product_id,
+              quantity,
+              total_price,
+              created_at,
+              updated_at,
+              product:products!order_items_product_id_fkey(
+                id,
+                product_name,
+                jdp_sku,
+                supplier_sku,
+                jdp_price,
+                estimated_price,
+                supplier_cost_price,
+                markup_percentage,
+                stock_quantity,
+                unit,
+                category,
+                description
+              )
+            `)
+            .eq("order_id", order.id)
+            .order("created_at", { ascending: true });
+
+          if (itemsError) {
+            console.error("Error fetching order items:", itemsError);
+            return { ...order, items: [] };
+          }
+
+          return { ...order, items: items || [] };
+        })
+      );
+
+      return ordersWithItems;
+    } catch (error) {
+      console.error("Error in fetchOrdersDetails:", error);
+      return [];
+    }
+  }
+
   static async fetchCustomLaborDetails(jobId) {
     try {
       if (!jobId) {
@@ -352,6 +458,8 @@ export class Job {
     jobWithDetails.assigned_materials = await Job.fetchMaterialsDetails(job.id);
 
     jobWithDetails.custom_labor = await Job.fetchCustomLaborDetails(job.id);
+
+    jobWithDetails.orders = await Job.fetchOrdersDetails(job.id);
 
     // Parse timesheet data
     jobWithDetails.labor_timesheets = safeJsonParse(job.labor_timesheets, []);

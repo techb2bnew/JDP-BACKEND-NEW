@@ -3,7 +3,8 @@ import Joi from 'joi';
 export const createEstimateSchema = Joi.object({
   job_id: Joi.number().integer().positive().optional(),
   estimate_title: Joi.string().max(200).required(),
-  customer_id: Joi.number().integer().positive().required(),
+  customer_id: Joi.number().integer().positive().optional(),
+  contractor_id: Joi.number().integer().positive().optional(),
   priority: Joi.string().valid('low', 'medium', 'high', 'urgent').default('medium'),
   valid_until: Joi.date().optional(),
   location: Joi.string().max(200).optional(),
@@ -52,6 +53,8 @@ export const createEstimateSchema = Joi.object({
   // Custom products array
   custom_products: Joi.array().items(
     Joi.object({
+      id: Joi.number().integer().positive().optional(),
+      product_id: Joi.number().integer().positive().optional(),
       product_name: Joi.string().max(200).required(),
       supplier_id: Joi.number().integer().positive().required(),
       supplier_sku: Joi.string().max(100).optional(),
@@ -64,12 +67,13 @@ export const createEstimateSchema = Joi.object({
       total_cost: Joi.number().precision(2).min(0).optional()
     })
   ).optional()
-});
+}).or('customer_id', 'contractor_id'); // At least one of customer_id or contractor_id is required
 
 export const updateEstimateSchema = Joi.object({
   job_id: Joi.number().integer().positive().optional(),
   estimate_title: Joi.string().max(200).optional(),
   customer_id: Joi.number().integer().positive().optional(),
+  contractor_id: Joi.number().integer().positive().optional(),
   priority: Joi.string().valid('low', 'medium', 'high', 'urgent').optional(),
   valid_until: Joi.date().optional(),
   location: Joi.string().max(200).optional(),
