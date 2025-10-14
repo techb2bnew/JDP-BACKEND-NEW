@@ -42,6 +42,8 @@ export class EstimateController {
       const estimateData = req.body;
       const createdByUserId = req.user.id;
 
+      console.log("estimateDataestimateData",estimateData);
+      
      
       const { error, value } = createEstimateSchema.validate(estimateData, { abortEarly: false });
       

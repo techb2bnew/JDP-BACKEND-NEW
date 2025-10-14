@@ -108,8 +108,6 @@ export class CustomerController {
       const result = await CustomerService.getCustomerStats();
       return reply.code(200).send(result);
     } catch (error) {
-
-      
       if (error.message.includes('Database error')) {
         return reply.code(500).send(errorResponse('Database error occurred', 500));
       }

@@ -195,11 +195,9 @@ export class Estimate {
   static async create(estimateData) {
     try {
       const additionalCost = estimateData.additional_cost;
-      const customLabor = estimateData.custom_labor;
       const customProducts = estimateData.custom_products;
       
       delete estimateData.additional_cost;
-      delete estimateData.custom_labor;
       delete estimateData.custom_products;
 
       if (!estimateData.invoice_number) {
@@ -261,71 +259,7 @@ export class Estimate {
         }
       }
 
-      if (customLabor && Array.isArray(customLabor) && customLabor.length > 0) {
-        for (const laborItem of customLabor) {
-          try {
-            const { generateTemporaryPassword } = await import('../lib/generateTemporaryPassword.js');
-            const { hashPassword } = await import('../helpers/authHelper.js');
-            
-            const temporaryPassword = generateTemporaryPassword();
-            const hashedPassword = await hashPassword(temporaryPassword);
-
-            const userData = {
-              full_name: laborItem.full_name,
-              email: laborItem.email,
-              phone: null,
-              password: hashedPassword,
-              role: 'labor',
-              status: 'active'
-            };
-
-            const { data: user, error: userError } = await supabase
-              .from('users')
-              .insert([userData])
-              .select('id')
-              .single();
-
-            if (userError) {
-              console.error('Error creating user for custom labor:', userError);
-              continue;
-            }
-
-            const laborCode = await Estimate.generateLaborCode();
-
-            const laborData = {
-              user_id: user.id,
-              labor_code: laborCode,
-              dob: '1990-01-01', 
-              address: 'Default Address', 
-              notes: null,
-              date_of_joining: new Date().toISOString().split('T')[0], 
-              trade: 'Custom Labor',
-              experience: 'Custom',
-              hourly_rate: laborItem.hourly_rate,
-              supervisor_id: null,
-              availability: null,
-              system_ip: estimateData.system_ip || null,
-              certifications: null,
-              skills: null,
-              is_custom: true,
-              job_id: laborItem.job_id,
-              hours_worked: laborItem.hours_worked,
-              total_cost: laborItem.total_cost || (laborItem.hours_worked * laborItem.hourly_rate)
-            };
-
-            const { error: laborError } = await supabase
-              .from('labor')
-              .insert([laborData]);
-
-            if (laborError) {
-              console.error('Error creating custom labor:', laborError);
-            }
-          } catch (error) {
-            console.error('Error processing custom labor item:', error);
-          }
-        }
-      }
-
+      // Custom products handling - create new or update existing products
       if (customProducts && Array.isArray(customProducts) && customProducts.length > 0) {
         for (const productItem of customProducts) {
           try {
@@ -341,7 +275,8 @@ export class Estimate {
                 stock_quantity: productItem.stock_quantity,
                 unit: productItem.unit,
                 unit_cost: productItem.unit_cost,
-                jdp_price: productItem.unit_cost,
+                jdp_price: productItem.jdp_price || productItem.unit_cost,
+                estimated_price: productItem.estimated_price || null,
                 total_cost: productItem.total_cost || productItem.unit_cost,
                 status: 'active'
               };
@@ -378,7 +313,8 @@ export class Estimate {
                 job_id: parseInt(productItem.job_id),
                 is_custom: true,
                 unit_cost: productItem.unit_cost,
-                jdp_price: productItem.unit_cost, 
+                jdp_price: productItem.jdp_price || productItem.unit_cost,
+                estimated_price: productItem.estimated_price || null,
                 total_cost: productItem.total_cost || productItem.unit_cost,
                 status: 'active',
                 created_by: estimateData.created_by || null,
@@ -429,12 +365,6 @@ export class Estimate {
             id,
             full_name,
             email
-          ),
-          additional_cost:estimate_additional_costs(
-            id,
-            description,
-            amount,
-            created_at
           )
         `)
         .eq('id', data.id)
@@ -444,7 +374,55 @@ export class Estimate {
         throw new Error(`Database error: ${fetchError.message}`);
       }
 
-      return completeEstimate;
+      // Get additional costs
+      const additionalCosts = await Estimate.getAdditionalCosts(data.id);
+
+      // Get products if job exists
+      let products = [];
+      if (completeEstimate.job && completeEstimate.job.id) {
+        const { data: jobProducts } = await supabase
+          .from("products")
+          .select(`
+            id,
+            product_name,
+            jdp_sku,
+            supplier_sku,
+            unit_cost,
+            jdp_price,
+            estimated_price,
+            total_cost,
+            stock_quantity,
+            unit,
+            category,
+            description,
+            supplier_id
+          `)
+          .eq("job_id", completeEstimate.job.id)
+          .eq("is_custom", true);
+
+        if (jobProducts) {
+          products = jobProducts;
+        }
+      }
+
+      // Calculate total amount from products and additional costs
+      const productsTotalCost = products.reduce((sum, product) => {
+        return sum + (parseFloat(product.total_cost) || 0);
+      }, 0);
+      
+      const additionalCostsTotal = additionalCosts.reduce((sum, cost) => {
+        return sum + (parseFloat(cost.amount) || 0);
+      }, 0);
+      
+      const calculatedTotalAmount = productsTotalCost + additionalCostsTotal;
+
+      return {
+        ...completeEstimate,
+        total_amount: calculatedTotalAmount,
+        additional_costs_details: additionalCosts,
+        products: products,
+        labor: []
+      };
     } catch (error) {
       console.error('Error in Estimate.create:', error);
       console.error('Error message:', error.message);
@@ -600,83 +578,41 @@ export class Estimate {
             jdp_sku,
             supplier_sku,
             unit_cost,
+            jdp_price,
+            estimated_price,
             total_cost,
             stock_quantity,
             unit,
             category,
-            description
+            description,
+            supplier_id
           `)
           .eq("job_id", data.job.id)
-          .eq("status", "active");
+          // .eq("is_custom", true);
 
         if (!productsError && jobProducts) {
           products = jobProducts;
         }
       }
 
-      // Get labor from job
-      let labor = [];
-      if (data.job && data.job.id) {
-        const { data: jobLabor, error: laborError } = await supabase
-          .from("labor")
-          .select(`
-            id,
-            labor_code,
-            hourly_rate,
-            hours_worked,
-            total_cost,
-            trade,
-            experience,
-            user:users!labor_user_id_fkey(
-              id,
-              full_name,
-              email
-            )
-          `)
-          .eq("job_id", data.job.id);
-
-        if (!laborError && jobLabor) {
-          labor = jobLabor;
-        }
-      }
-
-      // Calculate individual totals for products
-      const productsWithTotals = products.map(product => ({
-        ...product,
-        total_cost: product.total_cost || (product.unit_cost || 0),
-        total_price: product.total_cost || (product.unit_cost || 0) // Keep for backward compatibility
-      }));
-
-      // Calculate individual totals for labor
-      const laborWithTotals = labor.map(laborItem => ({
-        ...laborItem,
-        total_cost: laborItem.total_cost || ((laborItem.hourly_rate || 0) * (laborItem.hours_worked || 0))
-      }));
-
-      // Calculate totals from individual items
-      const calculatedMaterialsCost = productsWithTotals.reduce((sum, product) => sum + product.total_price, 0);
-      const calculatedLaborCost = laborWithTotals.reduce((sum, labor) => sum + labor.total_cost, 0);
-      const calculatedAdditionalCosts = additionalCosts.reduce((sum, cost) => sum + (cost.amount || 0), 0);
+      // Calculate total amount from products and additional costs
+      const productsTotalCost = products.reduce((sum, product) => {
+        return sum + (parseFloat(product.total_cost) || 0);
+      }, 0);
       
-      const calculatedSubtotal = calculatedMaterialsCost + calculatedLaborCost + calculatedAdditionalCosts;
-      const calculatedTaxAmount = (calculatedSubtotal * (data.tax_percentage || 0)) / 100;
-      const calculatedTotalAmount = calculatedSubtotal + calculatedTaxAmount;
+      const additionalCostsTotal = additionalCosts.reduce((sum, cost) => {
+        return sum + (parseFloat(cost.amount) || 0);
+      }, 0);
+      
+      const calculatedTotalAmount = productsTotalCost + additionalCostsTotal;
 
       console.log(`Estimate found: ${data.id}, title: ${data.estimate_title}`);
       return {
         ...data,
+        total_amount: calculatedTotalAmount,
         additional_costs_details: additionalCosts,
-        products: productsWithTotals,
-        labor: laborWithTotals,
-        // Add calculated totals
-        calculated_totals: {
-          materials_cost: calculatedMaterialsCost,
-          labor_cost: calculatedLaborCost,
-          additional_costs: calculatedAdditionalCosts,
-          subtotal: calculatedSubtotal,
-          tax_amount: calculatedTaxAmount,
-          total_amount: calculatedTotalAmount
-        }
+        products: products,
+        labor: []
       };
       } catch (error) {
       console.error("Error in findById method:", error);
@@ -795,104 +731,73 @@ export class Estimate {
         }
       }
 
-      if (customLabor && Array.isArray(customLabor) && customLabor.length > 0) {
-        for (const laborItem of customLabor) {
-          try {
-            const { generateTemporaryPassword } = await import('../lib/generateTemporaryPassword.js');
-            const { hashPassword } = await import('../helpers/authHelper.js');
-            
-            const temporaryPassword = generateTemporaryPassword();
-            const hashedPassword = await hashPassword(temporaryPassword);
-
-            const userData = {
-              full_name: laborItem.full_name,
-              email: laborItem.email,
-              phone: null,
-              password: hashedPassword,
-              role: 'labor',
-              status: 'active'
-            };
-
-            const { data: user, error: userError } = await supabase
-              .from('users')
-              .insert([userData])
-              .select('id')
-              .single();
-
-            if (userError) {
-              console.error('Error creating user for custom labor:', userError);
-              continue;
-            }
-
-            const laborCode = await Estimate.generateLaborCode();
-
-            const laborData = {
-              user_id: user.id,
-              labor_code: laborCode,
-              dob: '1990-01-01', 
-              address: 'Default Address',
-              notes: null,
-              date_of_joining: new Date().toISOString().split('T')[0], 
-              trade: 'Custom Labor',
-              experience: 'Custom',
-              hourly_rate: laborItem.hourly_rate,
-              supervisor_id: null,
-              availability: null,
-              system_ip: updateData.system_ip || null,
-              certifications: null,
-              skills: null,
-              is_custom: true,
-              job_id: laborItem.job_id,
-              hours_worked: laborItem.hours_worked,
-              total_cost: laborItem.total_cost || (laborItem.hours_worked * laborItem.hourly_rate)
-            };
-
-            const { error: laborError } = await supabase
-              .from('labor')
-              .insert([laborData]);
-
-            if (laborError) {
-              console.error('Error creating custom labor:', laborError);
-            }
-          } catch (error) {
-            console.error('Error processing custom labor item:', error);
-          }
-        }
-      }
-
-     
+      // Custom products handling - create new or update existing products
       if (customProducts && Array.isArray(customProducts) && customProducts.length > 0) {
         for (const productItem of customProducts) {
           try {
-            
-            let jdpSku = productItem.jdp_sku;
-            if (!jdpSku) {
-              jdpSku = await Estimate.generateProductSku();
-            }
+            // Check if product_id exists in payload (for update)
+            if (productItem.id || productItem.product_id) {
+              const productId = productItem.id || productItem.product_id;
+              
+              // Update existing product
+              const updateData = {
+                product_name: productItem.product_name,
+                supplier_id: productItem.supplier_id,
+                supplier_sku: productItem.supplier_sku || '',
+                stock_quantity: productItem.stock_quantity,
+                unit: productItem.unit,
+                unit_cost: productItem.unit_cost,
+                jdp_price: productItem.jdp_price || productItem.unit_cost,
+                estimated_price: productItem.estimated_price || null,
+                total_cost: productItem.total_cost || productItem.unit_cost,
+                status: 'active'
+              };
 
-            const productData = {
-              product_name: productItem.product_name,
-              supplier_id: productItem.supplier_id,
-              supplier_sku: productItem.supplier_sku || '',
-              jdp_sku: jdpSku,
-              stock_quantity: productItem.stock_quantity,
-              unit: productItem.unit,
-              job_id: parseInt(productItem.job_id),
-              is_custom: true,
-              unit_cost: productItem.unit_cost,
-              jdp_price: productItem.unit_cost,
-              total_cost: productItem.total_cost || productItem.unit_cost,
-              status: 'active',
-              created_by: updateData.created_by || null,
-              system_ip: updateData.system_ip || null
-            };
+              // Only update jdp_sku if provided
+              if (productItem.jdp_sku) {
+                updateData.jdp_sku = productItem.jdp_sku;
+              }
 
-            const { error: productError } = await supabase
-              .from('products')
-              .insert([productData]);
+              const { error: updateError } = await supabase
+                .from('products')
+                .update(updateData)
+                .eq('id', productId);
 
-            if (productError) {
-              console.error('Error creating custom product:', productError);
+              if (updateError) {
+                console.error('Error updating product:', updateError);
+              }
+            } else {
+              // Create new product
+              let jdpSku = productItem.jdp_sku;
+              if (!jdpSku) {
+                jdpSku = await Estimate.generateProductSku();
+              }
+
+              const productData = {
+                product_name: productItem.product_name,
+                supplier_id: productItem.supplier_id,
+                supplier_sku: productItem.supplier_sku || '',
+                jdp_sku: jdpSku,
+                stock_quantity: productItem.stock_quantity,
+                unit: productItem.unit,
+                job_id: parseInt(productItem.job_id),
+                is_custom: true,
+                unit_cost: productItem.unit_cost,
+                jdp_price: productItem.jdp_price || productItem.unit_cost,
+                estimated_price: productItem.estimated_price || null,
+                total_cost: productItem.total_cost || productItem.unit_cost,
+                status: 'active',
+                created_by: updateData.created_by || null,
+                system_ip: updateData.system_ip || null
+              };
+
+              const { error: productError } = await supabase
+                .from('products')
+                .insert([productData]);
+
+              if (productError) {
+                console.error('Error creating custom product:', productError);
+              }
             }
           } catch (error) {
             console.error('Error processing custom product item:', error);
@@ -918,16 +823,17 @@ export class Estimate {
             email,
             phone
           ),
+          contractor:contractors!estimates_contractor_id_fkey(
+            id,
+            contractor_name,
+            company_name,
+            email,
+            phone
+          ),
           created_by_user:users!estimates_created_by_fkey(
             id,
             full_name,
             email
-          ),
-          additional_cost:estimate_additional_costs(
-            id,
-            description,
-            amount,
-            created_at
           )
         `)
         .eq('id', estimateId)
@@ -937,7 +843,55 @@ export class Estimate {
         throw new Error(`Database error: ${fetchError.message}`);
       }
 
-      return completeEstimate;
+      // Get additional costs
+      const additionalCosts = await Estimate.getAdditionalCosts(estimateId);
+
+      // Get products if job exists
+      let products = [];
+      if (completeEstimate.job && completeEstimate.job.id) {
+        const { data: jobProducts } = await supabase
+          .from("products")
+          .select(`
+            id,
+            product_name,
+            jdp_sku,
+            supplier_sku,
+            unit_cost,
+            jdp_price,
+            estimated_price,
+            total_cost,
+            stock_quantity,
+            unit,
+            category,
+            description,
+            supplier_id
+          `)
+          .eq("job_id", completeEstimate.job.id)
+          .eq("is_custom", true);
+
+        if (jobProducts) {
+          products = jobProducts;
+        }
+      }
+
+      // Calculate total amount from products and additional costs
+      const productsTotalCost = products.reduce((sum, product) => {
+        return sum + (parseFloat(product.total_cost) || 0);
+      }, 0);
+      
+      const additionalCostsTotal = additionalCosts.reduce((sum, cost) => {
+        return sum + (parseFloat(cost.amount) || 0);
+      }, 0);
+      
+      const calculatedTotalAmount = productsTotalCost + additionalCostsTotal;
+
+      return {
+        ...completeEstimate,
+        total_amount: calculatedTotalAmount,
+        additional_costs_details: additionalCosts,
+        products: products,
+        labor: []
+      };
     } catch (error) {
       console.error('Error in Estimate.update:', error);
       console.error('Error message:', error.message);
@@ -1266,33 +1220,21 @@ export class Estimate {
         throw new Error('Estimate not found');
       }
 
+      // Get additional costs from estimate_additional_costs table
       const additionalCosts = await Estimate.getAdditionalCosts(estimateId);
       
-      const materialsCost = parseFloat(estimate.materials_cost) || 0;
-      const laborCost = parseFloat(estimate.labor_cost) || 0;
       const additionalCostsTotal = additionalCosts.reduce((sum, cost) => {
         return sum + (parseFloat(cost.amount) || 0);
       }, 0);
 
-      const subtotal = materialsCost + laborCost + additionalCostsTotal;
-      const taxAmount = (subtotal * parseFloat(estimate.tax_percentage)) / 100;
-      const totalAmount = subtotal + taxAmount;
-
-      
+      // Update total amount with additional costs
       await Estimate.update(estimateId, {
-        additional_costs: additionalCostsTotal,
-        subtotal: subtotal,
-        tax_amount: taxAmount,
-        total_amount: totalAmount
+        total_amount: additionalCostsTotal
       });
 
       return {
-        materials_cost: materialsCost,
-        labor_cost: laborCost,
         additional_costs: additionalCostsTotal,
-        subtotal: subtotal,
-        tax_amount: taxAmount,
-        total_amount: totalAmount
+        total_amount: additionalCostsTotal
       };
     } catch (error) {
       throw error;

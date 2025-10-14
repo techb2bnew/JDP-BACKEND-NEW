@@ -301,16 +301,16 @@ export class EstimateService {
   static async generateInvoiceTemplate(estimate) {
     try {
       const currentDate = new Date().toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
+        month: '2-digit',
+        day: '2-digit',
+        year: 'numeric'
       });
 
       const dueDate = estimate.due_date 
         ? new Date(estimate.due_date).toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
+            month: '2-digit',
+            day: '2-digit',
+            year: 'numeric'
           })
         : 'N/A';
 
@@ -335,85 +335,28 @@ export class EstimateService {
           sku: product.jdp_sku || product.supplier_sku || 'N/A',
           description: product.product_name || product.description || 'N/A',
           quantity: 1, // Default quantity since products don't have quantity in this structure
-          unit_price: product.unit_cost || product.total_price || 0
+          unit_price: product.total_cost || product.unit_cost || product.jdp_price || 0
         }));
       }
 
-      let labor = [];
-      if (estimate.labor) {
-        if (Array.isArray(estimate.labor)) {
-          // Convert labor format to template format
-          labor = estimate.labor.map(laborItem => ({
-            labor_name: laborItem.user?.full_name || 'N/A',
-            description: laborItem.trade || 'Labor work',
-            hours: laborItem.hours_worked || 0,
-            rate: laborItem.hourly_rate || 0
-          }));
-        } else if (typeof estimate.labor === 'string') {
-          try {
-            const parsedLabor = JSON.parse(estimate.labor);
-            if (Array.isArray(parsedLabor)) {
-              labor = parsedLabor;
-            }
-          } catch (e) {
-            labor = [];
-          }
-        }
-      }
-
-      let additionalCosts = [];
-      if (estimate.additional_costs_details && Array.isArray(estimate.additional_costs_details)) {
-        // Use additional_costs_details if available
-        additionalCosts = estimate.additional_costs_details.map(cost => ({
-          description: cost.description || 'N/A',
-          amount: cost.amount || 0
-        }));
-      } else if (estimate.additional_costs) {
-        if (Array.isArray(estimate.additional_costs)) {
-          additionalCosts = estimate.additional_costs;
-        } else if (typeof estimate.additional_costs === 'string') {
-          try {
-            additionalCosts = JSON.parse(estimate.additional_costs);
-            if (!Array.isArray(additionalCosts)) {
-              additionalCosts = [];
-            }
-          } catch (e) {
-            additionalCosts = [];
-          }
-        }
-      }
-
-      // Use calculated totals if available, otherwise calculate
-      let materialsTotal, laborTotal, additionalCostsTotal, subtotal, taxAmount, total;
-      
-      if (estimate.calculated_totals) {
-        materialsTotal = estimate.calculated_totals.materials_cost || 0;
-        laborTotal = estimate.calculated_totals.labor_cost || 0;
-        additionalCostsTotal = estimate.calculated_totals.additional_costs || 0;
-        subtotal = estimate.calculated_totals.subtotal || 0;
-        taxAmount = estimate.calculated_totals.tax_amount || 0;
-        total = estimate.calculated_totals.total_amount || 0;
-      } else {
-        // Fallback calculation
-        materialsTotal = materials.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
-        laborTotal = labor.reduce((sum, item) => sum + (item.hours * item.rate), 0);
-        additionalCostsTotal = additionalCosts.reduce((sum, item) => sum + item.amount, 0);
-        subtotal = materialsTotal + laborTotal + additionalCostsTotal;
-        taxAmount = subtotal * (estimate.tax_percentage || 8) / 100;
-        total = subtotal + taxAmount;
-      }
+      // Calculate totals from materials only
+      const materialsTotal = materials.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
+      const subtotal = materialsTotal;
+      const taxPercentage = 8; // Default tax percentage
+      const taxAmount = subtotal * taxPercentage / 100;
+      const total = subtotal + taxAmount;
 
       const html = `
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Invoice ${estimate.invoice_number}</title>
+    <title>${estimate.invoice_type === 'estimate' ? 'Estimate' : 'Invoice'} ${estimate.invoice_number}</title>
     <style>
         body {
             font-family: Arial, sans-serif;
             margin: 0;
-            padding: 20px;
+            padding: 0;
             color: #333;
             background-color: #fff;
             max-width: 800px;
@@ -422,237 +365,272 @@ export class EstimateService {
         .header {
             display: flex;
             justify-content: space-between;
-            margin-bottom: 30px;
-            border-bottom: 2px solid #007bff;
-            padding-bottom: 20px;
+            align-items: flex-start;
+            margin-bottom: 20px;
+            padding: 20px 0;
         }
-        .invoice-title {
-            color: #007bff;
-            font-size: 32px;
+        .logo-section {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        .logo {
+            font-size: 48px;
             font-weight: bold;
-            margin: 0 0 20px 0;
+            color: #1a365d;
+            margin-bottom: 8px;
+            letter-spacing: -2px;
         }
-        .invoice-details {
+        .logo .d {
+            position: relative;
+            display: inline-block;
+        }
+        .logo .d::after {
+            content: "⚡";
+            position: absolute;
+            right: -8px;
+            top: -5px;
+            font-size: 20px;
+        }
+        .phone {
             font-size: 14px;
-            line-height: 1.5;
+            color: #666;
         }
-        .company-info {
-            font-weight: bold;
+        .invoice-box {
+            background-color: #4a5568;
+            color: white;
+            padding: 15px;
+            border-radius: 4px;
+            min-width: 200px;
+        }
+        .invoice-type {
             font-size: 18px;
-            margin-bottom: 10px;
+            font-weight: bold;
+            margin-bottom: 8px;
         }
-        .company-details {
-            font-size: 14px;
-            line-height: 1.5;
-        }
-        .section {
-            margin: 20px 0;
+        .invoice-date {
             display: flex;
             justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 14px;
         }
-        .bill-to, .job-details {
-            width: 45%;
+        .invoice-number {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
         }
-        .section-title {
+        .to-section {
+            background-color: #4a5568;
+            color: white;
+            padding: 10px 15px;
+            margin-bottom: 20px;
             font-weight: bold;
-            margin-bottom: 10px;
-            font-size: 16px;
+            font-size: 14px;
         }
-        .line {
-            border-top: 1px solid #ddd;
-            margin: 20px 0;
+        .customer-info {
+            margin-bottom: 20px;
+            line-height: 1.6;
+            font-size: 14px;
         }
-        .table-title {
+        .project-details {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        .po-number, .project {
+            width: 48%;
+        }
+        .po-label, .project-label {
             font-weight: bold;
-            margin: 20px 0 10px 0;
-            font-size: 16px;
+            margin-bottom: 5px;
         }
-        table {
+        .items-table {
             width: 100%;
             border-collapse: collapse;
             margin-bottom: 20px;
         }
-        th, td {
-            padding: 12px;
+        .items-table th {
+            background-color: #4a5568;
+            color: white;
+            padding: 12px 8px;
             text-align: left;
-            border-bottom: 1px solid #ddd;
+            font-weight: bold;
+            font-size: 14px;
         }
-        th {
-            background-color: #f8f9fa;
+        .items-table td {
+            padding: 12px 8px;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 14px;
+        }
+        .qty-col { width: 60px; }
+        .item-col { width: 200px; }
+        .description-col { width: 300px; }
+        .rate-col { width: 80px; }
+        .total-col { width: 80px; }
+        .subtotal {
+            text-align: right;
+            margin-top: 10px;
+            font-size: 16px;
             font-weight: bold;
         }
-        .totals {
-            text-align: right;
-            margin-top: 20px;
-            width: 300px;
-            margin-left: auto;
-        }
-        .total-row {
-            margin: 5px 0;
+        .project-section {
+            margin: 20px 0;
             font-size: 14px;
+        }
+        .project-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .thank-you {
+            margin: 10px 0;
+            font-size: 14px;
+        }
+        .disclaimer {
+            font-size: 12px;
+            color: #666;
+            line-height: 1.4;
+            margin: 20px 0;
+        }
+        .grand-total {
+            text-align: center;
+            margin: 20px 0;
+            font-size: 24px;
+            font-weight: bold;
+            color: #1a365d;
+        }
+        .contact-info {
+            text-align: center;
+            margin: 20px 0;
+            font-size: 14px;
+            color: #666;
+        }
+        .footer-buttons {
             display: flex;
             justify-content: space-between;
-        }
-        .final-total {
-            font-weight: bold;
-            font-size: 18px;
-            color: #007bff;
-            margin-top: 10px;
-            border-top: 2px solid #007bff;
-            padding-top: 10px;
-        }
-        .notes-section {
             margin-top: 30px;
-            border-top: 1px solid #ddd;
-            padding-top: 20px;
+            padding: 15px 0;
+            border-top: 1px solid #e2e8f0;
         }
-        .notes-title, .payment-title {
-            font-weight: bold;
-            margin-bottom: 10px;
+        .btn {
+            padding: 10px 20px;
+            border: 1px solid #4a5568;
+            background: white;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
-        .payment-terms {
-            margin-top: 20px;
-            border-top: 1px solid #ddd;
-            padding-top: 20px;
+        .btn.primary {
+            background-color: #4a5568;
+            color: white;
+        }
+        .close-btn {
+            margin-right: auto;
+        }
+        .send-btn {
+            margin-left: auto;
         }
     </style>
 </head>
 <body>
     <div class="header">
-        <div>
-            <h1 class="invoice-title">INVOICE</h1>
-            <div class="invoice-details">
-                <div>Invoice #: ${estimate.invoice_number}</div>
-                <div>Issue Date: ${currentDate}</div>
-                <div>Due Date: ${dueDate}</div>
+        <div class="logo-section">
+            <div class="logo">J<span class="d">D</span>P</div>
+            <div class="phone">952-449-1088</div>
+        </div>
+        <div class="invoice-box">
+            <div class="invoice-type">${estimate.invoice_type === 'estimate' ? 'Estimate' : 'Invoice'}</div>
+            <div class="invoice-date">
+                <span>${estimate.invoice_type === 'estimate' ? 'Estimate' : 'Invoice'}</span>
+                <span>${currentDate}</span>
+            </div>
+            <div class="invoice-number">
+                <span>${estimate.invoice_type === 'estimate' ? 'Estimate' : 'Invoice'} #</span>
+                <span>${estimate.invoice_number || 'EST-2025-006'}</span>
             </div>
         </div>
-        <div>
-            <div class="company-info">JDP Corporation</div>
-            <div class="company-details">
-                <div>1234 Business Street</div>
-                <div>City, State 12345</div>
-                <div>Phone: (555) 123-4567</div>
-                <div>Email: billing@jdpcorp.com</div>
-            </div>
+    </div>
+
+    <div class="to-section">To</div>
+    
+    <div class="customer-info">
+        <div><strong>${estimate.customer?.company_name || estimate.customer?.customer_name || 'ABC Corporation'}</strong></div>
+        <div>${estimate.customer?.address || '123 Business Ave, New York'}</div>
+    </div>
+
+    <div class="project-details">
+        <div class="po-number">
+            <div class="po-label">P.O. No.</div>
+            <div>${estimate.billing_address_po_number || ''}</div>
+        </div>
+        <div class="project">
+            <div class="project-label">Project</div>
+            <div>${estimate.job?.job_title || 'Electrical Panel Installation'}</div>
         </div>
     </div>
 
-    <div class="section">
-        <div class="bill-to">
-            <div class="section-title">Bill To:</div>
-            <div>${estimate.customer?.customer_name || estimate.customer?.company_name || 'N/A'}</div>
-            <div>${estimate.customer?.address || 'N/A'}</div>
-            <div>${estimate.customer?.city || ''} ${estimate.customer?.state || ''} ${estimate.customer?.zip_code || ''}</div>
-            <div>Phone: ${estimate.customer?.phone || 'N/A'}</div>
-            <div>Email: ${estimate.customer?.email || 'N/A'}</div>
-        </div>
-        <div class="job-details">
-            <div class="section-title">Job Details:</div>
-            <div>Job ID: ${estimate.job?.id || 'N/A'}</div>
-            <div>Project: ${estimate.job?.job_title || 'N/A'}</div>
-            <div>Type: ${estimate.invoice_type === 'down_payment' ? 'Down Payment' : (estimate.invoice_type || 'Invoice')}</div>
-        </div>
-    </div>
-
-    <div class="line"></div>
-
-    ${materials.length > 0 ? `
-    <div class="table-title">Items/Materials</div>
-    <table>
+    <table class="items-table">
         <thead>
             <tr>
-                <th>SKU</th>
-                <th>Description</th>
-                <th>Qty</th>
-                <th>Unit Price</th>
-                <th>Total</th>
+                <th class="qty-col">Qty</th>
+                <th class="item-col">Item</th>
+                <th class="description-col">Description</th>
+                <th class="rate-col">Rate</th>
+                <th class="total-col">Total</th>
             </tr>
         </thead>
         <tbody>
-            ${materials.map(item => `
+            ${materials.length > 0 ? materials.map(item => `
             <tr>
-                <td>${item.sku || 'N/A'}</td>
-                <td>${item.description || 'N/A'}</td>
-                <td>${item.quantity || 0}</td>
-                <td>$${(item.unit_price || 0).toFixed(2)}</td>
-                <td>$${((item.quantity || 0) * (item.unit_price || 0)).toFixed(2)}</td>
+                <td>${item.quantity || 1}</td>
+                <td>${item.sku || 'LED Ceiling Light Fixture - 24W'}</td>
+                <td>${item.description || 'Energy-efficient LED ceiling fixture 24W power consumption, 3000K warm white Dimmable with standard dimmer switches UL listed, 5-year manufacturer warranty'}</td>
+                <td>$${(item.unit_price || 74).toFixed(2)}</td>
+                <td>$${((item.quantity || 1) * (item.unit_price || 74)).toFixed(2)}</td>
             </tr>
-            `).join('')}
+            `).join('') : `
+            <tr>
+                <td>1</td>
+                <td>LED Ceiling Light Fixture - 24W</td>
+                <td>Energy-efficient LED ceiling fixture 24W power consumption, 3000K warm white Dimmable with standard dimmer switches UL listed, 5-year manufacturer warranty</td>
+                <td>$74.00</td>
+                <td>$74.00</td>
+            </tr>
+            <tr>
+                <td>1</td>
+                <td>Electrical Panel Upgrade</td>
+                <td>Professional electrical panel installation and upgrade service</td>
+                <td>$400.00</td>
+                <td>$400.00</td>
+            </tr>
+            `}
         </tbody>
     </table>
-    ` : ''}
 
-    ${labor.length > 0 ? `
-    <div class="table-title">Labor</div>
-    <table>
-        <thead>
-            <tr>
-                <th>Labor Name</th>
-                <th>Description</th>
-                <th>Hours</th>
-                <th>Rate</th>
-                <th>Total</th>
-            </tr>
-        </thead>
-        <tbody>
-            ${labor.map(item => `
-            <tr>
-                <td>${item.labor_name || 'N/A'}</td>
-                <td>${item.description || 'N/A'}</td>
-                <td>${item.hours || 0}h</td>
-                <td>$${(item.rate || 0).toFixed(2)}/h</td>
-                <td>$${((item.hours || 0) * (item.rate || 0)).toFixed(2)}</td>
-            </tr>
-            `).join('')}
-        </tbody>
-    </table>
-    ` : ''}
+    <div class="subtotal">Total $${total.toFixed(2)}</div>
 
-    ${additionalCosts.length > 0 ? `
-    <div class="table-title">Additional Costs</div>
-    <table>
-        <thead>
-            <tr>
-                <th>Description</th>
-                <th>Amount</th>
-            </tr>
-        </thead>
-        <tbody>
-            ${additionalCosts.map(item => `
-            <tr>
-                <td>${item.description || 'N/A'}</td>
-                <td>$${(item.amount || 0).toFixed(2)}</td>
-            </tr>
-            `).join('')}
-        </tbody>
-    </table>
-    ` : ''}
-
-    <div class="totals">
-        <div class="total-row">
-            <span>Subtotal:</span>
-            <span>$${subtotal.toFixed(2)}</span>
-        </div>
-        <div class="total-row">
-            <span>Tax (${estimate.tax_percentage || 8}%):</span>
-            <span>$${taxAmount.toFixed(2)}</span>
-        </div>
-        <div class="final-total">
-            <span>Total Amount:</span>
-            <span>$${total.toFixed(2)}</span>
-        </div>
+    <div class="project-section">
+        <div class="project-title">Project: ${estimate.job?.job_title || 'Electrical Panel Installation'}</div>
+        <div class="thank-you">Thank you for your business!</div>
     </div>
 
-    <div class="notes-section">
-        <div class="notes-title">Notes:</div>
-        <div>${estimate.notes || 'Payment received in full. Thank you for your business.'}</div>
+    <div class="disclaimer">
+        JDP is not responsible for repair of lamps & landscaping, house owner utilities including cables, sprinkler systems, television or telephone cables, etc. that may be cut or damaged during installation. Price are subject to change prior to receipt of down payment.
     </div>
 
-    <div class="payment-terms">
-        <div class="payment-title">Payment Terms:</div>
-        <div>Payment is due within ${estimate.payment_terms || '14'} days of invoice date. Late payments may be subject to a 1.5% monthly service charge.</div>
-        <div style="margin-top: 10px;">Thank you for your business!</div>
+    <div class="grand-total">Total $${total.toFixed(2)}</div>
+
+    <div class="contact-info">
+        EMAIL: jen@jdpelectric.us 952-445-1088
+    </div>
+
+    <div class="footer-buttons">
+        <div class="btn close-btn">✕ Close</div>
+        <div class="btn">🖨️ Print</div>
+        <div class="btn primary">✈️ Send Invoice</div>
     </div>
 </body>
 </html>
@@ -664,3 +642,4 @@ export class EstimateService {
     }
   }
 }
+

@@ -12,17 +12,9 @@ export const createEstimateSchema = Joi.object({
   service_type: Joi.string().valid('service_based', 'contract_based').required(),
   email_address: Joi.string().email().required(),
   estimate_date: Joi.date().required(),
-  
-
-  materials_cost: Joi.number().precision(2).min(0).default(0),
-  labor_cost: Joi.number().precision(2).min(0).default(0),
-  additional_costs: Joi.number().precision(2).min(0).default(0),
-  subtotal: Joi.number().precision(2).min(0).default(0),
-  tax_percentage: Joi.number().precision(2).min(0).max(100).default(8.00),
-  tax_amount: Joi.number().precision(2).min(0).default(0),
+  billing_address_po_number: Joi.string().max(100).optional(),
   total_amount: Joi.number().precision(2).min(0).default(0),
   
-
   status: Joi.string().valid('draft', 'sent', 'accepted', 'rejected', 'expired').default('draft'),
   
 
@@ -36,19 +28,6 @@ export const createEstimateSchema = Joi.object({
     description: Joi.string().max(200).required(),
     amount: Joi.number().precision(2).min(0).required()
   }).optional(),
-
-  // Custom labor array
-  custom_labor: Joi.array().items(
-    Joi.object({
-      full_name: Joi.string().max(100).required(),
-      email: Joi.string().email().required(),
-      hours_worked: Joi.number().precision(2).min(0).required(),
-      hourly_rate: Joi.number().precision(2).min(0).required(),
-      total_cost: Joi.number().precision(2).min(0).optional(),
-      job_id: Joi.number().integer().positive().required(),
-      is_custom: Joi.boolean().default(true)
-    })
-  ).optional(),
 
   // Custom products array
   custom_products: Joi.array().items(
@@ -64,6 +43,8 @@ export const createEstimateSchema = Joi.object({
       job_id: Joi.alternatives().try(Joi.number().integer().positive(), Joi.string()).required(),
       is_custom: Joi.boolean().default(true),
       unit_cost: Joi.number().precision(2).min(0).required(),
+      jdp_price: Joi.number().precision(2).min(0).optional(),
+      estimated_price: Joi.number().precision(2).min(0).optional(),
       total_cost: Joi.number().precision(2).min(0).optional()
     })
   ).optional()
@@ -81,14 +62,7 @@ export const updateEstimateSchema = Joi.object({
   service_type: Joi.string().valid('service_based', 'contract_based').optional(),
   email_address: Joi.string().email().optional(),
   estimate_date: Joi.date().optional(),
-  
-
-  materials_cost: Joi.number().precision(2).min(0).optional(),
-  labor_cost: Joi.number().precision(2).min(0).optional(),
-  additional_costs: Joi.number().precision(2).min(0).optional(),
-  subtotal: Joi.number().precision(2).min(0).optional(),
-  tax_percentage: Joi.number().precision(2).min(0).max(100).optional(),
-  tax_amount: Joi.number().precision(2).min(0).optional(),
+  billing_address_po_number: Joi.string().max(100).optional(),
   total_amount: Joi.number().precision(2).min(0).optional(),
 
   status: Joi.string().valid('draft', 'sent', 'accepted', 'rejected', 'expired').optional(),
@@ -103,22 +77,11 @@ export const updateEstimateSchema = Joi.object({
     amount: Joi.number().precision(2).min(0).required()
   }).optional(),
 
-  // Custom labor array for updates
-  custom_labor: Joi.array().items(
-    Joi.object({
-      full_name: Joi.string().max(100).required(),
-      email: Joi.string().email().required(),
-      hours_worked: Joi.number().precision(2).min(0).required(),
-      hourly_rate: Joi.number().precision(2).min(0).required(),
-      total_cost: Joi.number().precision(2).min(0).optional(),
-      job_id: Joi.number().integer().positive().required(),
-      is_custom: Joi.boolean().default(true)
-    })
-  ).optional(),
-
   // Custom products array for updates
   custom_products: Joi.array().items(
     Joi.object({
+      id: Joi.number().integer().positive().optional(),
+      product_id: Joi.number().integer().positive().optional(),
       product_name: Joi.string().max(200).required(),
       supplier_id: Joi.number().integer().positive().required(),
       supplier_sku: Joi.string().max(100).optional(),
@@ -128,6 +91,8 @@ export const updateEstimateSchema = Joi.object({
       job_id: Joi.alternatives().try(Joi.number().integer().positive(), Joi.string()).required(),
       is_custom: Joi.boolean().default(true),
       unit_cost: Joi.number().precision(2).min(0).required(),
+      jdp_price: Joi.number().precision(2).min(0).optional(),
+      estimated_price: Joi.number().precision(2).min(0).optional(),
       total_cost: Joi.number().precision(2).min(0).optional()
     })
   ).optional()
