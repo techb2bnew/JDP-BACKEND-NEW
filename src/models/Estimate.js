@@ -55,16 +55,16 @@ export class Estimate {
         if (filters.status && (est.status || '').toLowerCase() !== String(filters.status).toLowerCase()) return false;
         if (filters.invoice_type && (est.invoice_type || '').toLowerCase() !== String(filters.invoice_type).toLowerCase()) return false;
         if (filters.customer &&
-            !(
-              Estimate.inStr(est.customer?.customer_name, filters.customer) ||
-              Estimate.inStr(est.customer?.company_name, filters.customer) ||
-              Estimate.inStr(est.customer?.email, filters.customer)
-            )) return false;
+          !(
+            Estimate.inStr(est.customer?.customer_name, filters.customer) ||
+            Estimate.inStr(est.customer?.company_name, filters.customer) ||
+            Estimate.inStr(est.customer?.email, filters.customer)
+          )) return false;
         if (filters.job &&
-            !(
-              Estimate.inStr(est.job?.job_title, filters.job) ||
-              Estimate.inStr(est.job?.id?.toString(), filters.job)
-            )) return false;
+          !(
+            Estimate.inStr(est.job?.job_title, filters.job) ||
+            Estimate.inStr(est.job?.id?.toString(), filters.job)
+          )) return false;
 
         return true;
       };
@@ -90,22 +90,22 @@ export class Estimate {
   static async generateInvoiceNumber() {
     try {
       const { data, error } = await supabase.rpc('generate_invoice_number');
-      
+
       if (error) {
         const currentYear = new Date().getFullYear();
         const prefix = `INV-${currentYear}-`;
-        
+
         const { data: lastInvoice, error: fetchError } = await supabase
           .from('estimates')
           .select('invoice_number')
           .like('invoice_number', prefix + '%')
           .order('invoice_number', { ascending: false })
           .limit(1);
-        
+
         if (fetchError) {
           throw new Error(`Database error: ${fetchError.message}`);
         }
-        
+
         let nextNumber = 1;
         if (lastInvoice && lastInvoice.length > 0) {
           const lastNumber = lastInvoice[0].invoice_number;
@@ -114,10 +114,10 @@ export class Estimate {
             nextNumber = parseInt(match[1]) + 1;
           }
         }
-        
+
         return `${prefix}${nextNumber.toString().padStart(3, '0')}`;
       }
-      
+
       return data;
     } catch (error) {
       throw error;
@@ -128,7 +128,7 @@ export class Estimate {
     try {
       const currentYear = new Date().getFullYear();
       const prefix = `LB-${currentYear}-`;
-      
+
       const { data, error } = await supabase
         .from('labor')
         .select('labor_code')
@@ -141,7 +141,7 @@ export class Estimate {
       }
 
       let nextNumber = 1;
-      
+
       if (data && data.length > 0) {
         const lastCode = data[0].labor_code;
         const match = lastCode.match(new RegExp(`${prefix}(\\d+)`));
@@ -151,7 +151,7 @@ export class Estimate {
       }
 
       const formattedNumber = nextNumber.toString().padStart(3, '0');
-      
+
       return `${prefix}${formattedNumber}`;
     } catch (error) {
       throw error;
@@ -162,7 +162,7 @@ export class Estimate {
     try {
       const currentYear = new Date().getFullYear();
       const prefix = `JDP-PROD-${currentYear}-`;
-      
+
       const { data, error } = await supabase
         .from('products')
         .select('jdp_sku')
@@ -175,7 +175,7 @@ export class Estimate {
       }
 
       let nextNumber = 1;
-      
+
       if (data && data.length > 0) {
         const lastSku = data[0].jdp_sku;
         const match = lastSku.match(new RegExp(`${prefix}(\\d+)`));
@@ -185,7 +185,7 @@ export class Estimate {
       }
 
       const formattedNumber = nextNumber.toString().padStart(4, '0');
-      
+
       return `${prefix}${formattedNumber}`;
     } catch (error) {
       throw error;
@@ -202,7 +202,7 @@ export class Estimate {
 
       const additionalCost = estimateData.additional_cost;
       const customProducts = estimateData.custom_products;
-      
+
       delete estimateData.additional_cost;
       delete estimateData.custom_products;
 
@@ -280,7 +280,7 @@ export class Estimate {
             if (productItem.id || productItem.product_id) {
               const productId = productItem.id || productItem.product_id;
               console.log('UPDATE - Updating existing product with ID:', productId);
-              
+
               // Update existing product
               const updateData = {
                 product_name: productItem.product_name,
@@ -293,6 +293,7 @@ export class Estimate {
                 estimated_price: productItem.estimated_price || null,
                 total_cost: productItem.total_cost || productItem.unit_cost,
                 status: 'active',
+                description: productItem.description,
                 is_custom: true
               };
 
@@ -333,6 +334,7 @@ export class Estimate {
                 estimated_price: productItem.estimated_price || null,
                 total_cost: productItem.total_cost || productItem.unit_cost,
                 status: 'active',
+                description: productItem.description,
                 created_by: estimateData.created_by || null,
                 system_ip: estimateData.system_ip || null
               };
@@ -425,11 +427,11 @@ export class Estimate {
       const productsTotalCost = products.reduce((sum, product) => {
         return sum + (parseFloat(product.total_cost) || 0);
       }, 0);
-      
+
       const additionalCostsTotal = additionalCosts.reduce((sum, cost) => {
         return sum + (parseFloat(cost.amount) || 0);
       }, 0);
-      
+
       const calculatedTotalAmount = productsTotalCost + additionalCostsTotal;
 
       return {
@@ -567,11 +569,11 @@ export class Estimate {
             const price = parseFloat(product.jdp_price) || parseFloat(product.estimated_price) || parseFloat(product.supplier_cost_price) || 0;
             return sum + price;
           }, 0);
-          
+
           const additionalCostsTotal = additionalCostsData.reduce((sum, cost) => {
             return sum + (parseFloat(cost.amount) || 0);
           }, 0);
-          
+
           const calculatedTotalAmount = productsTotalCost + additionalCostsTotal;
 
           return {
@@ -598,7 +600,7 @@ export class Estimate {
   static async findById(estimateId) {
     try {
       console.log(`Fetching estimate with ID: ${estimateId}`);
-      
+
       const { data, error } = await supabase
         .from("estimates")
         .select(`
@@ -651,7 +653,7 @@ export class Estimate {
 
       // Get additional costs
       const additionalCosts = await Estimate.getAdditionalCosts(estimateId);
-      
+
       // Get products from job
       let products = [];
       if (data.job && data.job.id) {
@@ -673,7 +675,7 @@ export class Estimate {
             supplier_id
           `)
           .eq("job_id", data.job.id)
-          // .eq("is_custom", true);
+        // .eq("is_custom", true);
 
         if (!productsError && jobProducts) {
           products = jobProducts;
@@ -684,11 +686,11 @@ export class Estimate {
       const productsTotalCost = products.reduce((sum, product) => {
         return sum + (parseFloat(product.total_cost) || 0);
       }, 0);
-      
+
       const additionalCostsTotal = additionalCosts.reduce((sum, cost) => {
         return sum + (parseFloat(cost.amount) || 0);
       }, 0);
-      
+
       const calculatedTotalAmount = productsTotalCost + additionalCostsTotal;
 
       console.log(`Estimate found: ${data.id}, title: ${data.estimate_title}`);
@@ -699,7 +701,7 @@ export class Estimate {
         products: products,
         labor: []
       };
-      } catch (error) {
+    } catch (error) {
       console.error("Error in findById method:", error);
       console.error("Error message:", error.message);
       console.error("Error stack:", error.stack);
@@ -715,7 +717,7 @@ export class Estimate {
         .from("estimates")
         .select("id, estimate_title, total_amount, status")
         .eq("id", estimateId)
-            .single();
+        .single();
 
       if (error && error.code !== "PGRST116") {
         console.error("Simple findById error:", error);
@@ -729,7 +731,7 @@ export class Estimate {
 
       console.log(`Simple find - Estimate found: ${data.id}, title: ${data.estimate_title}`);
       return data;
-      } catch (error) {
+    } catch (error) {
       console.error("Error in simpleFindById method:", error);
       throw error;
     }
@@ -746,7 +748,7 @@ export class Estimate {
       const additionalCost = updateData.additional_cost;
       const customLabor = updateData.custom_labor;
       const customProducts = updateData.custom_products;
-      
+
       delete updateData.additional_cost;
       delete updateData.custom_labor;
       delete updateData.custom_products;
@@ -755,9 +757,9 @@ export class Estimate {
         description: updateData.description,
         notes: updateData.notes,
         estimate_title: updateData.estimate_title
-      }); 
+      });
 
-     
+
       const { data, error } = await supabase
         .from("estimates")
         .update(updateData)
@@ -796,9 +798,9 @@ export class Estimate {
         throw new Error(`Database error: ${error.message}`);
       }
 
-      
+
       if (additionalCost !== undefined) {
-        
+
         const { error: deleteError } = await supabase
           .from("estimate_additional_costs")
           .delete()
@@ -808,7 +810,7 @@ export class Estimate {
           console.error('Error deleting existing additional cost:', deleteError);
         }
 
-       
+
         if (additionalCost && additionalCost.description && additionalCost.amount) {
           const additionalCostData = {
             estimate_id: estimateId,
@@ -837,7 +839,7 @@ export class Estimate {
             if (productItem.id || productItem.product_id) {
               const productId = productItem.id || productItem.product_id;
               console.log('UPDATE - Updating existing product with ID:', productId);
-              
+
               // Update existing product
               const updateData = {
                 product_name: productItem.product_name,
@@ -850,6 +852,7 @@ export class Estimate {
                 estimated_price: productItem.estimated_price || null,
                 total_cost: productItem.total_cost || productItem.unit_cost,
                 status: 'active',
+                description: productItem.description,
                 is_custom: true
               };
 
@@ -890,6 +893,7 @@ export class Estimate {
                 estimated_price: productItem.estimated_price || null,
                 total_cost: productItem.total_cost || productItem.unit_cost,
                 status: 'active',
+                description: productItem.description,
                 created_by: updateData.created_by || null,
                 system_ip: updateData.system_ip || null
               };
@@ -908,7 +912,7 @@ export class Estimate {
         }
       }
 
-      
+
       const { data: completeEstimate, error: fetchError } = await supabase
         .from("estimates")
         .select(`
@@ -981,11 +985,11 @@ export class Estimate {
       const productsTotalCost = products.reduce((sum, product) => {
         return sum + (parseFloat(product.total_cost) || 0);
       }, 0);
-      
+
       const additionalCostsTotal = additionalCosts.reduce((sum, cost) => {
         return sum + (parseFloat(cost.amount) || 0);
       }, 0);
-      
+
       const calculatedTotalAmount = productsTotalCost + additionalCostsTotal;
 
       return {
@@ -1007,7 +1011,7 @@ export class Estimate {
     try {
       console.log(`Deleting estimate with ID: ${estimateId}`);
 
-      
+
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Delete query timeout')), 15000)
       );
@@ -1106,7 +1110,7 @@ export class Estimate {
         throw new Error(`Database error: ${rejectedError.message}`);
       }
 
-      
+
       const { data: additionalCostsData, error: additionalCostsError } = await supabase
         .from("estimate_additional_costs")
         .select("amount");
@@ -1126,8 +1130,8 @@ export class Estimate {
         return sum + (parseFloat(cost.amount) || 0);
       }, 0);
 
-      const paid = accepted; 
-      const pending = draft + sent; 
+      const paid = accepted;
+      const pending = draft + sent;
       const expired = rejected;
 
       return {
@@ -1139,7 +1143,7 @@ export class Estimate {
             color: "blue"
           },
           total_billed: {
-            label: "Total Billed", 
+            label: "Total Billed",
             value: `$${totalBilled.toFixed(2)}`,
             icon: "dollar",
             color: "green"
@@ -1157,20 +1161,20 @@ export class Estimate {
             color: "orange"
           }
         },
-        
+
         detailed_stats: {
-        total,
-        draft,
-        sent,
-        accepted,
-        rejected,
+          total,
+          draft,
+          sent,
+          accepted,
+          rejected,
           paid,
           pending,
           expired,
           totalBilled: totalBilled.toFixed(2),
-        draftPercentage: total > 0 ? ((draft / total) * 100).toFixed(1) : "0.0",
-        sentPercentage: total > 0 ? ((sent / total) * 100).toFixed(1) : "0.0",
-        acceptedPercentage: total > 0 ? ((accepted / total) * 100).toFixed(1) : "0.0",
+          draftPercentage: total > 0 ? ((draft / total) * 100).toFixed(1) : "0.0",
+          sentPercentage: total > 0 ? ((sent / total) * 100).toFixed(1) : "0.0",
+          acceptedPercentage: total > 0 ? ((accepted / total) * 100).toFixed(1) : "0.0",
           rejectedPercentage: total > 0 ? ((rejected / total) * 100).toFixed(1) : "0.0",
           paidPercentage: total > 0 ? ((paid / total) * 100).toFixed(1) : "0.0",
           pendingPercentage: total > 0 ? ((pending / total) * 100).toFixed(1) : "0.0"
@@ -1184,23 +1188,23 @@ export class Estimate {
   static async getEstimatesByJob(jobId, page = 1, limit = 10) {
     try {
       const result = await Estimate.findAll({ job_id: jobId }, { page, limit });
-      
+
       if (result.estimates && result.estimates.length > 0) {
         const estimatesWithCalculations = await Promise.all(
           result.estimates.map(async (estimate) => {
             try {
               const additionalCosts = await Estimate.getAdditionalCosts(estimate.id);
-              
+
               const materialsCost = parseFloat(estimate.materials_cost) || 0;
               const laborCost = parseFloat(estimate.labor_cost) || 0;
               const additionalCostsTotal = additionalCosts.reduce((sum, cost) => {
                 return sum + (parseFloat(cost.amount) || 0);
               }, 0);
-              
+
               const subtotal = materialsCost + laborCost + additionalCostsTotal;
               const taxAmount = (subtotal * (parseFloat(estimate.tax_percentage) || 0)) / 100;
               const totalAmount = subtotal + taxAmount;
-              
+
               return {
                 ...estimate,
                 additional_costs_list: additionalCosts,
@@ -1224,10 +1228,10 @@ export class Estimate {
             }
           })
         );
-        
+
         result.estimates = estimatesWithCalculations;
       }
-      
+
       return result;
     } catch (error) {
       throw error;
@@ -1243,7 +1247,7 @@ export class Estimate {
     }
   }
 
- 
+
   static async createAdditionalCost(additionalCostData) {
     try {
       const { data, error } = await supabase
@@ -1325,7 +1329,7 @@ export class Estimate {
 
       // Get additional costs from estimate_additional_costs table
       const additionalCosts = await Estimate.getAdditionalCosts(estimateId);
-      
+
       const additionalCostsTotal = additionalCosts.reduce((sum, cost) => {
         return sum + (parseFloat(cost.amount) || 0);
       }, 0);
@@ -1344,7 +1348,7 @@ export class Estimate {
     }
   }
 
- 
+
   static async checkEstimateRelationships(estimateId) {
     try {
 
@@ -1362,10 +1366,10 @@ export class Estimate {
       console.log('Checking additional costs...');
       try {
         const additionalCostsQuery = supabase
-        .from('estimate_additional_costs')
-        .select('id, description')
-        .eq('estimate_id', estimateId)
-        .limit(1);
+          .from('estimate_additional_costs')
+          .select('id, description')
+          .eq('estimate_id', estimateId)
+          .limit(1);
 
         const timeoutPromise = new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Query timeout')), 10000)
@@ -1376,16 +1380,16 @@ export class Estimate {
           timeoutPromise
         ]);
 
-      if (additionalCostsError) {
-        console.error('Error checking additional costs:', additionalCostsError);
+        if (additionalCostsError) {
+          console.error('Error checking additional costs:', additionalCostsError);
           console.error('Error details:', JSON.stringify(additionalCostsError, null, 2));
-      } else if (additionalCostsData && additionalCostsData.length > 0) {
+        } else if (additionalCostsData && additionalCostsData.length > 0) {
           console.log(`Found ${additionalCostsData.length} additional costs`);
-        relationships.push({
-          table: 'estimate_additional_costs',
-          count: additionalCostsData.length,
-          message: 'This estimate has associated additional costs'
-        });
+          relationships.push({
+            table: 'estimate_additional_costs',
+            count: additionalCostsData.length,
+            message: 'This estimate has associated additional costs'
+          });
         } else {
           console.log('No additional costs found');
         }
