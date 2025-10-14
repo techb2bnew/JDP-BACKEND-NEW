@@ -645,7 +645,7 @@ export class Job {
             company_name,
             email,
             phone,
-            address,
+            address
           ),
           contractor:contractors!jobs_contractor_id_fkey(
             id,
