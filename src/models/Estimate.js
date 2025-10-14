@@ -194,6 +194,12 @@ export class Estimate {
 
   static async create(estimateData) {
     try {
+      console.log('CREATE - Received estimateData:', {
+        description: estimateData.description,
+        notes: estimateData.notes,
+        estimate_title: estimateData.estimate_title
+      });
+
       const additionalCost = estimateData.additional_cost;
       const customProducts = estimateData.custom_products;
       
@@ -203,6 +209,12 @@ export class Estimate {
       if (!estimateData.invoice_number) {
         estimateData.invoice_number = await Estimate.generateInvoiceNumber();
       }
+
+      console.log('CREATE - Data being inserted:', {
+        description: estimateData.description,
+        notes: estimateData.notes,
+        estimate_title: estimateData.estimate_title
+      });
 
       const { data, error } = await supabase
         .from("estimates")
@@ -725,13 +737,25 @@ export class Estimate {
 
   static async update(estimateId, updateData) {
     try {
+      console.log('UPDATE - Received updateData:', {
+        description: updateData.description,
+        notes: updateData.notes,
+        estimate_title: updateData.estimate_title
+      });
+
       const additionalCost = updateData.additional_cost;
       const customLabor = updateData.custom_labor;
       const customProducts = updateData.custom_products;
       
       delete updateData.additional_cost;
       delete updateData.custom_labor;
-      delete updateData.custom_products; 
+      delete updateData.custom_products;
+
+      console.log('UPDATE - Data being updated:', {
+        description: updateData.description,
+        notes: updateData.notes,
+        estimate_title: updateData.estimate_title
+      }); 
 
      
       const { data, error } = await supabase
