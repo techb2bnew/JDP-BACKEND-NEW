@@ -532,6 +532,7 @@ export class Estimate {
                 jdp_price,
                 estimated_price,
                 supplier_cost_price,
+                total_cost,
                 stock_quantity,
                 unit,
                 category,
@@ -543,7 +544,7 @@ export class Estimate {
 
             if (!productsError && jobProducts) {
               products = jobProducts;
-              console.log(`Found ${products.length} products for job_id ${estimate.job_id}:`, products.map(p => ({ id: p.id, name: p.product_name, jdp_price: p.jdp_price })));
+              console.log(`Found ${products.length} products for job_id ${estimate.job_id}:`, products.map(p => ({ id: p.id, name: p.product_name, jdp_price: p.jdp_price, total_cost: p.total_cost })));
             } else {
               console.log(`No products found for job_id ${estimate.job_id}. Error:`, productsError);
             }
@@ -565,9 +566,7 @@ export class Estimate {
 
           // Calculate total amount from products and additional costs
           const productsTotalCost = products.reduce((sum, product) => {
-            // Use jdp_price if available, otherwise estimated_price, otherwise supplier_cost_price
-            const price = parseFloat(product.jdp_price) || parseFloat(product.estimated_price) || parseFloat(product.supplier_cost_price) || 0;
-            return sum + price;
+            return sum + (parseFloat(product.total_cost) || 0);
           }, 0);
 
           const additionalCostsTotal = additionalCostsData.reduce((sum, cost) => {
@@ -667,6 +666,7 @@ export class Estimate {
             unit_cost,
             jdp_price,
             estimated_price,
+            supplier_cost_price,
             total_cost,
             stock_quantity,
             unit,
