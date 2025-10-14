@@ -644,14 +644,16 @@ export class Job {
             customer_name,
             company_name,
             email,
-            phone
+            phone,
+            address,
           ),
           contractor:contractors!jobs_contractor_id_fkey(
             id,
             contractor_name,
             company_name,
             email,
-            phone
+            phone,
+            address
           ),
           created_by_user:users!jobs_created_by_fkey(
             id,
