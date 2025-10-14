@@ -46,7 +46,8 @@ export const createEstimateSchema = Joi.object({
       unit_cost: Joi.number().precision(2).min(0).required(),
       jdp_price: Joi.number().precision(2).min(0).optional(),
       estimated_price: Joi.number().precision(2).min(0).optional(),
-      total_cost: Joi.number().precision(2).min(0).optional()
+      total_cost: Joi.number().precision(2).min(0).optional(),
+      description: Joi.string().allow('').optional()
     })
   ).optional()
 }).or('customer_id', 'contractor_id'); // At least one of customer_id or contractor_id is required
@@ -95,7 +96,8 @@ export const updateEstimateSchema = Joi.object({
       unit_cost: Joi.number().precision(2).min(0).required(),
       jdp_price: Joi.number().precision(2).min(0).optional(),
       estimated_price: Joi.number().precision(2).min(0).optional(),
-      total_cost: Joi.number().precision(2).min(0).optional()
+      total_cost: Joi.number().precision(2).min(0).optional(),
+      description: Joi.string().allow('').optional()
     })
   ).optional()
 });
