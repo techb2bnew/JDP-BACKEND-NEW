@@ -498,8 +498,77 @@ export class Estimate {
         throw new Error(`Database error: ${error.message}`);
       }
 
+      // Fetch products and calculate totals for each estimate
+      const estimatesWithDetails = await Promise.all(
+        (data || []).map(async (estimate) => {
+          // Fetch products for this estimate's job
+          let products = [];
+          if (estimate.job_id) {
+            const { data: jobProducts, error: productsError } = await supabase
+              .from("products")
+              .select(`
+                id,
+                product_name,
+                jdp_sku,
+                supplier_sku,
+                jdp_price,
+                estimated_price,
+                supplier_cost_price,
+                stock_quantity,
+                unit,
+                category,
+                description,
+                supplier_id
+              `)
+              .eq("job_id", estimate.job_id);
+            // .eq("is_custom", true);
+
+            if (!productsError && jobProducts) {
+              products = jobProducts;
+              console.log(`Found ${products.length} products for job_id ${estimate.job_id}:`, products.map(p => ({ id: p.id, name: p.product_name, jdp_price: p.jdp_price })));
+            } else {
+              console.log(`No products found for job_id ${estimate.job_id}. Error:`, productsError);
+            }
+          }
+
+          // Fetch additional costs
+          const { data: additionalCosts, error: additionalCostsError } = await supabase
+            .from("estimate_additional_costs")
+            .select(`
+              id,
+              description,
+              amount,
+              created_at,
+              created_by
+            `)
+            .eq("estimate_id", estimate.id);
+
+          const additionalCostsData = additionalCostsError ? [] : (additionalCosts || []);
+
+          // Calculate total amount from products and additional costs
+          const productsTotalCost = products.reduce((sum, product) => {
+            // Use jdp_price if available, otherwise estimated_price, otherwise supplier_cost_price
+            const price = parseFloat(product.jdp_price) || parseFloat(product.estimated_price) || parseFloat(product.supplier_cost_price) || 0;
+            return sum + price;
+          }, 0);
+          
+          const additionalCostsTotal = additionalCostsData.reduce((sum, cost) => {
+            return sum + (parseFloat(cost.amount) || 0);
+          }, 0);
+          
+          const calculatedTotalAmount = productsTotalCost + additionalCostsTotal;
+
+          return {
+            ...estimate,
+            total_amount: calculatedTotalAmount,
+            products: products,
+            additional_costs_details: additionalCostsData
+          };
+        })
+      );
+
       return {
-        estimates: data || [],
+        estimates: estimatesWithDetails,
         total: count || 0,
         page: pagination.page || 1,
         limit: pagination.limit || 10,
