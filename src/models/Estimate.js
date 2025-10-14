@@ -264,8 +264,10 @@ export class Estimate {
         for (const productItem of customProducts) {
           try {
             // Check if product_id exists in payload (for update)
+            console.log('UPDATE - Processing product:', { id: productItem.id, product_id: productItem.product_id, name: productItem.product_name });
             if (productItem.id || productItem.product_id) {
               const productId = productItem.id || productItem.product_id;
+              console.log('UPDATE - Updating existing product with ID:', productId);
               
               // Update existing product
               const updateData = {
@@ -278,7 +280,8 @@ export class Estimate {
                 jdp_price: productItem.jdp_price || productItem.unit_cost,
                 estimated_price: productItem.estimated_price || null,
                 total_cost: productItem.total_cost || productItem.unit_cost,
-                status: 'active'
+                status: 'active',
+                is_custom: true
               };
 
               // Only update jdp_sku if provided
@@ -294,10 +297,11 @@ export class Estimate {
               if (updateError) {
                 console.error('Error updating product:', updateError);
               } else {
-                console.log(`Product ${productId} updated successfully`);
+                console.log(`UPDATE - Product ${productId} updated successfully`);
               }
             } else {
               // Create new product
+              console.log('UPDATE - Creating new product:', productItem.product_name);
               let jdpSku = productItem.jdp_sku;
               if (!jdpSku) {
                 jdpSku = await Estimate.generateProductSku();
@@ -805,8 +809,10 @@ export class Estimate {
         for (const productItem of customProducts) {
           try {
             // Check if product_id exists in payload (for update)
+            console.log('UPDATE - Processing product:', { id: productItem.id, product_id: productItem.product_id, name: productItem.product_name });
             if (productItem.id || productItem.product_id) {
               const productId = productItem.id || productItem.product_id;
+              console.log('UPDATE - Updating existing product with ID:', productId);
               
               // Update existing product
               const updateData = {
@@ -819,7 +825,8 @@ export class Estimate {
                 jdp_price: productItem.jdp_price || productItem.unit_cost,
                 estimated_price: productItem.estimated_price || null,
                 total_cost: productItem.total_cost || productItem.unit_cost,
-                status: 'active'
+                status: 'active',
+                is_custom: true
               };
 
               // Only update jdp_sku if provided
@@ -834,9 +841,12 @@ export class Estimate {
 
               if (updateError) {
                 console.error('Error updating product:', updateError);
+              } else {
+                console.log(`UPDATE - Product ${productId} updated successfully`);
               }
             } else {
               // Create new product
+              console.log('UPDATE - Creating new product:', productItem.product_name);
               let jdpSku = productItem.jdp_sku;
               if (!jdpSku) {
                 jdpSku = await Estimate.generateProductSku();
