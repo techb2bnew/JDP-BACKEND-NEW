@@ -36,7 +36,7 @@ export const createEstimateSchema = Joi.object({
       id: Joi.number().integer().positive().optional(),
       product_id: Joi.number().integer().positive().optional(),
       product_name: Joi.string().max(200).required(),
-      supplier_id: Joi.number().integer().positive().required(),
+      // supplier_id: Joi.number().integer().positive().required(),
       supplier_sku: Joi.string().max(100).optional(),
       jdp_sku: Joi.string().max(100).optional(),
       stock_quantity: Joi.number().integer().min(0).required(),

@@ -284,7 +284,7 @@ export class Estimate {
               // Update existing product
               const updateData = {
                 product_name: productItem.product_name,
-                supplier_id: productItem.supplier_id,
+                // supplier_id: productItem.supplier_id,
                 supplier_sku: productItem.supplier_sku || '',
                 stock_quantity: productItem.stock_quantity,
                 unit: productItem.unit,
@@ -322,7 +322,7 @@ export class Estimate {
 
               const productData = {
                 product_name: productItem.product_name,
-                supplier_id: productItem.supplier_id,
+                // supplier_id: productItem.supplier_id,
                 supplier_sku: productItem.supplier_sku || '',
                 jdp_sku: jdpSku,
                 stock_quantity: productItem.stock_quantity,
@@ -843,7 +843,7 @@ export class Estimate {
               // Update existing product
               const updateData = {
                 product_name: productItem.product_name,
-                supplier_id: productItem.supplier_id,
+                // supplier_id: productItem.supplier_id,
                 supplier_sku: productItem.supplier_sku || '',
                 stock_quantity: productItem.stock_quantity,
                 unit: productItem.unit,
@@ -881,7 +881,7 @@ export class Estimate {
 
               const productData = {
                 product_name: productItem.product_name,
-                supplier_id: productItem.supplier_id,
+                // supplier_id: productItem.supplier_id,
                 supplier_sku: productItem.supplier_sku || '',
                 jdp_sku: jdpSku,
                 stock_quantity: productItem.stock_quantity,
