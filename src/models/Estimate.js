@@ -328,6 +328,7 @@ export class Estimate {
                 stock_quantity: productItem.stock_quantity,
                 unit: productItem.unit,
                 job_id: parseInt(productItem.job_id),
+                estimate_id: data.id,
                 is_custom: true,
                 unit_cost: productItem.unit_cost,
                 jdp_price: productItem.jdp_price || productItem.unit_cost,
@@ -539,14 +540,14 @@ export class Estimate {
                 description,
                 supplier_id
               `)
-              .eq("job_id", estimate.job_id);
+              .eq("estimate_id", estimate.id);
             // .eq("is_custom", true);
 
             if (!productsError && jobProducts) {
               products = jobProducts;
-              console.log(`Found ${products.length} products for job_id ${estimate.job_id}:`, products.map(p => ({ id: p.id, name: p.product_name, jdp_price: p.jdp_price, total_cost: p.total_cost })));
+              console.log(`Found ${products.length} products for estimate_id ${estimate.id}:`, products.map(p => ({ id: p.id, name: p.product_name, jdp_price: p.jdp_price, total_cost: p.total_cost })));
             } else {
-              console.log(`No products found for job_id ${estimate.job_id}. Error:`, productsError);
+              console.log(`No products found for estimate_id ${estimate.id}. Error:`, productsError);
             }
           }
 
@@ -674,7 +675,7 @@ export class Estimate {
             description,
             supplier_id
           `)
-          .eq("job_id", data.job.id)
+          .eq("estimate_id", data.id)
         // .eq("is_custom", true);
 
         if (!productsError && jobProducts) {
@@ -887,6 +888,7 @@ export class Estimate {
                 stock_quantity: productItem.stock_quantity,
                 unit: productItem.unit,
                 job_id: parseInt(productItem.job_id),
+                estimate_id: data.id,
                 is_custom: true,
                 unit_cost: productItem.unit_cost,
                 jdp_price: productItem.jdp_price || productItem.unit_cost,

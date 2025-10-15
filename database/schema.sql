@@ -164,6 +164,7 @@ CREATE TABLE IF NOT EXISTS products (
   category            TEXT,
   supplier_id         BIGINT REFERENCES suppliers(id) ON DELETE CASCADE, 
   job_id              INT REFERENCES jobs(id) ON DELETE SET NULL,
+  estimate_id         INT REFERENCES estimates(id) ON DELETE SET NULL,
   description         TEXT,
   supplier_sku        TEXT,
   jdp_sku             TEXT,
@@ -186,6 +187,7 @@ CREATE TABLE IF NOT EXISTS products (
 CREATE INDEX IF NOT EXISTS idx_products_status ON products(status);
 CREATE INDEX IF NOT EXISTS idx_products_system_ip ON products(system_ip);
 CREATE INDEX IF NOT EXISTS idx_products_created_by ON products(created_by);
+CREATE INDEX IF NOT EXISTS idx_products_estimate_id ON products(estimate_id);
 CREATE INDEX IF NOT EXISTS idx_products_job_id ON products(job_id);
 
 
