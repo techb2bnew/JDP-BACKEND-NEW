@@ -33,7 +33,6 @@ export default async function estimateRoutes(fastify, options) {
 
   fastify.delete('/deleteAdditionalCost/:additionalCostId', EstimateController.deleteAdditionalCost);
 
-  fastify.post('/sendInvoiceToCustomer/:estimateId', EstimateController.sendInvoiceToCustomer);
 
 }
 

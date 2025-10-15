@@ -390,30 +390,4 @@ export class EstimateController {
     }
   }
 
-  static async sendInvoiceToCustomer(req, reply) {
-    try {
-      const { estimateId } = req.params;
-
-      if (!estimateId) {
-        return reply.status(400).send(validationErrorResponse(['Estimate ID is required']));
-      }
-
-      const estimateIdNum = parseInt(estimateId);
-      if (isNaN(estimateIdNum)) {
-        return reply.status(400).send(validationErrorResponse(['Estimate ID must be a valid number']));
-      }
-
-      const result = await EstimateService.sendInvoiceToCustomer(estimateIdNum);
-      
-      return reply.status(200).send(successResponse(result, 'Invoice sent to customer successfully'));
-    } catch (error) {
-      if (error.message.includes('not found')) {
-        return reply.status(404).send(errorResponse('Estimate not found', 404));
-      }
-      if (error.message.includes('email')) {
-        return reply.status(400).send(errorResponse('Email sending failed', 400));
-      }
-      return reply.status(500).send(errorResponse(`Failed to send invoice: ${error.message}`, 500));
-    }
-  }
 }

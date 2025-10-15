@@ -190,6 +190,64 @@ CREATE INDEX IF NOT EXISTS idx_products_created_by ON products(created_by);
 CREATE INDEX IF NOT EXISTS idx_products_estimate_id ON products(estimate_id);
 CREATE INDEX IF NOT EXISTS idx_products_job_id ON products(job_id);
 
+CREATE TABLE IF NOT EXISTS estimates (
+  id                  SERIAL PRIMARY KEY,
+  job_id              INT REFERENCES jobs(id) ON DELETE CASCADE,
+  estimate_title      VARCHAR(200) NOT NULL,
+  customer_id         INT REFERENCES customers(id) ON DELETE SET NULL,
+  contractor_id       INT REFERENCES contractors(id) ON DELETE SET NULL,
+  priority            VARCHAR(20) DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high', 'urgent')),
+  valid_until         DATE,
+  location            VARCHAR(200),
+  description         TEXT,
+  notes               TEXT,
+  service_type        VARCHAR(50) NOT NULL CHECK (service_type IN ('service_based', 'contract_based')),
+  email_address       VARCHAR(150) NOT NULL,
+  estimate_date       DATE NOT NULL,
+  invoice_type        VARCHAR(100) DEFAULT 'estimate',
+  invoice_number      VARCHAR(50) UNIQUE,
+  issue_date          DATE,
+  due_date            DATE,
+  bill_to_address TEXT,
+  po_number VARCHAR(100),
+  total_amount        DECIMAL(12,2) DEFAULT 0,
+  status              VARCHAR(20) DEFAULT 'draft' CHECK (status IN ('draft', 'sent', 'accepted', 'rejected', 'expired')),
+  created_by          INT REFERENCES users(id) ON DELETE SET NULL,
+  system_ip           VARCHAR(45),
+  created_at          TIMESTAMP DEFAULT NOW(),
+  updated_at          TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS estimate_additional_costs (
+  id                  SERIAL PRIMARY KEY,
+  estimate_id         INT NOT NULL REFERENCES estimates(id) ON DELETE CASCADE,
+  description         VARCHAR(200) NOT NULL,
+  amount              DECIMAL(12,2) NOT NULL,
+  created_by          INT REFERENCES users(id) ON DELETE SET NULL,
+  system_ip           VARCHAR(45),
+  created_at          TIMESTAMP DEFAULT NOW(),
+  updated_at          TIMESTAMP DEFAULT NOW()
+);
+
+-- Indexes for estimates table
+CREATE INDEX IF NOT EXISTS idx_estimates_job_id ON estimates(job_id);
+CREATE INDEX IF NOT EXISTS idx_estimates_customer_id ON estimates(customer_id);
+CREATE INDEX IF NOT EXISTS idx_estimates_contractor_id ON estimates(contractor_id);
+CREATE INDEX IF NOT EXISTS idx_estimates_status ON estimates(status);
+CREATE INDEX IF NOT EXISTS idx_estimates_estimate_date ON estimates(estimate_date);
+CREATE INDEX IF NOT EXISTS idx_estimates_created_by ON estimates(created_by);
+CREATE INDEX IF NOT EXISTS idx_estimates_invoice_type ON estimates(invoice_type);
+CREATE INDEX IF NOT EXISTS idx_estimates_invoice_number ON estimates(invoice_number);
+CREATE INDEX IF NOT EXISTS idx_estimates_issue_date ON estimates(issue_date);
+CREATE INDEX IF NOT EXISTS idx_estimates_due_date ON estimates(due_date);
+CREATE INDEX IF NOT EXISTS idx_estimates_bill_to_address ON estimates(bill_to_address);
+CREATE INDEX IF NOT EXISTS idx_estimates_po_number ON estimates(po_number);
+CREATE INDEX IF NOT EXISTS idx_estimates_notes ON estimates(notes);
+
+-- Indexes for estimate_additional_costs table
+CREATE INDEX IF NOT EXISTS idx_estimate_additional_costs_estimate_id ON estimate_additional_costs(estimate_id);
+CREATE INDEX IF NOT EXISTS idx_estimate_additional_costs_created_by ON estimate_additional_costs(created_by);
+
 
 
 

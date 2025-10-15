@@ -12,14 +12,15 @@ export const createEstimateSchema = Joi.object({
   service_type: Joi.string().valid('service_based', 'contract_based').required(),
   email_address: Joi.string().email().required(),
   estimate_date: Joi.date().required(),
-  billing_address_po_number: Joi.string().max(100).optional(),
+  bill_to_address: Joi.string().optional(),
+  po_number: Joi.string().max(100).optional(),
   notes: Joi.string().allow('').optional(),
   total_amount: Joi.number().precision(2).min(0).default(0),
   
   status: Joi.string().valid('draft', 'sent', 'accepted', 'rejected', 'expired').default('draft'),
   
 
-  invoice_type: Joi.string().valid('estimate', 'proposal_invoice', 'progressive_invoice', 'final_invoice', 'down_payment').default('estimate'),
+  invoice_type: Joi.string().max(100).default('estimate'),
   invoice_number: Joi.string().max(50).optional(),
   issue_date: Joi.date().optional(),
   due_date: Joi.date().optional(),
@@ -64,13 +65,14 @@ export const updateEstimateSchema = Joi.object({
   service_type: Joi.string().valid('service_based', 'contract_based').optional(),
   email_address: Joi.string().email().optional(),
   estimate_date: Joi.date().optional(),
-  billing_address_po_number: Joi.string().max(100).optional(),
+  bill_to_address: Joi.string().optional(),
+  po_number: Joi.string().max(100).optional(),
   notes: Joi.string().allow('').optional(),
   total_amount: Joi.number().precision(2).min(0).optional(),
 
   status: Joi.string().valid('draft', 'sent', 'accepted', 'rejected', 'expired').optional(),
   
-  invoice_type: Joi.string().valid('estimate', 'proposal_invoice', 'progressive_invoice', 'final_invoice', 'down_payment').optional(),
+  invoice_type: Joi.string().max(100).optional(),
   invoice_number: Joi.string().max(50).optional(),
   issue_date: Joi.date().optional(),
   due_date: Joi.date().optional(),
