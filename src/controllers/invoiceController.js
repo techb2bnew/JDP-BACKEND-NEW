@@ -32,12 +32,18 @@ export class InvoiceController {
         return reply.status(400).send(errorResponse('Customer email not found in payload or database', 400));
       }
 
-      // Generate PDF from template
-      const pdfBuffer = await PDFService.generateEstimatePDF(estimateData);
+      // Prepare estimate data for PDF generation
+      const pdfData = {
+        ...estimateData,
+        estimateNumber: estimate.invoice_number || estimateData.estimateNumber,
+        invoice_number: estimate.invoice_number || estimateData.estimateNumber
+      };
 
-      // Generate S3 file name
-      const timestamp = Date.now();
-      const invoiceNumber = estimateData.estimateNumber || `INV-${estimateId}-${timestamp}`;
+      // Generate PDF from template
+      const pdfBuffer = await PDFService.generateEstimatePDF(pdfData);
+
+      // Use actual invoice number from database or generate one
+      const invoiceNumber = estimate.invoice_number || estimateData.estimateNumber || await Estimate.generateInvoiceNumber();
       
       // Always PDF now
       const s3FileName = `invoices/${estimateId}/${invoiceNumber}.pdf`;
@@ -72,10 +78,10 @@ export class InvoiceController {
         to: customerEmail,
         subject: `Estimate #${invoiceNumber} - JDP Electric`,
         html: `
-          <h2>Dear ${estimateData.customerName || 'Valued Customer'},</h2>
+          <h2>Dear ${estimateData.customerName || estimate.customer?.customer_name || 'Valued Customer'},</h2>
           <p>Please find attached your estimate from JDP Electric.</p>
           <p><strong>Estimate Number:</strong> ${invoiceNumber}</p>
-          <p><strong>Total Amount:</strong> $${estimateData.total || '0.00'}</p>
+          <p><strong>Total Amount:</strong> $${estimateData.total || estimate.total_amount || '0.00'}</p>
           <br>
           <p>Thank you for choosing JDP Electric!</p>
           <p>Best regards,<br>JDP Electric Team</p>

@@ -19,7 +19,7 @@ export class PDFService {
       
       // Prepare data for template
       const templateData = {
-        estimateNumber: estimateData.estimateNumber || 'INV-2025-001',
+        estimateNumber: estimateData.estimateNumber || estimateData.invoice_number || 'INV-2025-001',
         estimateDate: estimateData.estimateDate || new Date().toLocaleDateString(),
         customerName: estimateData.customerName || 'Customer Name',
         customerAddress: estimateData.customerAddress || 'Address',
