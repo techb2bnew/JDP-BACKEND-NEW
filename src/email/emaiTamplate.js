@@ -8,7 +8,7 @@ export const temporaryPasswordTemplate = (recipientName, temporaryPassword, logi
       </head>
       <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0;">
         <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="background: #007bff; color: white; padding: 20px; text-align: center;">
+          <div style="background: #1f2937; color: white; padding: 20px; text-align: center;">
             <h1 style="margin: 0;">Welcome to JDP </h1>
           </div>
           <div style="padding: 20px; background: #f8f9fa;">
@@ -24,7 +24,7 @@ export const temporaryPasswordTemplate = (recipientName, temporaryPassword, logi
             
             <p style="margin: 0 0 20px 0;">You can now login to your account using your email and this temporary password.</p>
             
-            <a href="${loginUrl}" style="display: inline-block; background: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 20px 0;">Login Now</a>
+            <a href="${loginUrl}" style="display: inline-block; background: #1f2937; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 20px 0;">Login Now</a>
             
             <p style="margin: 0 0 20px 0;">If you have any questions, please contact our support team.</p>
           </div>
