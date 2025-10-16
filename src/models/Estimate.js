@@ -285,6 +285,7 @@ export class Estimate {
               const updateData = {
                 product_name: productItem.product_name,
                 // supplier_id: productItem.supplier_id,
+                estimate_id: data.id,
                 supplier_sku: productItem.supplier_sku || '',
                 stock_quantity: productItem.stock_quantity,
                 unit: productItem.unit,
@@ -294,7 +295,6 @@ export class Estimate {
                 total_cost: productItem.total_cost || productItem.unit_cost,
                 status: 'active',
                 description: productItem.description,
-                is_custom: true
               };
 
               // Only update jdp_sku if provided
@@ -845,6 +845,7 @@ export class Estimate {
               const updateData = {
                 product_name: productItem.product_name,
                 // supplier_id: productItem.supplier_id,
+                estimate_id: data.id,
                 supplier_sku: productItem.supplier_sku || '',
                 stock_quantity: productItem.stock_quantity,
                 unit: productItem.unit,
