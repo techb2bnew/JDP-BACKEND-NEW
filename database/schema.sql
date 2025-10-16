@@ -209,7 +209,7 @@ CREATE TABLE IF NOT EXISTS estimates (
   issue_date          DATE,
   due_date            DATE,
   bill_to_address TEXT,
-  po_number VARCHAR(100),
+  po_number VARCHAR(100), 
   total_amount        DECIMAL(12,2) DEFAULT 0,
   status              VARCHAR(20) DEFAULT 'draft' CHECK (status IN ('draft', 'sent', 'accepted', 'rejected', 'expired')),
   created_by          INT REFERENCES users(id) ON DELETE SET NULL,

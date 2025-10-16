@@ -38,6 +38,8 @@ export class InvoiceController {
       // Generate S3 file name
       const timestamp = Date.now();
       const invoiceNumber = estimateData.estimateNumber || `INV-${estimateId}-${timestamp}`;
+      
+      // Always PDF now
       const s3FileName = `invoices/${estimateId}/${invoiceNumber}.pdf`;
 
       // Upload to S3

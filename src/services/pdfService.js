@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import htmlPdf from 'html-pdf-node';
+import puppeteer from 'puppeteer';
 import handlebars from 'handlebars';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -40,8 +40,31 @@ export class PDFService {
       // Generate HTML
       const html = template(templateData);
       
-      // PDF generation options
-      const options = {
+      // Launch puppeteer with Chrome flags for Linux server
+      const browser = await puppeteer.launch({
+        headless: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--no-first-run',
+          '--no-zygote',
+          '--disable-gpu'
+        ],
+        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined
+      });
+      
+      const page = await browser.newPage();
+      
+      // Set content with timeout
+      await page.setContent(html, { 
+        waitUntil: 'networkidle0',
+        timeout: 30000
+      });
+      
+      // Generate PDF
+      const pdfBuffer = await page.pdf({
         format: 'A4',
         printBackground: true,
         margin: {
@@ -49,12 +72,10 @@ export class PDFService {
           right: '20px',
           bottom: '20px',
           left: '20px'
-        },
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
-      };
+        }
+      });
       
-      // Generate PDF using html-pdf-node
-      const pdfBuffer = await htmlPdf.generatePdf({ content: html }, options);
+      await browser.close();
       
       return pdfBuffer;
       
