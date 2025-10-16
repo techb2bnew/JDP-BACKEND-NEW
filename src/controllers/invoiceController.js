@@ -58,9 +58,10 @@ export class InvoiceController {
         await EstimateService.updateEstimate(estimateIdNum, { 
           invoice_link: invoiceLink,
           invoice_sent_at: new Date(),
-          invoice_sent_to: customerEmail
+          invoice_sent_to: customerEmail,
+          status: estimateData.status || 'sent'
         }, req.user?.id);
-        console.log('Invoice link saved to database successfully');
+        console.log('Invoice link and status saved to database successfully');
       } catch (dbError) {
         console.log('Database save failed (columns may not exist):', dbError.message);
         // Continue even if database save fails
@@ -97,6 +98,7 @@ export class InvoiceController {
         invoiceNumber: invoiceNumber,
         invoiceLink: invoiceLink,
         s3Key: s3Result.Key,
+        status: estimateData.status || 'sent',
         emailSent: true,
         uploadedAt: new Date().toISOString()
       }, 'Estimate PDF generated, uploaded to S3, and sent via email successfully'));
