@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import puppeteer from 'puppeteer';
+import htmlPdf from 'html-pdf-node';
 import handlebars from 'handlebars';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -40,19 +40,8 @@ export class PDFService {
       // Generate HTML
       const html = template(templateData);
       
-      // Launch puppeteer
-      const browser = await puppeteer.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
-      });
-      
-      const page = await browser.newPage();
-      
-      // Set content
-      await page.setContent(html, { waitUntil: 'networkidle0' });
-      
-      // Generate PDF
-      const pdfBuffer = await page.pdf({
+      // PDF generation options
+      const options = {
         format: 'A4',
         printBackground: true,
         margin: {
@@ -60,10 +49,12 @@ export class PDFService {
           right: '20px',
           bottom: '20px',
           left: '20px'
-        }
-      });
+        },
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+      };
       
-      await browser.close();
+      // Generate PDF using html-pdf-node
+      const pdfBuffer = await htmlPdf.generatePdf({ content: html }, options);
       
       return pdfBuffer;
       
