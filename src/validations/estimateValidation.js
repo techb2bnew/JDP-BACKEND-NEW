@@ -13,7 +13,7 @@ export const createEstimateSchema = Joi.object({
   email_address: Joi.string().email().required(),
   estimate_date: Joi.date().required(),
   bill_to_address: Joi.string().optional(),
-  po_number: Joi.string().max(100).optional(),
+  po_number: Joi.string().max(100).allow('').optional(),
   notes: Joi.string().allow('').optional(),
   total_amount: Joi.number().precision(2).min(0).default(0),
   
@@ -66,7 +66,7 @@ export const updateEstimateSchema = Joi.object({
   email_address: Joi.string().email().optional(),
   estimate_date: Joi.date().optional(),
   bill_to_address: Joi.string().optional(),
-  po_number: Joi.string().max(100).optional(),
+  po_number: Joi.string().max(100).allow('').optional(),
   notes: Joi.string().allow('').optional(),
   total_amount: Joi.number().precision(2).min(0).optional(),
 
