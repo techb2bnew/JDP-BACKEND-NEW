@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estimate - {{estimateNumber}}</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: white;
+            color: #333;
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 30px;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .logo img {
+            height: 50px;
+            width: auto;
+        }
+        
+        .estimate-info {
+            text-align: right;
+        }
+        
+        .estimate-box {
+            background-color: #1e3a8a;
+            color: white;
+            padding: 15px 20px;
+            margin-bottom: 10px;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        
+        .estimate-number {
+            background-color: #1e3a8a;
+            color: white;
+            padding: 15px 20px;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        
+        .to-section {
+            background-color: #1e3a8a;
+            color: white;
+            padding: 10px 15px;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+        
+        .bill-to-address {
+            margin-bottom: 15px;
+            padding: 10px;
+            background-color: #f9fafb;
+            border-left: 4px solid #1e3a8a;
+            font-style: italic;
+        }
+        
+        .customer-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 30px;
+        }
+        
+        .customer-details {
+            flex: 1;
+        }
+        
+        .customer-name {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .customer-address {
+            color: #666;
+        }
+        
+        .project-info {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 15px;
+        }
+        
+        .project-detail {
+            font-weight: bold;
+        }
+        
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        
+        .items-table th {
+            background-color: #1e3a8a;
+            color: white;
+            padding: 12px 8px;
+            text-align: left;
+            font-weight: bold;
+        }
+        
+        .items-table td {
+            padding: 10px 8px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .items-table tr:nth-child(even) {
+            background-color: #f9fafb;
+        }
+        
+        .amount-column {
+            text-align: right;
+        }
+        
+        .subtotal {
+            text-align: right;
+            margin: 15px 0;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        
+        .notes-section {
+            background-color: #f3f4f6;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        
+        .notes-title {
+            text-align: center;
+            font-weight: bold;
+            font-size: 18px;
+            margin-bottom: 15px;
+        }
+        
+        .notes-content {
+            line-height: 1.6;
+        }
+        
+        .total-section {
+            text-align: center;
+            margin: 30px 0;
+        }
+        
+        .total-amount {
+            font-size: 24px;
+            font-weight: bold;
+            color: #1e40af;
+        }
+        
+        .contact-info {
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 2px solid #e5e7eb;
+            color: #666;
+        }
+        
+        .contact-info strong {
+            color: #1e40af;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">
+            <img src="https://jdp-backend.s3.us-east-2.amazonaws.com/lead-labor/id_proof/1760596846214-logo-jdp.avif" alt="JDP Logo">
+        </div>
+        <div class="estimate-info">
+            <div class="estimate-box">ESTIMATE {{estimateDate}}</div>
+            <div class="estimate-number">ESTIMATE # {{estimateNumber}}</div>
+        </div>
+    </div>
+    
+    {{#if billToAddress}}
+    <div class="to-section">BILL TO</div>
+    <div class="bill-to-address">{{billToAddress}}</div>
+    {{/if}}
+    
+    <div class="to-section">TO</div>
+    
+    <div class="customer-info">
+        <div class="customer-details">
+            <div class="customer-name">{{customerName}}</div>
+            <div class="customer-address">{{customerAddress}}</div>
+        </div>
+        <div class="project-info">
+            <div class="project-detail">P.O. No. {{poNumber}}</div>
+            <div class="project-detail">Project {{projectName}}</div>
+        </div>
+    </div>
+    
+    <table class="items-table">
+        <thead>
+            <tr>
+                <th>Qty</th>
+                <th>Item</th>
+                <th>Description</th>
+                <th>Rate</th>
+                <th>Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{#each items}}
+            <tr>
+                <td>{{quantity}}</td>
+                <td>{{item}}</td>
+                <td>{{description}}</td>
+                <td class="amount-column">${{rate}}</td>
+                <td class="amount-column">${{amount}}</td>
+            </tr>
+            {{/each}}
+        </tbody>
+    </table>
+    
+    <div class="subtotal">
+        Subtotal: ${{subtotal}}
+    </div>
+    
+    <div class="notes-section">
+        <div class="notes-title">NOTES</div>
+        <div class="notes-content">
+            {{#each notes}}
+            <p>{{this}}</p>
+            {{/each}}
+        </div>
+    </div>
+    
+    <div class="total-section">
+        <div class="total-amount">Total ${{total}}</div>
+    </div>
+    
+    <div class="contact-info">
+        <strong>EMAIL:</strong> {{email}} {{phone}}
+    </div>
+</body>
+</html>
