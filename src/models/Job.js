@@ -3188,7 +3188,22 @@ export class Job {
       }
 
 
-      const numberOfInvoices = 0;
+      // Calculate number of invoices from estimates table
+      let numberOfInvoices = 0;
+      try {
+        const { supabase } = await import('../config/database.js');
+        const { count, error } = await supabase
+          .from('estimates')
+          .select('*', { count: 'exact', head: true })
+          .eq('job_id', jobId);
+        
+        if (!error && count !== null) {
+          numberOfInvoices = count;
+        }
+      } catch (dbError) {
+        console.error('Error fetching invoice count:', dbError);
+        // Keep numberOfInvoices as 0 if there's an error
+      }
 
       return {
         jobId: job.id,

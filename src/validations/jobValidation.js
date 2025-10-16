@@ -60,6 +60,7 @@ export const createJobSchema = {
       bill_to_address: {
         type: 'string',
         maxLength: 500,
+        minLength: 0,
         description: 'Billing address'
       },
       bill_to_city_zip: {
@@ -232,6 +233,7 @@ export const updateJobSchema = {
       bill_to_address: {
         type: 'string',
         maxLength: 500,
+        minLength: 0,
         description: 'Billing address'
       },
       bill_to_city_zip: {
