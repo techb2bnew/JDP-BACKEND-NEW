@@ -16,7 +16,7 @@ jobs:
 
       - name: Deployment Started
         run: |
-          echo "🚀 Backend deployment started at $(date)"
+          echo " Backend deployment started at $(date)"
           echo "Repository: ${{ github.repository }}"
           echo "Branch: ${{ github.ref_name }}"
           echo "Commit: ${{ github.sha }}"
@@ -29,98 +29,98 @@ jobs:
 
       - name: Install dependencies
         run: |
-          echo "📦 Installing backend dependencies..."
+          echo " Installing backend dependencies..."
           # Backend dependencies install karo
           npm ci --ignore-scripts
-          echo "✅ Backend dependencies installed successfully"
+          echo " Backend dependencies installed successfully"
         env:
           NPM_CONFIG_IGNORE_SCRIPTS: true
 
       - name: Build application (if needed)
         run: |
-          echo "🔨 Checking for build requirements..."
+          echo " Checking for build requirements..."
           # Fastify backend usually doesn't need build step, but check karo
           if [ -f "package.json" ] && grep -q '"build"' package.json; then
-            echo "📦 Build script found, running build..."
+            echo " Build script found, running build..."
             npm run build
-            echo "✅ Build completed successfully"
+            echo " Build completed successfully"
           else
-            echo "⏭️ No build script found, skipping build step"
+            echo "⏭ No build script found, skipping build step"
           fi
         env:
           NODE_ENV: production
 
       - name: Prepare deployment files
         run: |
-          echo "🧹 Cleaning up files for deployment..."
+          echo " Cleaning up files for deployment..."
           # Clean up unnecessary files before deployment
           rm -rf .git node_modules/.cache
-          echo "✅ Backend deployment files ready"
+          echo " Backend deployment files ready"
 
       - name: Fix remote permissions
         uses: appleboy/ssh-action@v1.2.0
         with:
-          host: ${{ secrets.SERVER_IP }}
+          host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY_LIVE }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
-            echo "🔐 Fixing remote permissions..."
+            echo " Fixing remote permissions..."
             # Backend directory ke liye correct path use karo
-            sudo chown -R ${{ secrets.SERVER_USER }}:${{ secrets.SERVER_USER }} /home/ec2-user/JDP-BACKEND/
-            sudo chmod -R 755 /home/ec2-user/JDP-BACKEND/
-            echo "✅ Permissions fixed successfully"
+            sudo chown -R ${{ secrets.SERVER_USER }}:${{ secrets.SERVER_USER }} /home/ec2-user/prorevv-backend/
+            sudo chmod -R 755 /home/ec2-user/prorevv-backend/
+            echo " Permissions fixed successfully"
 
       - name: Deploy via Rsync 
         uses: easingthemes/ssh-deploy@main
         with:
-          SSH_PRIVATE_KEY: ${{ secrets.SERVER_SSH_KEY_LIVE }}
-          REMOTE_HOST: ${{ secrets.SERVER_IP }}
+          SSH_PRIVATE_KEY: ${{ secrets.SERVER_SSH_KEY }}
+          REMOTE_HOST: ${{ secrets.SERVER_HOST }}
           REMOTE_USER: ${{ secrets.SERVER_USER }}
-          TARGET: /home/ec2-user/JDP-BACKEND/
+          TARGET: /home/ec2-user/prorevv-backend/
           ARGS: "-rlgoDzvc --chmod=Du=rwx,Dg=rx,Do=rx,Fu=rw,Fg=r,Fo=r --no-perms --no-owner --no-group --exclude=node_modules --exclude=.git --exclude=.next --exclude=dist"
-          BEFORE_RSYNC: echo "🚀 Starting file deployment to server..."
-          AFTER_RSYNC: echo "✅ Files deployed successfully to server!"
+          BEFORE_RSYNC: echo " Starting file deployment to server..."
+          AFTER_RSYNC: echo " Files deployed successfully to server!"
 
       - name: Install server dependencies
         uses: appleboy/ssh-action@v1.2.0
         with:
-          host: ${{ secrets.SERVER_IP }}
+          host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY_LIVE }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
-            echo "📦 Installing server dependencies..."
-            cd /home/ec2-user/JDP-BACKEND/
+            echo " Installing server dependencies..."
+            cd /home/ec2-user/prorevv-backend/
             # Server par dependencies install karo
             npm ci --production --ignore-scripts
-            echo "✅ Server dependencies installed successfully"
+            echo " Server dependencies installed successfully"
 
       - name: Restart backend application
         uses: appleboy/ssh-action@v1.2.0
         with:
-          host: ${{ secrets.SERVER_IP }}
+          host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY_LIVE }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
-            echo "🔄 Restarting backend application..."
-            cd /home/ec2-user/JDP-BACKEND/
+            echo " Restarting backend application..."
+            cd /home/ec2-user/prorevv-backend/
             # PM2 se backend restart karo
-            pm2 reload jdp-backend || pm2 start "npm run start" --name jdp-backend
+            pm2 reload prorevv-backend || pm2 start "npm run start" --name prorevv-backend
             pm2 save
-            echo "✅ Backend application restarted successfully"
+            echo " Backend application restarted successfully"
 
       - name: Health check
         uses: appleboy/ssh-action@v1.2.0
         with:
-          host: ${{ secrets.SERVER_IP }}
+          host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY_LIVE }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
-            echo "🏥 Performing health check..."
+            echo " Performing health check..."
             # Backend health check karo
             sleep 5
-            pm2 status jdp-backend
-            echo "🎉 Backend deployment completed successfully!"
-            echo "📊 Deployment Summary:"
+            pm2 status prorevv-backend
+            echo " Backend deployment completed successfully!"
+            echo " Deployment Summary:"
             echo "  - Repository: ${{ github.repository }}"
             echo "  - Branch: ${{ github.ref_name }}"
             echo "  - Commit: ${{ github.sha }}"
