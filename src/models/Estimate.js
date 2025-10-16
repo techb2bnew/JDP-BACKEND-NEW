@@ -1198,13 +1198,19 @@ export class Estimate {
             try {
               const additionalCosts = await Estimate.getAdditionalCosts(estimate.id);
 
+              // Calculate products total cost
+              const productsTotalCost = estimate.products ? estimate.products.reduce((sum, product) => {
+                return sum + (parseFloat(product.total_cost) || 0);
+              }, 0) : 0;
+
               const materialsCost = parseFloat(estimate.materials_cost) || 0;
               const laborCost = parseFloat(estimate.labor_cost) || 0;
               const additionalCostsTotal = additionalCosts.reduce((sum, cost) => {
                 return sum + (parseFloat(cost.amount) || 0);
               }, 0);
 
-              const subtotal = materialsCost + laborCost + additionalCostsTotal;
+              // Use products total cost in calculation
+              const subtotal = productsTotalCost + materialsCost + laborCost + additionalCostsTotal;
               const taxAmount = (subtotal * (parseFloat(estimate.tax_percentage) || 0)) / 100;
               const totalAmount = subtotal + taxAmount;
 
@@ -1220,13 +1226,18 @@ export class Estimate {
               };
             } catch (error) {
               console.error(`Error processing estimate ${estimate.id}:`, error);
+              // Fallback calculation with products total cost
+              const productsTotalCost = estimate.products ? estimate.products.reduce((sum, product) => {
+                return sum + (parseFloat(product.total_cost) || 0);
+              }, 0) : 0;
+              
               return {
                 ...estimate,
                 additional_costs_list: [],
                 additional_costs: 0,
-                subtotal: (parseFloat(estimate.materials_cost) || 0) + (parseFloat(estimate.labor_cost) || 0),
+                subtotal: productsTotalCost + (parseFloat(estimate.materials_cost) || 0) + (parseFloat(estimate.labor_cost) || 0),
                 tax_amount: 0,
-                total_amount: (parseFloat(estimate.materials_cost) || 0) + (parseFloat(estimate.labor_cost) || 0)
+                total_amount: productsTotalCost + (parseFloat(estimate.materials_cost) || 0) + (parseFloat(estimate.labor_cost) || 0)
               };
             }
           })
