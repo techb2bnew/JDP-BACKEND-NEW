@@ -32,11 +32,20 @@ export class InvoiceController {
         return reply.status(400).send(errorResponse('Customer email not found in payload or database', 400));
       }
 
-      // Prepare estimate data for PDF generation
+      // Prepare estimate data for PDF generation with proper totals
       const pdfData = {
         ...estimateData,
         estimateNumber: estimate.invoice_number || estimateData.estimateNumber,
-        invoice_number: estimate.invoice_number || estimateData.estimateNumber
+        invoice_number: estimate.invoice_number || estimateData.estimateNumber,
+        customerName: estimateData.customerName || estimate.customer?.customer_name || 'Customer',
+        customerAddress: estimateData.customerAddress || `${estimate.customer?.company_name || ''} ${estimate.customer?.address || ''}`.trim(),
+        billToAddress: estimateData.billToAddress || estimate.bill_to_address,
+        projectName: estimateData.projectName || estimate.job?.job_title || 'Project',
+        poNumber: estimateData.poNumber || estimate.po_number || 'N/A',
+        dueDate: estimateData.dueDate || estimate.due_date || new Date().toLocaleDateString(),
+        items: estimateData.items || [],
+        additionalCosts: estimateData.additionalCosts || [],
+        taxPercentage: estimateData.taxPercentage || 0
       };
 
       // Generate PDF from template

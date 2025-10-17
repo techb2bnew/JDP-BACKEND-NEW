@@ -17,6 +17,42 @@ export class PDFService {
       // Compile the template
       const template = handlebars.compile(templateSource);
       
+      // Calculate totals from items and additional costs
+      let calculatedSubtotal = 0;
+      let calculatedTaxAmount = 0;
+      let calculatedTotal = 0;
+
+      // Calculate from items
+      if (estimateData.items && Array.isArray(estimateData.items)) {
+        calculatedSubtotal = estimateData.items.reduce((sum, item) => {
+          const amount = parseFloat(item.amount) || 0;
+          console.log(`Item: ${item.item || 'N/A'}, Amount: ${amount}`);
+          return sum + amount;
+        }, 0);
+        console.log(`Calculated Subtotal from items: ${calculatedSubtotal}`);
+      }
+
+      // Add additional costs
+      if (estimateData.additionalCosts && Array.isArray(estimateData.additionalCosts)) {
+        const additionalTotal = estimateData.additionalCosts.reduce((sum, cost) => {
+          const amount = parseFloat(cost.amount) || 0;
+          console.log(`Additional Cost: ${cost.description || 'N/A'}, Amount: ${amount}`);
+          return sum + amount;
+        }, 0);
+        calculatedSubtotal += additionalTotal;
+        console.log(`Additional costs total: ${additionalTotal}`);
+      }
+
+      // Calculate tax (if provided)
+      const taxPercentage = parseFloat(estimateData.taxPercentage) || 0;
+      calculatedTaxAmount = (calculatedSubtotal * taxPercentage) / 100;
+
+      // Calculate total
+      calculatedTotal = calculatedSubtotal + calculatedTaxAmount;
+
+      console.log(`Final Calculation - Subtotal: ${calculatedSubtotal}, Tax: ${calculatedTaxAmount}, Total: ${calculatedTotal}`);
+      console.log(`Input Data - Subtotal: ${estimateData.subtotal}, Tax: ${estimateData.taxAmount}, Total: ${estimateData.total}`);
+
       // Prepare data for template
       const templateData = {
         estimateNumber: estimateData.estimateNumber || estimateData.invoice_number || 'INV-2025-001',
@@ -26,9 +62,14 @@ export class PDFService {
         billToAddress: estimateData.billToAddress || null, // Will be null if not provided
         poNumber: estimateData.poNumber || 'N/A',
         projectName: estimateData.projectName || 'Project Name',
+        dueDate: estimateData.dueDate || new Date().toLocaleDateString(),
         items: estimateData.items || [],
-        subtotal: estimateData.subtotal || '0.00',
-        total: estimateData.total || '0.00',
+        additionalCosts: estimateData.additionalCosts || [],
+        subtotal: calculatedSubtotal.toFixed(2), // Force use calculated values
+        taxAmount: calculatedTaxAmount.toFixed(2), // Force use calculated values
+        total: calculatedTotal.toFixed(2), // Force use calculated values
+        paymentsCredits: estimateData.paymentsCredits || '0.00',
+        balanceDue: (calculatedTotal - (parseFloat(estimateData.paymentsCredits) || 0)).toFixed(2),
         notes: estimateData.notes || [
           'JDP WILL REQUIRE HALF DOWN UPON SIGNED ESTIMATE',
           'JDP is not responsible for repair of lamps & landscaping, house owner utilities including cables, sprinkler systems, television or telephone cables, etc. that may be cut or damaged during installation. Price are subject to change prior to receipt of down payment.'
