@@ -59,17 +59,18 @@ export class PDFService {
         estimateDate: estimateData.estimateDate || new Date().toLocaleDateString(),
         customerName: estimateData.customerName || 'Customer Name',
         customerAddress: estimateData.customerAddress || 'Address',
-        billToAddress: estimateData.billToAddress || null, // Will be null if not provided
+        billToAddress: estimateData.billToAddress || undefined, // Will be undefined if not provided
         poNumber: estimateData.poNumber || 'N/A',
         projectName: estimateData.projectName || 'Project Name',
-        dueDate: estimateData.dueDate || new Date().toLocaleDateString(),
+        dueDate: estimateData.dueDate || undefined,
         items: estimateData.items || [],
         additionalCosts: estimateData.additionalCosts || [],
         subtotal: calculatedSubtotal.toFixed(2), // Force use calculated values
         taxAmount: calculatedTaxAmount.toFixed(2), // Force use calculated values
         total: calculatedTotal.toFixed(2), // Force use calculated values
-        paymentsCredits: estimateData.paymentsCredits || '0.00',
-        balanceDue: (calculatedTotal - (parseFloat(estimateData.paymentsCredits) || 0)).toFixed(2),
+        paymentsCredits: estimateData.paymentsCredits || undefined,
+        balanceDue: estimateData.balanceDue || undefined,
+        rep: estimateData.rep || undefined,
         notes: estimateData.notes || [
           'JDP WILL REQUIRE HALF DOWN UPON SIGNED ESTIMATE',
           'JDP is not responsible for repair of lamps & landscaping, house owner utilities including cables, sprinkler systems, television or telephone cables, etc. that may be cut or damaged during installation. Price are subject to change prior to receipt of down payment.'

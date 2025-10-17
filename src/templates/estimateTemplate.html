@@ -81,7 +81,8 @@
             </td>
           </tr>
 
-          <!-- Rep and Due Date -->
+          <!-- P.O. No., Rep and Due Date -->
+          {{#if poNumber}}{{#if rep}}{{#if dueDate}}
           <tr>
             <td style="padding:0 20px;">
               <table width="100%" style="font-size:13px; border-collapse:collapse;">
@@ -92,12 +93,13 @@
                 </tr>
                 <tr>
                   <td style="padding:5px 10px; border:1px solid #ccc;">{{poNumber}}</td>
-                  <td style="padding:5px 10px; border:1px solid #ccc;">JDP</td>
+                  <td style="padding:5px 10px; border:1px solid #ccc;">{{rep}}</td>
                   <td style="padding:5px 10px; border:1px solid #ccc;">{{dueDate}}</td>
                 </tr>
               </table>
             </td>
           </tr>
+          {{/if}}{{/if}}{{/if}}
 
           <!-- Invoice Table -->
           <tr>
@@ -158,14 +160,18 @@
                         <td style="padding:8px 10px; background:#f9f9f9;">Total</td>
                         <td style="padding:8px 10px; text-align:right; border-left:1px solid #ccc;">${{total}}</td>
                       </tr>
+                      {{#if paymentsCredits}}
                       <tr>
                         <td style="padding:8px 10px; background:#f9f9f9;">Payments / Credits</td>
                         <td style="padding:8px 10px; text-align:right; border-left:1px solid #ccc;">${{paymentsCredits}}</td>
                       </tr>
+                      {{/if}}
+                      {{#if balanceDue}}
                       <tr>
                         <td style="padding:8px 10px; background:#eaeaea; font-weight:bold;">Balance Due</td>
                         <td style="padding:8px 10px; text-align:right; border-left:1px solid #ccc; font-weight:bold;">${{balanceDue}}</td>
                       </tr>
+                      {{/if}}
                     </table>
                   </td>
                 </tr>
