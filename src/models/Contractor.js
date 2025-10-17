@@ -307,42 +307,95 @@ export class Contractor {
             const { data: jobs, error: jobsError } = await supabase
               .from("jobs")
               .select(`
-                id,
-                job_title,
-                status,
-                priority,
-                due_date,
-                estimated_cost,
-                customer_id,
-                created_at
+                *,
+                customer:customers!jobs_customer_id_fkey(
+                  id,
+                  customer_name,
+                  company_name,
+                  email,
+                  phone
+                )
               `)
               .eq("contractor_id", contractor.id)
               .order('created_at', { ascending: false });
 
             if (jobsError) {
               console.error(`Error fetching jobs for contractor ${contractor.id}:`, jobsError);
+              return {
+                ...contractor,
+                jobs: [],
+                total_jobs: 0,
+                active_jobs: 0,
+                completed_jobs: 0
+              };
             }
 
-            const jobsWithProgress = (jobs || []).map(job => {
-              let progress = 0;
-              if (job.status === 'completed') progress = 100;
-              else if (job.status === 'in_progress') progress = 50;
-              else if (job.status === 'active') progress = 25;
-              else progress = 0;
+            // Group jobs by address (same address = sub-jobs)
+            const jobsByAddress = {};
+            const groupedJobs = [];
 
+            (jobs || []).forEach(job => {
+              const addressKey = job.address || 'No Address';
+              
+              if (!jobsByAddress[addressKey]) {
+                // First job becomes the main job - keep same structure as sub-jobs
+                jobsByAddress[addressKey] = {
+                  ...job, // Main job with all its fields
+                  isMainJob: true,
+                  isSubJob: false,
+                  parentJobId: null,
+                  parentAddress: null,
+                  subJobs: []
+                };
+                groupedJobs.push(jobsByAddress[addressKey]);
+              } else {
+                // Subsequent jobs with same address become sub-jobs - same structure as main job
+                jobsByAddress[addressKey].subJobs.push({
+                  ...job, // This includes ALL job fields
+                  isMainJob: false,
+                  isSubJob: true,
+                  parentJobId: jobsByAddress[addressKey].id,
+                  parentAddress: addressKey,
+                  subJobs: [] // Keep same structure
+                });
+              }
+            });
+
+            // Calculate progress and add additional info for each main job with sub-jobs
+            const jobsWithProgress = groupedJobs.map(mainJob => {
+              const totalJobs = 1 + mainJob.subJobs.length; // Main job + sub jobs
+              const completedJobs = (mainJob.status === 'completed' ? 1 : 0) + 
+                                   mainJob.subJobs.filter(job => job.status === 'completed').length;
+              const progress = totalJobs > 0 ? Math.round((completedJobs / totalJobs) * 100) : 0;
+              
+              // Calculate totals including main job
+              const mainJobCost = parseFloat(mainJob.estimated_cost) || 0;
+              const subJobsCost = mainJob.subJobs.reduce((sum, job) => sum + (parseFloat(job.estimated_cost) || 0), 0);
+              const totalEstimatedCost = mainJobCost + subJobsCost;
+              
+              const mainJobHours = parseFloat(mainJob.estimated_hours) || 0;
+              const subJobsHours = mainJob.subJobs.reduce((sum, job) => sum + (parseFloat(job.estimated_hours) || 0), 0);
+              const totalEstimatedHours = mainJobHours + subJobsHours;
+              
               return {
-                ...job,
+                ...mainJob,
                 progress,
-                customer: null 
+                totalSubJobs: mainJob.subJobs.length,
+                totalJobs: totalJobs,
+                completedSubJobs: completedJobs - (mainJob.status === 'completed' ? 1 : 0),
+                completedJobs: completedJobs,
+                status: progress === 100 ? 'completed' : progress > 0 ? 'ongoing' : 'pending',
+                totalEstimatedCost,
+                totalEstimatedHours
               };
             });
 
             return {
               ...contractor,
               jobs: jobsWithProgress,
-              total_jobs: jobsWithProgress.length,
-              active_jobs: jobsWithProgress.filter(j => j.status === 'active' || j.status === 'in_progress').length,
-              completed_jobs: jobsWithProgress.filter(j => j.status === 'completed').length
+              total_jobs: jobs?.length || 0,
+              active_jobs: jobs?.filter(j => j.status === 'active' || j.status === 'in_progress').length || 0,
+              completed_jobs: jobs?.filter(j => j.status === 'completed').length || 0
             };
           } catch (error) {
             console.error(`Error processing contractor ${contractor.id}:`, error);
@@ -696,4 +749,5 @@ export class Contractor {
       throw error;
     }
   }
+
 }

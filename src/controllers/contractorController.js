@@ -147,4 +147,5 @@ export class ContractorController {
       return reply.code(500).send(errorResponse(`Failed to get job details: ${error.message}`));
     }
   }
+
 }

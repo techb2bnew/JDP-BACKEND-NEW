@@ -50,4 +50,5 @@ export async function contractorRoutes(fastify, options) {
   fastify.get('/jobs/:jobId/details', {
     handler: ContractorController.getJobDetails
   });
+
 }
