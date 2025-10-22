@@ -23,12 +23,12 @@ export const createEstimateSchema = Joi.object({
   invoice_type: Joi.string().max(100).default('estimate'),
   invoice_number: Joi.string().max(50).optional(),
   issue_date: Joi.date().optional(),
-  due_date: Joi.date().optional(),
+  due_date: Joi.any().optional(),
   
   // New fields for invoice
   rep: Joi.string().max(100).allow('').optional(),
   payment_credits: Joi.number().precision(2).min(0).optional(),
-  balance_due: Joi.number().precision(2).min(0).optional(),
+  balance_due: Joi.any().optional(),
   
  
   additional_cost: Joi.object({
@@ -80,12 +80,12 @@ export const updateEstimateSchema = Joi.object({
   invoice_type: Joi.string().max(100).optional(),
   invoice_number: Joi.string().max(50).optional(),
   issue_date: Joi.date().optional(),
-  due_date: Joi.date().optional(),
+  due_date: Joi.any().optional(),
   
   // New fields for invoice
   rep: Joi.string().max(100).allow('').optional(),
   payment_credits: Joi.number().precision(2).min(0).optional(),
-  balance_due: Joi.number().precision(2).min(0).optional(),
+  balance_due: Joi.any().optional(),
   
   additional_cost: Joi.object({
     description: Joi.string().max(200).required(),

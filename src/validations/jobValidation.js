@@ -87,8 +87,7 @@ export const createJobSchema = {
       },
       due_date: {
         type: 'string',
-        format: 'date',
-        description: 'Due date (YYYY-MM-DD)'
+        description: 'Due date (any format)'
       },
       estimated_hours: {
         type: 'number',
@@ -259,8 +258,7 @@ export const updateJobSchema = {
       },
       due_date: {
         type: 'string',
-        format: 'date',
-        description: 'Due date (YYYY-MM-DD)'
+        description: 'Due date (any format)'
       },
       estimated_hours: {
         type: 'number',
