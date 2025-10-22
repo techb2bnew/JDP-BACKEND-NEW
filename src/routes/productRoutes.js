@@ -77,6 +77,7 @@ export default async function productRoutes(fastify, options) {
                 description: { type: 'string' },
                 supplier_sku: { type: 'string' },
                 jdp_sku: { type: 'string' },
+                estimated_price: { type: 'number' },
                 supplier_cost_price: { type: 'number' },
                 markup_percentage: { type: 'number' },
                 markup_amount: { type: 'number' },
