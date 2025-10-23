@@ -467,14 +467,16 @@ export class Estimate {
             customer_name,
             company_name,
             email,
-            phone
+            phone,
+            address
           ),
           contractor:contractors!estimates_contractor_id_fkey(
             id,
             contractor_name,
             company_name,
             email,
-            phone
+            phone,
+            address
           ),
           created_by_user:users!estimates_created_by_fkey(
             id,
