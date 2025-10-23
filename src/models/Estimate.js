@@ -52,7 +52,7 @@ export class Estimate {
           if (!textHit) return false;
         }
 
-        if (filters.status && (est.status || '').toLowerCase() !== String(filters.status).toLowerCase()) return false;
+        if (filters.status && filters.status.toLowerCase() !== 'all' && (est.status || '').toLowerCase() !== String(filters.status).toLowerCase()) return false;
         if (filters.invoice_type && (est.invoice_type || '').toLowerCase() !== String(filters.invoice_type).toLowerCase()) return false;
         if (filters.customer &&
           !(
