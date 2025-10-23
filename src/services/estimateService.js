@@ -4,12 +4,54 @@ import { supabase } from '../config/database.js';
 export class EstimateService {
   static async createEstimate(estimateData, createdByUserId) {
     try {
-      const estimateWithCreator = {
+      // Clean data - convert empty strings to null for numeric and date fields
+      const cleanedData = {
         ...estimateData,
         created_by: createdByUserId
       };
 
-      const estimate = await Estimate.create(estimateWithCreator);
+      // Clean numeric fields
+      if (cleanedData.total_amount === '' || cleanedData.total_amount === null) {
+        cleanedData.total_amount = 0;
+      }
+      if (cleanedData.payment_credits === '' || cleanedData.payment_credits === null) {
+        cleanedData.payment_credits = null;
+      }
+      if (cleanedData.balance_due === '' || cleanedData.balance_due === null) {
+        cleanedData.balance_due = null;
+      }
+
+      // Clean date fields
+      if (cleanedData.valid_until === '' || cleanedData.valid_until === null) {
+        cleanedData.valid_until = null;
+      }
+      if (cleanedData.issue_date === '' || cleanedData.issue_date === null) {
+        cleanedData.issue_date = null;
+      }
+      if (cleanedData.due_date === '' || cleanedData.due_date === null) {
+        cleanedData.due_date = null;
+      }
+
+      // Clean string fields that should be null instead of empty string
+      if (cleanedData.bill_to_address === '') {
+        cleanedData.bill_to_address = null;
+      }
+      if (cleanedData.po_number === '') {
+        cleanedData.po_number = null;
+      }
+      if (cleanedData.notes === '') {
+        cleanedData.notes = null;
+      }
+      if (cleanedData.rep === '') {
+        cleanedData.rep = null;
+      }
+      if (cleanedData.description === '') {
+        cleanedData.description = null;
+      }
+
+      console.log('Cleaned estimate data:', cleanedData);
+
+      const estimate = await Estimate.create(cleanedData);
       
       return {
         estimate,
@@ -60,7 +102,51 @@ export class EstimateService {
 
   static async updateEstimate(estimateId, updateData, updatedByUserId) {
     try {
-      const estimate = await Estimate.update(estimateId, updateData);
+      // Clean data - convert empty strings to null for numeric and date fields
+      const cleanedData = { ...updateData };
+
+      // Clean numeric fields
+      if (cleanedData.total_amount === '' || cleanedData.total_amount === null) {
+        cleanedData.total_amount = 0;
+      }
+      if (cleanedData.payment_credits === '' || cleanedData.payment_credits === null) {
+        cleanedData.payment_credits = null;
+      }
+      if (cleanedData.balance_due === '' || cleanedData.balance_due === null) {
+        cleanedData.balance_due = null;
+      }
+
+      // Clean date fields
+      if (cleanedData.valid_until === '' || cleanedData.valid_until === null) {
+        cleanedData.valid_until = null;
+      }
+      if (cleanedData.issue_date === '' || cleanedData.issue_date === null) {
+        cleanedData.issue_date = null;
+      }
+      if (cleanedData.due_date === '' || cleanedData.due_date === null) {
+        cleanedData.due_date = null;
+      }
+
+      // Clean string fields that should be null instead of empty string
+      if (cleanedData.bill_to_address === '') {
+        cleanedData.bill_to_address = null;
+      }
+      if (cleanedData.po_number === '') {
+        cleanedData.po_number = null;
+      }
+      if (cleanedData.notes === '') {
+        cleanedData.notes = null;
+      }
+      if (cleanedData.rep === '') {
+        cleanedData.rep = null;
+      }
+      if (cleanedData.description === '') {
+        cleanedData.description = null;
+      }
+
+      console.log('Cleaned update data:', cleanedData);
+
+      const estimate = await Estimate.update(estimateId, cleanedData);
       
       return {
         estimate,

@@ -7,7 +7,7 @@ import {
   validateMarkupPercentage,
   removeHourlyRates
 } from '../validations/configurationValidation.js';
-import { errorResponse } from '../helpers/responseHelper.js';
+import { errorResponse, successResponse } from '../helpers/responseHelper.js';
 
 export class ConfigurationController {
   // Hourly Rates Controllers
@@ -251,4 +251,5 @@ export class ConfigurationController {
       return reply.code(500).send(errorResponse(`Failed to remove hourly rates: ${error.message}`));
     }
   }
+
 }

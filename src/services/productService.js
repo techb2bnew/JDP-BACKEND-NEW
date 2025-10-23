@@ -1,5 +1,6 @@
 import { Product } from '../models/Product.js';
 import { Suppliers } from '../models/Suppliers.js';
+import { Configuration } from '../models/Configuration.js';
 import { successResponse } from '../helpers/responseHelper.js';
 
 export class ProductService {
@@ -10,6 +11,18 @@ export class ProductService {
         const supplier = await Suppliers.getSupplierById(productData.supplier_id);
         if (!supplier) {
           throw new Error('Supplier not found');
+        }
+      }
+
+      // Apply default markup from configuration if no markup_percentage is provided
+      if (productData.supplier_cost_price && !productData.markup_percentage) {
+        try {
+          const config = await Configuration.getConfiguration();
+          if (config && config.markup_percentage > 0) {
+            productData.markup_percentage = config.markup_percentage;
+          }
+        } catch (error) {
+          console.log('Could not fetch configuration for default markup:', error.message);
         }
       }
 
