@@ -103,12 +103,13 @@ export class ConfigurationService {
       // If markup percentage is provided (even if same), update all existing products
       if (data.markup_percentage !== undefined && markupPercentage > 0) {
         try {
-          console.log(`Markup percentage provided: ${markupPercentage}%, updating all products...`);
+          console.log(`Markup percentage provided: ${markupPercentage}%, updating non-custom products only...`);
           
-          // Get ALL products and update their markup percentage
+          // Get only non-custom products (is_custom = false) and update their markup percentage
           const { data: products, error } = await supabase
             .from('products')
-            .select('id, supplier_cost_price, markup_percentage, markup_amount, jdp_price, profit_margin');
+            .select('id, supplier_cost_price, markup_percentage, markup_amount, jdp_price, profit_margin, is_custom')
+            .eq('is_custom', false);
 
           if (error) {
             console.error('Error fetching products:', error);
