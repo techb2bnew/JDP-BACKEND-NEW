@@ -3180,13 +3180,10 @@ export class Job {
 
   static async getTimesheetDashboardStats() {
     try {
-      // Get all jobs with timesheet data
-      const { data: jobs, error } = await supabase
-        .from("jobs")
-        .select(`
-          id,
-          labor_timesheets
-        `);
+      // Get all timesheets from new table
+      const { data: timesheets, error } = await supabase
+        .from('labor_timesheets')
+        .select('*');
 
       if (error) {
         throw new Error(`Database error: ${error.message}`);
@@ -3197,40 +3194,31 @@ export class Job {
       let totalHours = 0;
       let billableHours = 0;
 
-      // Process each job's timesheets
-      jobs.forEach(job => {
-        // Parse labor_timesheets if it's a string
-        let laborTimesheets = job.labor_timesheets;
-        if (typeof laborTimesheets === 'string') {
-          try {
-            laborTimesheets = JSON.parse(laborTimesheets);
-          } catch (e) {
-            console.error('Error parsing labor_timesheets:', e);
-            laborTimesheets = [];
-          }
+      // Process each timesheet
+      (timesheets || []).forEach(timesheet => {
+        totalTimesheets++;
+        
+        // Get status (prefer status field, fallback to job_status)
+        const currentStatus = timesheet.status || timesheet.job_status || 'pending';
+        
+        // Check if pending approval (status not 'approved')
+        if (currentStatus !== 'approved') {
+          pendingApproval++;
         }
 
-        // Process labor timesheets
-        if (laborTimesheets && Array.isArray(laborTimesheets) && laborTimesheets.length > 0) {
-          laborTimesheets.forEach(timesheet => {
-            totalTimesheets++;
-            
-            // Check if pending approval (status not 'approved')
-            if (timesheet.status !== 'approved') {
-              pendingApproval++;
-            }
-
-            // Calculate hours
-            if (timesheet.work_hours) {
-              const hours = Job.parseHoursToDecimal(timesheet.work_hours);
-              totalHours += hours;
-              
-              // If status is approved, it's billable
-              if (timesheet.status === 'approved') {
-                billableHours += hours;
-              }
-            }
-          });
+        // Calculate hours from start_time and end_time
+        if (timesheet.start_time && timesheet.end_time) {
+          const start = new Date(`2000-01-01T${timesheet.start_time}`);
+          const end = new Date(`2000-01-01T${timesheet.end_time}`);
+          const diffMs = end - start;
+          const hours = diffMs / (1000 * 60 * 60); // Convert to hours
+          
+          totalHours += hours;
+          
+          // If status is approved, it's billable
+          if (currentStatus === 'approved') {
+            billableHours += hours;
+          }
         }
       });
 
