@@ -69,6 +69,103 @@ export class Contractor {
     }
   }
 
+  static async getContractorStatistics(contractorId) {
+    try {
+      // Get total jobs count
+      const { count: totalJobs, error: jobsError } = await supabase
+        .from("jobs")
+        .select("*", { count: "exact", head: true })
+        .eq("contractor_id", contractorId);
+
+      if (jobsError) {
+        console.error("Error fetching jobs count:", jobsError);
+      }
+
+      // Get total cost from jobs
+      const { data: jobsData, error: jobsDataError } = await supabase
+        .from("jobs")
+        .select("estimated_cost")
+        .eq("contractor_id", contractorId);
+
+      if (jobsDataError) {
+        console.error("Error fetching jobs data:", jobsDataError);
+      }
+
+      // Calculate total cost (only estimated_cost)
+      let totalCost = 0;
+      let totalEstimatedCost = 0;
+      
+      if (jobsData) {
+        totalCost = jobsData.reduce((sum, job) => {
+          return sum + (parseFloat(job.estimated_cost) || 0);
+        }, 0);
+        
+        totalEstimatedCost = jobsData.reduce((sum, job) => {
+          return sum + (parseFloat(job.estimated_cost) || 0);
+        }, 0);
+      }
+
+      // Get total estimates count
+      const { count: totalEstimates, error: estimatesError } = await supabase
+        .from("estimates")
+        .select("*", { count: "exact", head: true })
+        .eq("contractor_id", contractorId);
+
+      if (estimatesError) {
+        console.error("Error fetching estimates count:", estimatesError);
+      }
+
+      // Get total estimate amount
+      const { data: estimatesData, error: estimatesDataError } = await supabase
+        .from("estimates")
+        .select("total_amount")
+        .eq("contractor_id", contractorId);
+
+      if (estimatesDataError) {
+        console.error("Error fetching estimates data:", estimatesDataError);
+      }
+
+      let totalEstimateAmount = 0;
+      if (estimatesData) {
+        totalEstimateAmount = estimatesData.reduce((sum, estimate) => {
+          return sum + (parseFloat(estimate.total_amount) || 0);
+        }, 0);
+      }
+
+      // Get jobs by status
+      const { data: jobsByStatus, error: statusError } = await supabase
+        .from("jobs")
+        .select("status")
+        .eq("contractor_id", contractorId);
+
+      if (statusError) {
+        console.error("Error fetching jobs by status:", statusError);
+      }
+
+      let jobsByStatusCount = {};
+      if (jobsByStatus) {
+        jobsByStatusCount = jobsByStatus.reduce((acc, job) => {
+          const status = job.status || 'unknown';
+          acc[status] = (acc[status] || 0) + 1;
+          return acc;
+        }, {});
+      }
+
+      return {
+        total_jobs: totalJobs || 0,
+        total_estimated_cost: totalEstimatedCost,
+        jobs_by_status: jobsByStatusCount
+      };
+    } catch (error) {
+      console.error("Error in getContractorStatistics:", error);
+      return {
+        total_jobs: 0,
+        total_estimated_cost: 0,
+        jobs_by_status: {}
+      };
+    }
+  }
+
   static async findByJobId(jobId) {
     try {
       const { data, error } = await supabase

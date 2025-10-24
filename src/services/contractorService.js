@@ -75,8 +75,16 @@ export class ContractorService {
         throw new Error("Contractor not found");
       }
 
+      // Get contractor statistics
+      const stats = await Contractor.getContractorStatistics(contractorId);
+
+      const contractorWithStats = {
+        ...contractor,
+        statistics: stats
+      };
+
       return successResponse(
-        contractor,
+        contractorWithStats,
         "Contractor retrieved successfully"
       );
     } catch (error) {
