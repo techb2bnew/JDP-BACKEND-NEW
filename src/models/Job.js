@@ -2573,7 +2573,7 @@ export class Job {
               hours: timeValue,
               cost: cost,
               work_activity: timesheet.work_activity,
-              status: timesheet.job_status || 'pending',
+              status: timesheet.status || timesheet.job_status || 'pending',
               billable: null // Not available in new structure
             };
           } else if (timesheet.lead_labor_id) {
@@ -2613,7 +2613,7 @@ export class Job {
               hours: timeValue,
               cost: cost,
               work_activity: timesheet.work_activity,
-              status: timesheet.job_status || 'pending',
+              status: timesheet.status || timesheet.job_status || 'pending',
               billable: null // Not available in new structure
             };
           }
