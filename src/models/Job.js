@@ -1,14 +1,33 @@
 import { supabase } from "../config/database.js";
 import { safeJsonParse } from "../utils/helpers.js";
+import { LaborTimesheet } from './LaborTimesheet.js';
 
 export class Job {
   static async searchTimesheets(filters, pagination = {}) {
     try {
-      // Fetch jobs with minimal fields needed
-      const { data: jobs, error } = await supabase
-        .from('jobs')
-        .select('id, job_title, labor_timesheets, updated_at')
-        .order('updated_at', { ascending: false });
+      // Fetch timesheets from new table with job and labor details
+      const { data: timesheets, error } = await supabase
+        .from('labor_timesheets')
+        .select(`
+          *,
+          job:job_id (
+            id,
+            job_title
+          ),
+          labor:labor_id (
+            id,
+            users!labor_user_id_fkey (
+              full_name
+            )
+          ),
+          lead_labor:lead_labor_id (
+            id,
+            users!lead_labor_user_id_fkey (
+              full_name
+            )
+          )
+        `)
+        .order('date', { ascending: false });
 
       if (error) {
         throw new Error(`Database error: ${error.message}`);
@@ -21,37 +40,44 @@ export class Job {
 
       const timesheetRows = [];
 
-      for (const job of jobs || []) {
-        const allTimesheets = Array.isArray(job.labor_timesheets)
-          ? job.labor_timesheets
-          : safeJsonParse(job.labor_timesheets, []);
+      for (const ts of timesheets || []) {
+        const laborName = ts.labor?.users?.full_name || ts.lead_labor?.users?.full_name || 'Unknown';
+        const isEmployee = laborName.toLowerCase();
+        const isStatus = (ts.job_status || '').toLowerCase();
+        const jobTitle = (ts.job?.job_title || '').toLowerCase();
+        const jobIdStr = (ts.job?.id || '').toString();
 
-        for (const ts of allTimesheets) {
-          const isEmployee = (ts.labor_name || '').toLowerCase();
-          const isStatus = (ts.status || '').toLowerCase();
-          const jobTitle = (job.job_title || '').toLowerCase();
-          const jobIdStr = (job.id || '').toString();
-
-          // text search across employee, job title, job id
-          if (q) {
-            const hit = isEmployee.includes(q) || jobTitle.includes(q) || jobIdStr.includes(q);
-            if (!hit) continue;
-          }
-
-          if (employeeFilter && !isEmployee.includes(employeeFilter)) continue;
-          if (jobFilter && !(jobTitle.includes(jobFilter) || jobIdStr.includes(jobFilter))) continue;
-          if (statusFilter && isStatus !== statusFilter) continue;
-
-          timesheetRows.push({
-            employee: ts.labor_name,
-            job: `${job.job_title} (Job-${job.id})`,
-            job_id: job.id,
-            labor_id: ts.labor_id || ts.lead_labor_id || null,
-            date: ts.date,
-            hours: ts.work_hours || ts.total_hours || '00:00:00',
-            status: ts.status || 'pending'
-          });
+        // text search across employee, job title, job id
+        if (q) {
+          const hit = isEmployee.includes(q) || jobTitle.includes(q) || jobIdStr.includes(q);
+          if (!hit) continue;
         }
+
+        if (employeeFilter && !isEmployee.includes(employeeFilter)) continue;
+        if (jobFilter && !(jobTitle.includes(jobFilter) || jobIdStr.includes(jobFilter))) continue;
+        if (statusFilter && isStatus !== statusFilter) continue;
+
+        // Calculate hours from start_time and end_time
+        let hours = '00:00:00';
+        if (ts.start_time && ts.end_time) {
+          const start = new Date(`2000-01-01T${ts.start_time}`);
+          const end = new Date(`2000-01-01T${ts.end_time}`);
+          const diffMs = end - start;
+          const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+          const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+          const diffSeconds = Math.floor((diffMs % (1000 * 60)) / 1000);
+          hours = `${diffHours.toString().padStart(2, '0')}:${diffMinutes.toString().padStart(2, '0')}:${diffSeconds.toString().padStart(2, '0')}`;
+        }
+
+        timesheetRows.push({
+          employee: laborName,
+          job: `${ts.job?.job_title} (Job-${ts.job?.id})`,
+          job_id: ts.job?.id,
+          labor_id: ts.labor_id || ts.lead_labor_id || null,
+          date: ts.date,
+          hours: hours,
+          status: ts.job_status || 'pending'
+        });
       }
 
       // If no matches, return empty dashboard structure
@@ -461,8 +487,8 @@ export class Job {
 
     jobWithDetails.orders = await Job.fetchOrdersDetails(job.id);
 
-    // Parse timesheet data
-    jobWithDetails.labor_timesheets = safeJsonParse(job.labor_timesheets, []);
+    // Get timesheet data from new table
+    jobWithDetails.labor_timesheets = await LaborTimesheet.findByJobId(job.id);
 
     return jobWithDetails;
   }
@@ -1555,125 +1581,40 @@ export class Job {
           throw new Error('bulk_timesheets must be an array');
         }
 
-        const currentTimesheets = safeJsonParse(job.labor_timesheets, []);
-
+        // Process each timesheet entry and save to new table
         for (const timesheetData of bulkTimesheets) {
           if (!timesheetData.labor_id || !timesheetData.date) {
             throw new Error('labor_id and date are required for each timesheet entry');
           }
 
-          const existingIndex = currentTimesheets.findIndex(
-            ts => ts.labor_id === timesheetData.labor_id && ts.date === timesheetData.date
+          // Check if entry already exists
+          const existingEntries = await LaborTimesheet.findByJobId(jobId);
+          const existingEntry = existingEntries.find(entry => 
+            entry.labor_id === timesheetData.labor_id && 
+            entry.date === timesheetData.date
           );
 
-
-          let totalHours = "00:00:00";
-          let workHours = timesheetData.work_hours || "00:00:00";
-          let breakDuration = "00:00:00";
-
-          if (timesheetData.start_time && timesheetData.end_time) {
-            totalHours = Job.calculateTimeDifference(timesheetData.start_time, timesheetData.end_time);
-
-            if (!timesheetData.work_hours) {
-              const totalHoursDecimal = Job.timeToHours(totalHours);
-              const breakHoursDecimal = Job.timeToHours(breakDuration);
-              const calculatedWorkHours = Math.max(0, totalHoursDecimal - breakHoursDecimal);
-              workHours = Job.hoursToTime(calculatedWorkHours);
-            }
-          }
-
-          let hourlyRate = timesheetData.hourly_rate || 0;
-          let userId = timesheetData.user_id;
-          let laborName = timesheetData.labor_name || 'Unknown Labor';
-
-          if (!userId || !hourlyRate) {
-            try {
-              const { data: laborData } = await supabase
-                .from('labor')
-                .select('user_id, hourly_rate')
-                .eq('id', timesheetData.labor_id)
-                .single();
-
-              if (laborData) {
-                userId = userId || laborData.user_id;
-                hourlyRate = hourlyRate || parseFloat(laborData.hourly_rate) || 0;
-              }
-
-              if (userId) {
-                const { data: userData } = await supabase
-                  .from('users')
-                  .select('full_name')
-                  .eq('id', userId)
-                  .single();
-
-                if (userData) {
-                  laborName = userData.full_name;
-                }
-              }
-            } catch (error) {
-              console.warn('Could not fetch labor details:', error.message);
-            }
-          }
-
-
-          const workHoursDecimal = Job.timeToHours(workHours);
-          const totalCost = workHoursDecimal * hourlyRate;
-
-
-          let pauseTimerData = [];
-          if (timesheetData.pause_timer && Array.isArray(timesheetData.pause_timer)) {
-            pauseTimerData = timesheetData.pause_timer;
-
-
-            const totalBreakSeconds = pauseTimerData.reduce((total, pause) => {
-              const duration = pause.duration || "00:00:00";
-              const [hours, minutes, seconds] = duration.split(':').map(Number);
-              return total + (hours * 3600) + (minutes * 60) + seconds;
-            }, 0);
-
-            breakDuration = Job.hoursToTime(totalBreakSeconds / 3600);
-
-
-            if (timesheetData.start_time && timesheetData.end_time) {
-              const totalHoursDecimal = Job.timeToHours(totalHours);
-              const breakHoursDecimal = Job.timeToHours(breakDuration);
-              const calculatedWorkHours = Math.max(0, totalHoursDecimal - breakHoursDecimal);
-              workHours = Job.hoursToTime(calculatedWorkHours);
-            }
-          }
-
-
-          const timesheetEntry = {
+          // Prepare timesheet data for new table
+          const timesheetEntryData = {
             labor_id: timesheetData.labor_id,
-            user_id: userId,
-            labor_name: laborName,
+            lead_labor_id: timesheetData.lead_labor_id || null,
+            job_id: jobId,
             date: timesheetData.date,
             start_time: timesheetData.start_time || null,
             end_time: timesheetData.end_time || null,
-            total_hours: totalHours,
-            break_duration: breakDuration,
-            work_hours: workHours,
-            hourly_rate: hourlyRate,
-            total_cost: parseFloat(totalCost.toFixed(2)),
-            work_activity: timesheetData.work_activity || 0,
-            status: timesheetData.status || 'active',
-            job_status: timesheetData.job_status || 'in_progress',
-            notes: timesheetData.notes || '',
-            pause_timer: pauseTimerData,
-            created_at: timesheetData.created_at || new Date().toISOString(),
-            updated_at: new Date().toISOString()
+            work_activity: timesheetData.work_activity || null,
+            pause_timer: timesheetData.pause_timer || [],
+            job_status: timesheetData.job_status || 'in_progress'
           };
 
-          if (existingIndex >= 0) {
-
-            currentTimesheets[existingIndex] = timesheetEntry;
+          if (existingEntry) {
+            // Update existing entry
+            await LaborTimesheet.update(existingEntry.id, timesheetEntryData);
           } else {
-
-            currentTimesheets.push(timesheetEntry);
+            // Create new entry
+            await LaborTimesheet.create(timesheetEntryData);
           }
         }
-
-        updateFields.labor_timesheets = JSON.stringify(currentTimesheets);
       }
 
 
@@ -1688,135 +1629,36 @@ export class Job {
           throw new Error('either labor_id or lead_labor_id is required for timesheet');
         }
 
-        const currentTimesheets = safeJsonParse(job.labor_timesheets, []);
-
-
-        const lookupId = timesheetData.labor_id || timesheetData.lead_labor_id;
-        const isLeadLabor = !!timesheetData.lead_labor_id;
-
-        const existingIndex = currentTimesheets.findIndex(ts => {
-          if (isLeadLabor) {
-            return ts.lead_labor_id === timesheetData.lead_labor_id && ts.date === timesheetData.date;
+        // Check if entry already exists
+        const existingEntries = await LaborTimesheet.findByJobId(jobId);
+        const existingEntry = existingEntries.find(entry => {
+          if (timesheetData.lead_labor_id) {
+            return entry.lead_labor_id === timesheetData.lead_labor_id && entry.date === timesheetData.date;
           } else {
-            return ts.labor_id === timesheetData.labor_id && ts.date === timesheetData.date;
+            return entry.labor_id === timesheetData.labor_id && entry.date === timesheetData.date;
           }
         });
 
-
-        let totalHours = "00:00:00";
-        let workHours = timesheetData.work_hours || "00:00:00";
-        let breakDuration = "00:00:00";
-
-        if (timesheetData.start_time && timesheetData.end_time) {
-          totalHours = Job.calculateTimeDifference(timesheetData.start_time, timesheetData.end_time);
-
-          if (!timesheetData.work_hours) {
-            const totalHoursDecimal = Job.timeToHours(totalHours);
-            const breakHoursDecimal = Job.timeToHours(breakDuration);
-            const calculatedWorkHours = Math.max(0, totalHoursDecimal - breakHoursDecimal);
-            workHours = Job.hoursToTime(calculatedWorkHours);
-          }
-        }
-
-        let hourlyRate = timesheetData.hourly_rate || 0;
-        let userId = timesheetData.user_id;
-        let laborName = timesheetData.labor_name || 'Unknown Labor';
-
-        if (!userId || !hourlyRate) {
-          try {
-            let laborData = null;
-
-            if (isLeadLabor) {
-              const { data } = await supabase
-                .from('lead_labor')
-                .select('user_id')
-                .eq('id', timesheetData.lead_labor_id)
-                .single();
-              laborData = data;
-            } else {
-              const { data } = await supabase
-                .from('labor')
-                .select('user_id, hourly_rate')
-                .eq('id', timesheetData.labor_id)
-                .single();
-              laborData = data;
-            }
-
-            if (laborData) {
-              userId = userId || laborData.user_id;
-              if (!isLeadLabor) {
-                hourlyRate = hourlyRate || parseFloat(laborData.hourly_rate) || 0;
-              }
-            }
-
-            if (userId) {
-              const { data: userData } = await supabase
-                .from('users')
-                .select('full_name')
-                .eq('id', userId)
-                .single();
-
-              if (userData) {
-                laborName = userData.full_name;
-              }
-            }
-          } catch (error) {
-            console.warn('Could not fetch labor details:', error.message);
-          }
-        }
-
-        const workHoursDecimal = Job.timeToHours(workHours);
-        const totalCost = workHoursDecimal * hourlyRate;
-
-        let pauseTimerData = [];
-        if (timesheetData.pause_timer && Array.isArray(timesheetData.pause_timer)) {
-          pauseTimerData = timesheetData.pause_timer;
-
-          const totalBreakSeconds = pauseTimerData.reduce((total, pause) => {
-            const duration = pause.duration || "00:00:00";
-            const [hours, minutes, seconds] = duration.split(':').map(Number);
-            return total + (hours * 3600) + (minutes * 60) + seconds;
-          }, 0);
-
-          breakDuration = Job.hoursToTime(totalBreakSeconds / 3600);
-
-          if (timesheetData.start_time && timesheetData.end_time) {
-            const totalHoursDecimal = Job.timeToHours(totalHours);
-            const breakHoursDecimal = Job.timeToHours(breakDuration);
-            const calculatedWorkHours = Math.max(0, totalHoursDecimal - breakHoursDecimal);
-            workHours = Job.hoursToTime(calculatedWorkHours);
-          }
-        }
-
-        const timesheetEntry = {
+        // Prepare timesheet data for new table
+        const timesheetEntryData = {
           labor_id: timesheetData.labor_id || null,
           lead_labor_id: timesheetData.lead_labor_id || null,
-          user_id: userId,
-          labor_name: laborName,
+          job_id: jobId,
           date: timesheetData.date,
           start_time: timesheetData.start_time || null,
           end_time: timesheetData.end_time || null,
-          total_hours: totalHours,
-          break_duration: breakDuration,
-          work_hours: workHours,
-          hourly_rate: hourlyRate,
-          total_cost: parseFloat(totalCost.toFixed(2)),
-          work_activity: timesheetData.work_activity || 0,
-          status: timesheetData.status || 'active',
-          job_status: timesheetData.job_status || 'in_progress',
-          notes: timesheetData.notes || '',
-          pause_timer: pauseTimerData,
-          created_at: timesheetData.created_at || new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          work_activity: timesheetData.work_activity || null,
+          pause_timer: timesheetData.pause_timer || [],
+          job_status: timesheetData.job_status || 'in_progress'
         };
 
-        if (existingIndex >= 0) {
-          currentTimesheets[existingIndex] = timesheetEntry;
+        if (existingEntry) {
+          // Update existing entry
+          await LaborTimesheet.update(existingEntry.id, timesheetEntryData);
         } else {
-          currentTimesheets.push(timesheetEntry);
+          // Create new entry
+          await LaborTimesheet.create(timesheetEntryData);
         }
-
-        updateFields.labor_timesheets = JSON.stringify(currentTimesheets);
       }
 
       if (updateData.lead_labor_timesheet) {
@@ -1844,7 +1686,7 @@ export class Job {
           work_hours: timesheetData.work_hours || "00:00:00",
           hourly_rate: timesheetData.hourly_rate || 0,
           total_cost: timesheetData.total_cost || 0,
-          work_activity: timesheetData.work_activity || 0,
+          work_activity: timesheetData.work_activity || null,
           status: timesheetData.status || 'active',
           notes: timesheetData.notes || '',
           created_at: timesheetData.created_at || new Date().toISOString(),
@@ -2541,93 +2383,43 @@ export class Job {
         throw new Error('jobId, laborId, startDate, and endDate are required for weekly timesheet approval');
       }
 
+      // Get timesheets from new table for the specific job, labor, and date range
+      const { data: timesheets, error: fetchError } = await supabase
+        .from('labor_timesheets')
+        .select('*')
+        .eq('job_id', jobId)
+        .or(`labor_id.eq.${laborId},lead_labor_id.eq.${laborId}`)
+        .gte('date', startDate)
+        .lte('date', endDate);
 
-      const { data: jobData, error: jobFetchError } = await supabase
-        .from("jobs")
-        .select(`
-          id,
-          labor_timesheets
-        `)
-        .eq("id", jobId)
-        .single();
-
-      if (jobFetchError) {
-        throw new Error(`Database error: ${jobFetchError.message}`);
+      if (fetchError) {
+        throw new Error(`Database error: ${fetchError.message}`);
       }
 
-      if (!jobData) {
-        throw new Error('Job not found');
-      }
-
-     
-
-      let allTimesheets = [];
-      if (jobData.labor_timesheets) {
-        allTimesheets = safeJsonParse(jobData.labor_timesheets, []);
-
-      } else {
-        console.log('DEBUG: no labor_timesheets found in raw data');
-      }
-
-      if (allTimesheets.length > 0) {
-        console.log('DEBUG: Sample timesheet:', JSON.stringify(allTimesheets[0], null, 1).substring(0, 200) + '...');
-      }
-
-      let timesheetsUpdated = 0;
-
-      for (let i = 0; i < allTimesheets.length; i++) {
-        const timesheet = allTimesheets[i];
-
-        console.log('DEBUG: Timesheet', i + 1, ':', {
-          id: timesheet.labor_id || timesheet.lead_labor_id,
-          date: timesheet.date,
-          status: timesheet.status || 'no status'
-        });
-
-        const matchesLaborId = (timesheet.labor_id && parseInt(timesheet.labor_id) === parseInt(laborId)) ||
-          (timesheet.lead_labor_id && parseInt(timesheet.lead_labor_id) === parseInt(laborId));
-        const inDateRange = timesheet.date >= startDate && timesheet.date <= endDate;
-
-        if (matchesLaborId && inDateRange) {
-          allTimesheets[i].status = status;
-          allTimesheets[i].updated_at = new Date().toISOString();
-
-
-          timesheetsUpdated++;
-        } 
-      }
-
-
-      if (timesheetsUpdated === 0) {
+      if (!timesheets || timesheets.length === 0) {
         throw new Error('No timesheet entries found for the given labor_id and date range');
       }
 
-
-      const { data, error: updateError } = await supabase
-        .from("jobs")
-        .update({
-          labor_timesheets: JSON.stringify(allTimesheets),
-          updated_at: new Date().toISOString()
+      // Update each timesheet entry with new status
+      const updatePromises = timesheets.map(timesheet => 
+        LaborTimesheet.update(timesheet.id, {
+          job_status: status,
+          status: status
         })
-        .eq("id", jobId)
-        .select()
-        .single();
+      );
 
-      if (updateError) {
-        throw new Error(`Database error: ${error.message}`);
-      }
+      await Promise.all(updatePromises);
 
       return {
         success: true,
-        message: `${timesheetsUpdated} timesheet entries ${status} successfully for the week`,
+        message: `${timesheets.length} timesheet entries ${status} successfully for the week`,
         data: {
           job_id: jobId,
           labor_id: laborId,
           start_date: startDate,
           end_date: endDate,
           status: status,
-          entries_updated: timesheetsUpdated,
-          updated_at: new Date().toISOString()
+          entries_updated: timesheets.length
         }
       };
     } catch (error) {
@@ -2637,49 +2429,27 @@ export class Job {
 
   static async getAllJobsWeeklyTimesheetSummary(startDate, endDate) {
     try {
-      const { data: allJobs, error } = await supabase
-        .from("jobs")
-        .select(`
-          id,
-          job_title,
-          labor_timesheets,
-          updated_at
-        `)
-        .order('updated_at', { ascending: false });
-
-      if (error) {
-        throw new Error(`Database error: ${error.message}`);
-      }
-
       // If no date range provided, show current month's latest week with timesheet data
       // If date range provided, filter by that range
       let actualStartDate = startDate;
       let actualEndDate = endDate;
-      let showAllData = false;
 
       if (!startDate || !endDate) {
-        // Find the most recent timesheet date from all data
-        let latestDate = null;
-        for (const job of allJobs || []) {
-          let allTimesheets = [];
-          if (typeof job.labor_timesheets === 'string') {
-            allTimesheets = safeJsonParse(job.labor_timesheets, []);
-          } else if (Array.isArray(job.labor_timesheets)) {
-            allTimesheets = job.labor_timesheets;
-          }
+        // Find the most recent timesheet date from new table
+        const { data: latestTimesheet, error: latestError } = await supabase
+          .from('labor_timesheets')
+          .select('date')
+          .order('date', { ascending: false })
+          .limit(1)
+          .single();
 
-          for (const ts of allTimesheets) {
-            if (ts.date) {
-              if (!latestDate || ts.date > latestDate) {
-                latestDate = ts.date;
-              }
-            }
-          }
+        if (latestError && latestError.code !== 'PGRST116') {
+          throw new Error(`Database error: ${latestError.message}`);
         }
 
-        if (latestDate) {
+        if (latestTimesheet && latestTimesheet.date) {
           // Calculate the week containing the latest date
-          const latestDateObj = new Date(latestDate);
+          const latestDateObj = new Date(latestTimesheet.date);
           const dayOfWeek = latestDateObj.getDay();
           const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // Monday = 1, Sunday = 0
           
@@ -2692,7 +2462,7 @@ export class Job {
           actualStartDate = Job.formatLocalDate(mondayOfWeek);
           actualEndDate = Job.formatLocalDate(sundayOfWeek);
         } else {
-          // If no timesheet data found in current month, use current week
+          // If no timesheet data found, use current week
           const today = new Date();
           const dayOfWeek = today.getDay();
           const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
@@ -2708,27 +2478,58 @@ export class Job {
         }
       }
 
+      // Get all timesheets from new table for the date range
+      const { data: allTimesheets, error: timesheetsError } = await supabase
+        .from('labor_timesheets')
+        .select(`
+          *,
+          job:job_id (
+            id,
+            job_title
+          ),
+          labor:labor_id (
+            id,
+            users!labor_user_id_fkey (
+              full_name
+            )
+          ),
+          lead_labor:lead_labor_id (
+            id,
+            users!lead_labor_user_id_fkey (
+              full_name
+            )
+          )
+        `)
+        .gte('date', actualStartDate)
+        .lte('date', actualEndDate)
+        .order('date', { ascending: false });
+
+      if (timesheetsError) {
+        throw new Error(`Database error: ${timesheetsError.message}`);
+      }
+
       const allDashboardTimesheets = [];
 
-      for (const job of allJobs || []) {
-        let allTimesheets = [];
-
-        if (typeof job.labor_timesheets === 'string') {
-          allTimesheets = safeJsonParse(job.labor_timesheets, []);
-        } else if (Array.isArray(job.labor_timesheets)) {
-          allTimesheets = job.labor_timesheets;
+      // Group timesheets by job
+      const timesheetsByJob = {};
+      (allTimesheets || []).forEach(ts => {
+        const jobId = ts.job_id;
+        if (!timesheetsByJob[jobId]) {
+          timesheetsByJob[jobId] = {
+            job_id: jobId,
+            job_title: ts.job?.job_title || 'Unknown Job',
+            timesheets: []
+          };
         }
+        timesheetsByJob[jobId].timesheets.push(ts);
+      });
 
+      for (const jobId in timesheetsByJob) {
+        const job = timesheetsByJob[jobId];
+        const allTimesheetsForJob = job.timesheets;
 
-        const filteredLaborTimesheets = allTimesheets.filter(ts => {
-          const tsDateStr = ts.date;
-          return (tsDateStr >= actualStartDate && tsDateStr <= actualEndDate) && ts.labor_id;
-        });
-
-        const filteredLeadLaborTimesheets = allTimesheets.filter(ts => {
-          const tsDateStr = ts.date;
-          return (tsDateStr >= actualStartDate && tsDateStr <= actualEndDate) && ts.lead_labor_id;
-        });
+        const filteredLaborTimesheets = allTimesheetsForJob.filter(ts => ts.labor_id);
+        const filteredLeadLaborTimesheets = allTimesheetsForJob.filter(ts => ts.lead_labor_id);
 
         const laborSummary = {};
         const leadLaborSummary = {};
@@ -2740,7 +2541,7 @@ export class Job {
             if (!laborSummary[laborId]) {
               laborSummary[laborId] = {
                 labor_id: laborId,
-                labor_name: timesheet.labor_name,
+                labor_name: timesheet.labor?.users?.full_name || 'Unknown',
                 total_hours: 0,
                 total_cost: 0,
                 days_worked: 0,
@@ -2748,9 +2549,22 @@ export class Job {
               };
             }
 
-            const timeValue = timesheet.work_hours || timesheet.total_hours || "00:00:00";
-            const hours = Job.timeToHours(timeValue);
-            const cost = parseFloat(timesheet.total_cost) || 0;
+            // Calculate hours from start_time and end_time
+            let hours = 0;
+            let timeValue = "00:00:00";
+            if (timesheet.start_time && timesheet.end_time) {
+              const start = new Date(`2000-01-01T${timesheet.start_time}`);
+              const end = new Date(`2000-01-01T${timesheet.end_time}`);
+              const diffMs = end - start;
+              hours = diffMs / (1000 * 60 * 60); // Convert to hours
+              
+              const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+              const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+              const diffSeconds = Math.floor((diffMs % (1000 * 60)) / 1000);
+              timeValue = `${diffHours.toString().padStart(2, '0')}:${diffMinutes.toString().padStart(2, '0')}:${diffSeconds.toString().padStart(2, '0')}`;
+            }
+            
+            const cost = 0; // Cost calculation would need hourly_rate from labor table
 
             laborSummary[laborId].total_hours += hours;
             laborSummary[laborId].total_cost += cost;
@@ -2759,15 +2573,15 @@ export class Job {
               hours: timeValue,
               cost: cost,
               work_activity: timesheet.work_activity,
-              status: timesheet.status || 'pending',
-              billable: timesheet.billable !== undefined ? timesheet.billable : null
+              status: timesheet.job_status || 'pending',
+              billable: null // Not available in new structure
             };
           } else if (timesheet.lead_labor_id) {
             const leadLaborId = timesheet.lead_labor_id;
             if (!leadLaborSummary[leadLaborId]) {
               leadLaborSummary[leadLaborId] = {
                 lead_labor_id: leadLaborId,
-                labor_name: timesheet.labor_name,
+                labor_name: timesheet.lead_labor?.users?.full_name || 'Unknown',
                 total_hours: 0,
                 total_cost: 0,
                 days_worked: 0,
@@ -2775,9 +2589,22 @@ export class Job {
               };
             }
 
-            const timeValue = timesheet.work_hours || timesheet.total_hours || "00:00:00";
-            const hours = Job.timeToHours(timeValue);
-            const cost = parseFloat(timesheet.total_cost) || 0;
+            // Calculate hours from start_time and end_time
+            let hours = 0;
+            let timeValue = "00:00:00";
+            if (timesheet.start_time && timesheet.end_time) {
+              const start = new Date(`2000-01-01T${timesheet.start_time}`);
+              const end = new Date(`2000-01-01T${timesheet.end_time}`);
+              const diffMs = end - start;
+              hours = diffMs / (1000 * 60 * 60); // Convert to hours
+              
+              const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+              const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+              const diffSeconds = Math.floor((diffMs % (1000 * 60)) / 1000);
+              timeValue = `${diffHours.toString().padStart(2, '0')}:${diffMinutes.toString().padStart(2, '0')}:${diffSeconds.toString().padStart(2, '0')}`;
+            }
+            
+            const cost = 0; // Cost calculation would need hourly_rate from lead_labor table
 
             leadLaborSummary[leadLaborId].total_hours += hours;
             leadLaborSummary[leadLaborId].total_cost += cost;
@@ -2786,8 +2613,8 @@ export class Job {
               hours: timeValue,
               cost: cost,
               work_activity: timesheet.work_activity,
-              status: timesheet.status || 'pending',
-              billable: timesheet.billable !== undefined ? timesheet.billable : null
+              status: timesheet.job_status || 'pending',
+              billable: null // Not available in new structure
             };
           }
         });
@@ -2982,7 +2809,8 @@ export class Job {
         throw new Error('Job not found');
       }
 
-      const allTimesheets = safeJsonParse(job.labor_timesheets, []);
+      // Get timesheets from new table
+      const allTimesheets = await LaborTimesheet.findByJobId(jobId);
       const laborTimesheets = allTimesheets.filter(ts => ts.labor_id);
       const leadLaborTimesheets = allTimesheets.filter(ts => ts.lead_labor_id);
 
@@ -2991,8 +2819,16 @@ export class Job {
       const laborSummary = {};
 
       laborTimesheets.forEach(timesheet => {
-        const hours = Job.timeToHours(timesheet.work_hours || timesheet.total_hours);
-        const cost = parseFloat(timesheet.total_cost) || (hours * (parseFloat(timesheet.hourly_rate) || 0));
+        // Calculate hours from start_time and end_time
+        let hours = 0;
+        if (timesheet.start_time && timesheet.end_time) {
+          const start = new Date(`2000-01-01T${timesheet.start_time}`);
+          const end = new Date(`2000-01-01T${timesheet.end_time}`);
+          const diffMs = end - start;
+          hours = diffMs / (1000 * 60 * 60); // Convert to hours
+        }
+        
+        const cost = 0; // Cost calculation would need hourly_rate from labor table
 
         totalLaborHours += hours;
         totalLaborCost += cost;
@@ -3000,7 +2836,7 @@ export class Job {
         if (!laborSummary[timesheet.labor_id]) {
           laborSummary[timesheet.labor_id] = {
             labor_id: timesheet.labor_id,
-            labor_name: timesheet.labor_name,
+            labor_name: timesheet.labor?.users?.full_name || 'Unknown',
             total_hours: 0,
             total_cost: 0,
             days_worked: 0
@@ -3017,8 +2853,16 @@ export class Job {
       const leadLaborSummary = {};
 
       leadLaborTimesheets.forEach(timesheet => {
-        const hours = Job.timeToHours(timesheet.work_hours || timesheet.total_hours);
-        const cost = parseFloat(timesheet.total_cost) || (hours * (parseFloat(timesheet.hourly_rate) || 0));
+        // Calculate hours from start_time and end_time
+        let hours = 0;
+        if (timesheet.start_time && timesheet.end_time) {
+          const start = new Date(`2000-01-01T${timesheet.start_time}`);
+          const end = new Date(`2000-01-01T${timesheet.end_time}`);
+          const diffMs = end - start;
+          hours = diffMs / (1000 * 60 * 60); // Convert to hours
+        }
+        
+        const cost = 0; // Cost calculation would need hourly_rate from lead_labor table
 
         totalLeadLaborHours += hours;
         totalLeadLaborCost += cost;
@@ -3026,7 +2870,7 @@ export class Job {
         if (!leadLaborSummary[timesheet.lead_labor_id]) {
           leadLaborSummary[timesheet.lead_labor_id] = {
             lead_labor_id: timesheet.lead_labor_id,
-            labor_name: timesheet.labor_name,
+            labor_name: timesheet.lead_labor?.users?.full_name || 'Unknown',
             total_hours: 0,
             total_cost: 0,
             days_worked: 0
