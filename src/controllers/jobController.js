@@ -391,8 +391,8 @@ export class JobController {
       }
 
       if (updateData.work_activity !== undefined) {
-        if (typeof updateData.work_activity !== 'number' || updateData.work_activity < 0) {
-          return reply.code(400).send(errorResponse('work_activity must be a positive number', 400));
+        if (typeof updateData.work_activity !== 'string') {
+          return reply.code(400).send(errorResponse('work_activity must be a string', 400));
         }
       }
 

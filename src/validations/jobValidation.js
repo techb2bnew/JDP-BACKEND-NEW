@@ -129,9 +129,8 @@ export const createJobSchema = {
         description: 'Source of job creation (admin panel or mobile app)'
       },
       work_activity: {
-        type: 'integer',
-        minimum: 0,
-        description: 'Number of work activities (simple count like 1, 2, 20)'
+        type: 'string',
+        description: 'Work activity description or count as string'
       },
       total_work_time: {
         type: 'string',
@@ -298,9 +297,8 @@ export const updateJobSchema = {
         description: 'Source of job creation (admin panel or mobile app)'
       },
       work_activity: {
-        type: 'integer',
-        minimum: 0,
-        description: 'Number of work activities (simple count like 1, 2, 20)'
+        type: 'string',
+        description: 'Work activity description or count as string'
       },
       total_work_time: {
         type: 'string',
@@ -358,9 +356,8 @@ export const updateWorkDataSchema = {
     type: 'object',
     properties: {
       work_activity: {
-        type: 'integer',
-        minimum: 0,
-        description: 'Number of work activities (simple count like 1, 2, 20)'
+        type: 'string',
+        description: 'Work activity description or count as string'
       },
       total_work_time: {
         type: 'string',
@@ -465,9 +462,8 @@ export const updateWorkDataSchema = {
             description: 'Total cost for this timesheet entry'
           },
           work_activity: {
-            type: 'integer',
-            minimum: 0,
-            description: 'Work activity count'
+            type: 'string',
+            description: 'Work activity description or count as string'
           },
           status: {
             type: 'string',
@@ -545,9 +541,8 @@ export const updateWorkDataSchema = {
             description: 'Total cost for this timesheet entry'
           },
           work_activity: {
-            type: 'integer',
-            minimum: 0,
-            description: 'Work activity count'
+            type: 'string',
+            description: 'Work activity description or count as string'
           },
           status: {
             type: 'string',
