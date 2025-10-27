@@ -96,10 +96,33 @@ export class JobBluesheetController {
   }
 
   // Labor Entry Operations
+  static async getLaborEntryById(request, reply) {
+    try {
+      const { id } = request.params;
+
+      if (!id) {
+        return responseHelper.error(reply, 'Labor entry ID is required', 400);
+      }
+
+      const laborId = parseInt(id);
+      if (isNaN(laborId)) {
+        return responseHelper.error(reply, 'Labor entry ID must be a valid number', 400);
+      }
+
+      const result = await JobBluesheetService.getLaborEntryById(laborId);
+      return responseHelper.success(reply, result.data, result.message);
+    } catch (error) {
+      if (error.message.includes('not found')) {
+        return responseHelper.error(reply, error.message, 404);
+      }
+      return responseHelper.error(reply, error.message, 500);
+    }
+  }
+
   static async addLaborEntry(request, reply) {
     try {
       const { bluesheetId } = request.params;
-      const { labor_id, lead_labor_id, employee_name, role, regular_hours, overtime_hours, hourly_rate } = request.body;
+      const { labor_id, lead_labor_id, employee_name, role, regular_hours, overtime_hours, hourly_rate, date } = request.body;
 
       const result = await JobBluesheetService.addLaborEntry(bluesheetId, {
         labor_id,
@@ -108,7 +131,8 @@ export class JobBluesheetController {
         role: role || 'Labor',
         regular_hours: regular_hours || '0h',
         overtime_hours: overtime_hours || '0h',
-        hourly_rate
+        hourly_rate,
+        date: date || null
       });
 
       return responseHelper.success(reply, result.data, result.message);
@@ -155,6 +179,29 @@ export class JobBluesheetController {
   }
 
   // Material Entry Operations
+  static async getMaterialEntryById(request, reply) {
+    try {
+      const { id } = request.params;
+
+      if (!id) {
+        return responseHelper.error(reply, 'Material entry ID is required', 400);
+      }
+
+      const materialId = parseInt(id);
+      if (isNaN(materialId)) {
+        return responseHelper.error(reply, 'Material entry ID must be a valid number', 400);
+      }
+
+      const result = await JobBluesheetService.getMaterialEntryById(materialId);
+      return responseHelper.success(reply, result.data, result.message);
+    } catch (error) {
+      if (error.message.includes('not found')) {
+        return responseHelper.error(reply, error.message, 404);
+      }
+      return responseHelper.error(reply, error.message, 500);
+    }
+  }
+
   static async addMaterialEntry(request, reply) {
     try {
       const { bluesheetId } = request.params;

@@ -36,6 +36,44 @@ export class JobBluesheetMaterial {
     }
   }
 
+  static async findById(id) {
+    try {
+      const { data, error } = await supabase
+        .from('job_bluesheet_material')
+        .select(`
+          *,
+          product:product_id (
+            id,
+            product_name,
+            jdp_price,
+            supplier_cost_price,
+            unit
+          ),
+          job_bluesheet:job_bluesheet_id (
+            id,
+            date,
+            job:job_id (
+              id,
+              job_title
+            )
+          )
+        `)
+        .eq('id', id)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          throw new Error('Material entry not found');
+        }
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      return data;
+    } catch (error) {
+      throw error;
+    }
+  }
+
   static async findByBluesheetId(bluesheetId) {
     try {
       const { data, error } = await supabase

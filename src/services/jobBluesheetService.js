@@ -173,6 +173,20 @@ export class JobBluesheetService {
   }
 
   // Labor Entry Methods
+  static async getLaborEntryById(id) {
+    try {
+      const laborEntry = await JobBluesheetLabor.findById(id);
+
+      return {
+        success: true,
+        data: laborEntry,
+        message: 'Labor entry retrieved successfully'
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+
   static async addLaborEntry(bluesheetId, laborData) {
     try {
       const laborEntry = await JobBluesheetLabor.create({
@@ -233,6 +247,20 @@ export class JobBluesheetService {
   }
 
   // Material Entry Methods
+  static async getMaterialEntryById(id) {
+    try {
+      const materialEntry = await JobBluesheetMaterial.findById(id);
+
+      return {
+        success: true,
+        data: materialEntry,
+        message: 'Material entry retrieved successfully'
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+
   static async addMaterialEntry(bluesheetId, materialData) {
     try {
       const materialEntry = await JobBluesheetMaterial.create({

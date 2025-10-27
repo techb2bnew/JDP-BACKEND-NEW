@@ -17,12 +17,14 @@ export async function jobBluesheetRoutes(fastify, options) {
   // Labor Entry Routes
   fastify.post('/bluesheet/:bluesheetId/labor', JobBluesheetController.addLaborEntry);
   fastify.get('/bluesheet/:bluesheetId/labor', JobBluesheetController.getLaborEntries);
+  fastify.get('/labor/:id', JobBluesheetController.getLaborEntryById);
   fastify.put('/labor/:id', JobBluesheetController.updateLaborEntry);
   fastify.delete('/labor/:id', JobBluesheetController.deleteLaborEntry);
 
   // Material Entry Routes
   fastify.post('/bluesheet/:bluesheetId/material', JobBluesheetController.addMaterialEntry);
   fastify.get('/bluesheet/:bluesheetId/material', JobBluesheetController.getMaterialEntries);
+  fastify.get('/material/:id', JobBluesheetController.getMaterialEntryById);
   fastify.put('/material/:id', JobBluesheetController.updateMaterialEntry);
   fastify.delete('/material/:id', JobBluesheetController.deleteMaterialEntry);
 
