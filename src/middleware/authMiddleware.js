@@ -105,3 +105,6 @@ export const requireAdminOrSuperAdmin = async (request, reply) => {
       .send({ success: false, message: "Authorization error" });
   }
 };
+
+// Auth middleware object for easy usage
+export const authMiddleware = authenticateToken;

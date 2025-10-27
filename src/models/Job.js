@@ -490,7 +490,87 @@ export class Job {
     // Get timesheet data from new table
     jobWithDetails.labor_timesheets = await LaborTimesheet.findByJobId(job.id);
 
+    // Get bluesheet data
+    jobWithDetails.bluesheets = await Job.fetchBluesheetsDetails(job.id);
+
     return jobWithDetails;
+  }
+
+  // Fetch bluesheets details for a job
+  static async fetchBluesheetsDetails(jobId) {
+    try {
+      const { data: bluesheets, error } = await supabase
+        .from('job_bluesheet')
+        .select(`
+          *,
+          created_by_user:users!job_bluesheet_created_by_fkey (
+            id,
+            full_name,
+            email
+          ),
+          labor_entries:job_bluesheet_labor (
+            id,
+            labor_id,
+            lead_labor_id,
+            employee_name,
+            role,
+            regular_hours,
+            overtime_hours,
+            total_hours,
+            hourly_rate,
+            total_cost,
+            labor:labor_id (
+              id,
+              labor_code,
+              users!labor_user_id_fkey (
+                id,
+                full_name,
+                email
+              )
+            ),
+            lead_labor:lead_labor_id (
+              id,
+              labor_code,
+              users!lead_labor_user_id_fkey (
+                id,
+                full_name,
+                email
+              )
+            )
+          ),
+          material_entries:job_bluesheet_material (
+            id,
+            product_id,
+            material_name,
+            quantity,
+            unit,
+            total_ordered,
+            material_used,
+            supplier_order_id,
+            return_to_warehouse,
+            unit_cost,
+            total_cost,
+            product:product_id (
+              id,
+              product_name,
+              jdp_price,
+              supplier_cost_price
+            )
+          )
+        `)
+        .eq('job_id', jobId)
+        .order('date', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching bluesheets:', error);
+        return [];
+      }
+
+      return bluesheets || [];
+    } catch (error) {
+      console.error('Error in fetchBluesheetsDetails:', error);
+      return [];
+    }
   }
 
   static async create(jobData) {
