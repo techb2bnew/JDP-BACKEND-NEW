@@ -271,21 +271,22 @@ export class Estimate {
         }
       }
 
-      // Custom products handling - create new or update existing products
+      // Custom products handling - use junction table approach
       if (customProducts && Array.isArray(customProducts) && customProducts.length > 0) {
         for (const productItem of customProducts) {
           try {
-            // Check if product_id exists in payload (for update)
-            console.log('UPDATE - Processing product:', { id: productItem.id, product_id: productItem.product_id, name: productItem.product_name });
+            console.log('Processing product:', { id: productItem.id, product_id: productItem.product_id, name: productItem.product_name });
+            
+            let productId;
+            
+            // Check if product already exists
             if (productItem.id || productItem.product_id) {
-              const productId = productItem.id || productItem.product_id;
-              console.log('UPDATE - Updating existing product with ID:', productId);
-
+              productId = productItem.id || productItem.product_id;
+              console.log('Updating existing product with ID:', productId);
+              
               // Update existing product
               const updateData = {
                 product_name: productItem.product_name,
-                // supplier_id: productItem.supplier_id,
-                estimate_id: data.id,
                 supplier_sku: productItem.supplier_sku || '',
                 stock_quantity: productItem.stock_quantity,
                 unit: productItem.unit,
@@ -309,12 +310,13 @@ export class Estimate {
 
               if (updateError) {
                 console.error('Error updating product:', updateError);
+                continue;
               } else {
-                console.log(`UPDATE - Product ${productId} updated successfully`);
+                console.log(`Product ${productId} updated successfully`);
               }
             } else {
-              // Create new product
-              console.log('UPDATE - Creating new product:', productItem.product_name);
+              // Create new product first
+              console.log('Creating new product:', productItem.product_name);
               let jdpSku = productItem.jdp_sku;
               if (!jdpSku) {
                 jdpSku = await Estimate.generateProductSku();
@@ -322,13 +324,11 @@ export class Estimate {
 
               const productData = {
                 product_name: productItem.product_name,
-                // supplier_id: productItem.supplier_id,
                 supplier_sku: productItem.supplier_sku || '',
                 jdp_sku: jdpSku,
                 stock_quantity: productItem.stock_quantity,
                 unit: productItem.unit,
                 job_id: parseInt(productItem.job_id),
-                estimate_id: data.id,
                 is_custom: true,
                 unit_cost: productItem.unit_cost,
                 jdp_price: productItem.jdp_price || productItem.unit_cost,
@@ -340,18 +340,44 @@ export class Estimate {
                 system_ip: estimateData.system_ip || null
               };
 
-              const { error: productError } = await supabase
+              const { data: newProduct, error: productError } = await supabase
                 .from('products')
-                .insert([productData]);
+                .insert([productData])
+                .select('id')
+                .single();
 
               if (productError) {
-                console.error('Error creating custom product:', productError);
-              } else {
-                console.log('New product created successfully');
+                console.error('Error creating product:', productError);
+                continue;
               }
+              
+              productId = newProduct.id;
+              console.log('New product created with ID:', productId);
+            }
+
+            // Now add the relationship in junction table
+            const junctionData = {
+              estimate_id: data.id,
+              product_id: productId,
+              created_by: estimateData.created_by || null,
+              system_ip: estimateData.system_ip || null
+            };
+
+            // Use upsert to handle both insert and update cases
+            const { error: junctionError } = await supabase
+              .from('estimate_products')
+              .upsert(junctionData, { 
+                onConflict: 'estimate_id,product_id',
+                ignoreDuplicates: false 
+              });
+
+            if (junctionError) {
+              console.error('Error creating estimate-product relationship:', junctionError);
+            } else {
+              console.log(`Successfully linked product ${productId} to estimate ${data.id}`);
             }
           } catch (error) {
-            console.error('Error processing custom product item:', error);
+            console.error('Error processing product item:', error);
           }
         }
       }
@@ -522,35 +548,56 @@ export class Estimate {
       // Fetch products and calculate totals for each estimate
       const estimatesWithDetails = await Promise.all(
         (data || []).map(async (estimate) => {
-          // Fetch products for this estimate's job
+          // Fetch products from junction table
           let products = [];
-          if (estimate.job_id) {
-            const { data: jobProducts, error: productsError } = await supabase
-              .from("products")
-              .select(`
+          const { data: estimateProducts, error: productsError } = await supabase
+            .from("estimate_products")
+            .select(`
+              id,
+              product:products!estimate_products_product_id_fkey(
                 id,
                 product_name,
                 jdp_sku,
                 supplier_sku,
                 jdp_price,
-                estimated_price,
                 supplier_cost_price,
-                total_cost,
                 stock_quantity,
                 unit,
                 category,
                 description,
-                supplier_id
-              `)
-              .eq("estimate_id", estimate.id);
-            // .eq("is_custom", true);
+                supplier_id,
+                is_custom,
+                unit_cost,
+                estimated_price,
+                total_cost
+              )
+            `)
+            .eq("estimate_id", estimate.id);
 
-            if (!productsError && jobProducts) {
-              products = jobProducts;
-              console.log(`Found ${products.length} products for estimate_id ${estimate.id}:`, products.map(p => ({ id: p.id, name: p.product_name, jdp_price: p.jdp_price, total_cost: p.total_cost })));
-            } else {
-              console.log(`No products found for estimate_id ${estimate.id}. Error:`, productsError);
-            }
+          if (!productsError && estimateProducts) {
+            // Transform the data to match the expected format
+            products = estimateProducts.map(ep => ({
+              id: ep.product.id,
+              product_name: ep.product.product_name,
+              jdp_sku: ep.product.jdp_sku,
+              supplier_sku: ep.product.supplier_sku,
+              unit_cost: ep.product.unit_cost,
+              jdp_price: ep.product.jdp_price,
+              estimated_price: ep.product.estimated_price,
+              supplier_cost_price: ep.product.supplier_cost_price,
+              total_cost: ep.product.total_cost,
+              stock_quantity: ep.product.stock_quantity,
+              unit: ep.product.unit,
+              category: ep.product.category,
+              description: ep.product.description,
+              supplier_id: ep.product.supplier_id,
+              is_custom: ep.product.is_custom,
+              // Additional fields from junction table
+              estimate_product_id: ep.id
+            }));
+            console.log(`Found ${products.length} products for estimate_id ${estimate.id}:`, products.map(p => ({ id: p.id, name: p.product_name, jdp_price: p.jdp_price, total_cost: p.total_cost })));
+          } else {
+            console.log(`No products found for estimate_id ${estimate.id}. Error:`, productsError);
           }
 
           // Fetch additional costs
@@ -656,33 +703,53 @@ export class Estimate {
       // Get additional costs
       const additionalCosts = await Estimate.getAdditionalCosts(estimateId);
 
-      // Get products from job
+      // Get products from junction table
       let products = [];
-      if (data.job && data.job.id) {
-        const { data: jobProducts, error: productsError } = await supabase
-          .from("products")
-          .select(`
+      const { data: estimateProducts, error: productsError } = await supabase
+        .from("estimate_products")
+        .select(`
+          id,
+          product:products!estimate_products_product_id_fkey(
             id,
             product_name,
             jdp_sku,
             supplier_sku,
-            unit_cost,
             jdp_price,
-            estimated_price,
             supplier_cost_price,
-            total_cost,
             stock_quantity,
             unit,
             category,
             description,
-            supplier_id
-          `)
-          .eq("estimate_id", data.id)
-        // .eq("is_custom", true);
+            supplier_id,
+            is_custom,
+            unit_cost,
+            estimated_price,
+            total_cost
+          )
+        `)
+        .eq("estimate_id", data.id);
 
-        if (!productsError && jobProducts) {
-          products = jobProducts;
-        }
+      if (!productsError && estimateProducts) {
+        // Transform the data to match the expected format
+        products = estimateProducts.map(ep => ({
+          id: ep.product.id,
+          product_name: ep.product.product_name,
+          jdp_sku: ep.product.jdp_sku,
+          supplier_sku: ep.product.supplier_sku,
+          unit_cost: ep.product.unit_cost,
+          jdp_price: ep.product.jdp_price,
+          estimated_price: ep.product.estimated_price,
+          supplier_cost_price: ep.product.supplier_cost_price,
+          total_cost: ep.product.total_cost,
+          stock_quantity: ep.product.stock_quantity,
+          unit: ep.product.unit,
+          category: ep.product.category,
+          description: ep.product.description,
+          supplier_id: ep.product.supplier_id,
+          is_custom: ep.product.is_custom,
+          // Additional fields from junction table
+          estimate_product_id: ep.id
+        }));
       }
 
       // Calculate total amount from products and additional costs

@@ -164,7 +164,6 @@ CREATE TABLE IF NOT EXISTS products (
   category            TEXT,
   supplier_id         BIGINT REFERENCES suppliers(id) ON DELETE CASCADE, 
   job_id              INT REFERENCES jobs(id) ON DELETE SET NULL,
-  estimate_id         INT REFERENCES estimates(id) ON DELETE SET NULL,
   description         TEXT,
   supplier_sku        TEXT,
   jdp_sku             TEXT,
@@ -187,8 +186,26 @@ CREATE TABLE IF NOT EXISTS products (
 CREATE INDEX IF NOT EXISTS idx_products_status ON products(status);
 CREATE INDEX IF NOT EXISTS idx_products_system_ip ON products(system_ip);
 CREATE INDEX IF NOT EXISTS idx_products_created_by ON products(created_by);
-CREATE INDEX IF NOT EXISTS idx_products_estimate_id ON products(estimate_id);
 CREATE INDEX IF NOT EXISTS idx_products_job_id ON products(job_id);
+
+-- Junction table for many-to-many relationship between estimates and products
+CREATE TABLE IF NOT EXISTS estimate_products (
+  id                  SERIAL PRIMARY KEY,
+  estimate_id         INT NOT NULL REFERENCES estimates(id) ON DELETE CASCADE,
+  product_id          BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  created_by          INT REFERENCES users(id) ON DELETE SET NULL,
+  system_ip           VARCHAR(45),
+  created_at          TIMESTAMP DEFAULT NOW(),
+  updated_at          TIMESTAMP DEFAULT NOW(),
+  
+  -- Ensure unique combination of estimate and product
+  UNIQUE(estimate_id, product_id)
+);
+
+-- Indexes for estimate_products table
+CREATE INDEX IF NOT EXISTS idx_estimate_products_estimate_id ON estimate_products(estimate_id);
+CREATE INDEX IF NOT EXISTS idx_estimate_products_product_id ON estimate_products(product_id);
+CREATE INDEX IF NOT EXISTS idx_estimate_products_created_by ON estimate_products(created_by);
 
 CREATE TABLE IF NOT EXISTS estimates (
   id                  SERIAL PRIMARY KEY,
