@@ -122,7 +122,7 @@ export class JobBluesheetController {
   static async addLaborEntry(request, reply) {
     try {
       const { bluesheetId } = request.params;
-      const { labor_id, lead_labor_id, employee_name, role, regular_hours, overtime_hours, hourly_rate, date } = request.body;
+      const { labor_id, lead_labor_id, employee_name, role, regular_hours, overtime_hours, hourly_rate, date, description } = request.body;
 
       const result = await JobBluesheetService.addLaborEntry(bluesheetId, {
         labor_id,
@@ -132,7 +132,8 @@ export class JobBluesheetController {
         regular_hours: regular_hours || '0h',
         overtime_hours: overtime_hours || '0h',
         hourly_rate,
-        date: date || null
+        date: date || null,
+        description: description || null
       });
 
       return responseHelper.success(reply, result.data, result.message);

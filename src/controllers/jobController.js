@@ -467,12 +467,27 @@ export class JobController {
 
   static async getAllJobsWeeklyTimesheetSummary(request, reply) {
     try {
-      const { start_date, end_date } = request.query;
+      const { start_date, end_date, page = 1, limit = 10 } = request.query;
 
-      // start_date and end_date are now optional
-      // If not provided, will return all timesheet data
+      // Convert page and limit to numbers
+      const pageNum = parseInt(page);
+      const limitNum = parseInt(limit);
 
-      const result = await Job.getAllJobsWeeklyTimesheetSummary(start_date, end_date);
+      // Validate pagination parameters
+      if (isNaN(pageNum) || pageNum < 1) {
+        return reply.code(400).send(errorResponse('Page must be a positive number', 400));
+      }
+      if (isNaN(limitNum) || limitNum < 1 || limitNum > 100) {
+        return reply.code(400).send(errorResponse('Limit must be between 1 and 100', 400));
+      }
+
+      const pagination = {
+        page: pageNum,
+        limit: limitNum,
+        offset: (pageNum - 1) * limitNum
+      };
+
+      const result = await Job.getAllJobsWeeklyTimesheetSummary(start_date, end_date, pagination);
       return reply.code(200).send({
         success: true,
         message: 'All jobs weekly timesheet summary retrieved successfully',

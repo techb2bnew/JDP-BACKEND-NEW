@@ -25,6 +25,7 @@ CREATE TABLE job_bluesheet_labor (
     total_hours VARCHAR(50) DEFAULT '0h',
     hourly_rate DECIMAL(10,2),
     total_cost DECIMAL(10,2),
+    description TEXT,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -71,6 +72,7 @@ COMMENT ON COLUMN job_bluesheet_labor.role IS 'Role of the employee (Labor, Supe
 COMMENT ON COLUMN job_bluesheet_labor.regular_hours IS 'Regular hours worked (e.g., "8h", "4h")';
 COMMENT ON COLUMN job_bluesheet_labor.overtime_hours IS 'Overtime hours worked';
 COMMENT ON COLUMN job_bluesheet_labor.total_hours IS 'Total hours (regular + overtime)';
+COMMENT ON COLUMN job_bluesheet_labor.description IS 'Description or notes for the labor entry';
 
 COMMENT ON COLUMN job_bluesheet_material.product_id IS 'Reference to products table';
 COMMENT ON COLUMN job_bluesheet_material.material_name IS 'Name of the material/product';

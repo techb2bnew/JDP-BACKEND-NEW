@@ -2507,7 +2507,7 @@ export class Job {
     }
   }
 
-  static async getAllJobsWeeklyTimesheetSummary(startDate, endDate) {
+  static async getAllJobsWeeklyTimesheetSummary(startDate, endDate, pagination = {}) {
     try {
       // If no date range provided, show current month's latest week with timesheet data
       // If date range provided, filter by that range
@@ -2869,13 +2869,28 @@ export class Job {
         });
       }
 
+      // Apply pagination
+      const { page = 1, limit = 10, offset = 0 } = pagination;
+      const totalRecords = allDashboardTimesheets.length;
+      const totalPages = Math.ceil(totalRecords / limit);
+      
+      const paginatedData = allDashboardTimesheets.slice(offset, offset + limit);
+
       return {
         period: {
           start_date: actualStartDate,
           end_date: actualEndDate,
           week_range: `${actualStartDate} - ${actualEndDate}`
         },
-        dashboard_timesheets: allDashboardTimesheets
+        dashboard_timesheets: paginatedData,
+        pagination: {
+          current_page: page,
+          total_pages: totalPages,
+          total_records: totalRecords,
+          records_per_page: limit,
+          has_next_page: page < totalPages,
+          has_prev_page: page > 1
+        }
       };
     } catch (error) {
       throw error;
