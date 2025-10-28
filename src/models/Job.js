@@ -5,8 +5,8 @@ import { LaborTimesheet } from './LaborTimesheet.js';
 export class Job {
   static async searchTimesheets(filters, pagination = {}) {
     try {
-      // Fetch timesheets from new table with job and labor details
-      const { data: timesheets, error } = await supabase
+      // Build query with date filters
+      let query = supabase
         .from('labor_timesheets')
         .select(`
           *,
@@ -26,8 +26,18 @@ export class Job {
               full_name
             )
           )
-        `)
-        .order('date', { ascending: false });
+        `);
+
+      // Apply date range filters
+      if (filters.start_date && filters.end_date) {
+        query = query.gte('date', filters.start_date).lte('date', filters.end_date);
+      } else if (filters.start_date) {
+        query = query.gte('date', filters.start_date);
+      } else if (filters.end_date) {
+        query = query.lte('date', filters.end_date);
+      }
+
+      const { data: timesheets, error } = await query.order('date', { ascending: false });
 
       if (error) {
         throw new Error(`Database error: ${error.message}`);
@@ -84,25 +94,40 @@ export class Job {
       if (timesheetRows.length === 0) {
         return {
           period: {
-            start_date: null,
-            end_date: null,
-            week_range: null
+            start_date: filters.start_date || null,
+            end_date: filters.end_date || null,
+            week_range: filters.start_date && filters.end_date ? `${filters.start_date} - ${filters.end_date}` : null
           },
-          dashboard_timesheets: []
+          dashboard_timesheets: [],
+          pagination: {
+            current_page: pagination.page || 1,
+            total_pages: 0,
+            total_records: 0,
+            records_per_page: pagination.limit || 10,
+            has_next_page: false,
+            has_prev_page: false
+          }
         };
       }
 
-      // Determine latest date among results, build week (Mon-Sun)
-      const latest = timesheetRows.reduce((max, r) => (new Date(r.date) > new Date(max) ? r.date : max), timesheetRows[0].date);
-      const latestDateObj = new Date(latest);
-      const dayOfWeek = latestDateObj.getDay();
-      const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-      const monday = new Date(latestDateObj);
-      monday.setDate(latestDateObj.getDate() + daysToMonday);
-      const sunday = new Date(monday);
-      sunday.setDate(monday.getDate() + 6);
-      const startDate = Job.formatLocalDate(monday);
-      const endDate = Job.formatLocalDate(sunday);
+      // Determine date range from filters or data
+      let actualStartDate, actualEndDate;
+      if (filters.start_date && filters.end_date) {
+        actualStartDate = filters.start_date;
+        actualEndDate = filters.end_date;
+      } else {
+        // Determine latest date among results, build week (Mon-Sun)
+        const latest = timesheetRows.reduce((max, r) => (new Date(r.date) > new Date(max) ? r.date : max), timesheetRows[0].date);
+        const latestDateObj = new Date(latest);
+        const dayOfWeek = latestDateObj.getDay();
+        const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+        const monday = new Date(latestDateObj);
+        monday.setDate(latestDateObj.getDate() + daysToMonday);
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate() + 6);
+        actualStartDate = Job.formatLocalDate(monday);
+        actualEndDate = Job.formatLocalDate(sunday);
+      }
 
       // Aggregate to weekly dashboard rows per employee+job
       const buckets = new Map();
@@ -125,7 +150,7 @@ export class Job {
 
       timesheetRows.forEach(r => {
         // Only include entries within the computed week
-        if (r.date < startDate || r.date > endDate) return;
+        if (r.date < actualStartDate || r.date > actualEndDate) return;
         const key = `${r.employee}|${r.job_id}|${r.labor_id||''}`;
         const row = ensureRow(key, r.employee, r.job.split(' (Job-')[0], r.job_id, r.labor_id);
 
@@ -164,13 +189,28 @@ export class Job {
 
       const dashboard = Array.from(buckets.values());
 
+      // Apply pagination
+      const { page = 1, limit = 10 } = pagination;
+      const totalRecords = dashboard.length;
+      const totalPages = Math.ceil(totalRecords / limit);
+      const offset = (page - 1) * limit;
+      const paginatedData = dashboard.slice(offset, offset + limit);
+
       return {
         period: {
-          start_date: startDate,
-          end_date: endDate,
-          week_range: `${startDate} - ${endDate}`
+          start_date: actualStartDate,
+          end_date: actualEndDate,
+          week_range: `${actualStartDate} - ${actualEndDate}`
         },
-        dashboard_timesheets: dashboard
+        dashboard_timesheets: paginatedData,
+        pagination: {
+          current_page: page,
+          total_pages: totalPages,
+          total_records: totalRecords,
+          records_per_page: limit,
+          has_next_page: page < totalPages,
+          has_prev_page: page > 1
+        }
       };
     } catch (error) {
       throw error;
