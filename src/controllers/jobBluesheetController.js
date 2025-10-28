@@ -206,7 +206,7 @@ export class JobBluesheetController {
   static async addMaterialEntry(request, reply) {
     try {
       const { bluesheetId } = request.params;
-      const { product_id, material_name, unit, total_ordered, material_used, supplier_order_id, return_to_warehouse, unit_cost } = request.body;
+      const { product_id, material_name, unit, total_ordered, material_used, supplier_order_id, return_to_warehouse, unit_cost, date } = request.body;
 
       const result = await JobBluesheetService.addMaterialEntry(bluesheetId, {
         product_id,
@@ -216,7 +216,8 @@ export class JobBluesheetController {
         material_used: material_used || 0,
         supplier_order_id,
         return_to_warehouse: return_to_warehouse || false,
-        unit_cost
+        unit_cost,
+        date: date || null
       });
 
       return responseHelper.success(reply, result.data, result.message);

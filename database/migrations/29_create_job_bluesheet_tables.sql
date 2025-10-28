@@ -44,6 +44,7 @@ CREATE TABLE job_bluesheet_material (
     return_to_warehouse BOOLEAN DEFAULT false,
     unit_cost DECIMAL(10,2),
     total_cost DECIMAL(10,2),
+    date DATE,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -81,6 +82,7 @@ COMMENT ON COLUMN job_bluesheet_material.total_ordered IS 'Total quantity ordere
 COMMENT ON COLUMN job_bluesheet_material.material_used IS 'Quantity actually used';
 COMMENT ON COLUMN job_bluesheet_material.supplier_order_id IS 'Order ID from supplier';
 COMMENT ON COLUMN job_bluesheet_material.return_to_warehouse IS 'Whether material should be returned to warehouse';
+COMMENT ON COLUMN job_bluesheet_material.date IS 'Date of the material entry';
 
 -- If table already exists, add quantity column
 ALTER TABLE job_bluesheet_material ADD COLUMN IF NOT EXISTS quantity DECIMAL(10,2) DEFAULT 0;
