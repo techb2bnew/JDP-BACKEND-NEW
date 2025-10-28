@@ -3224,7 +3224,7 @@ export class Job {
         jobPriority: job.priority,
         dashboardMetrics: {
           totalHoursWorked: {
-            value: totalHoursWorked,
+            value: parseFloat(totalHoursWorked.toFixed(2)),
             unit: "hours",
             color: "blue"
           },
