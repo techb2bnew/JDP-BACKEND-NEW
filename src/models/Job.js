@@ -3097,20 +3097,49 @@ export class Job {
         throw new Error('Job not found');
       }
 
-
+      // Calculate totalHoursWorked from bluesheet labor regular_hours for this job
       let totalHoursWorked = 0;
-      if (job.assigned_labor && job.assigned_labor.length > 0) {
-        totalHoursWorked = job.assigned_labor.reduce((total, labor) => {
-          return total + (parseFloat(labor.hours_worked) || 0);
-        }, 0);
-      }
+      try {
+        const { data: bluesheets, error: bsError } = await supabase
+          .from('job_bluesheet')
+          .select(
+            `id,
+             job_id,
+             labor_entries:job_bluesheet_labor (
+               id,
+               regular_hours
+             )`
+          )
+          .eq('job_id', jobId);
 
+        if (bsError) {
+          throw new Error(`Database error: ${bsError.message}`);
+        }
 
-      if (job.custom_labor && job.custom_labor.length > 0) {
-        const customHours = job.custom_labor.reduce((total, labor) => {
-          return total + (parseFloat(labor.hours_worked) || 0);
+        const parseHours = (hoursString) => {
+          if (!hoursString || typeof hoursString !== 'string') return 0;
+          // supports formats like "8h", "8h30m", "8:30"
+          const hMatch = hoursString.match(/(\d+(?:\.\d+)?)h(?:\d+m)?/);
+          if (hMatch) return parseFloat(hMatch[1]);
+          const timeMatch = hoursString.match(/(\d+):(\d+)/);
+          if (timeMatch) {
+            const h = parseInt(timeMatch[1]);
+            const m = parseInt(timeMatch[2]);
+            return h + m / 60;
+          }
+          // plain number fallback
+          const num = parseFloat(hoursString);
+          return isNaN(num) ? 0 : num;
+        };
+
+        totalHoursWorked = (bluesheets || []).reduce((sum, bs) => {
+          const entries = bs.labor_entries || [];
+          const hoursForSheet = entries.reduce((eSum, e) => eSum + parseHours(e.regular_hours), 0);
+          return sum + hoursForSheet;
         }, 0);
-        totalHoursWorked += customHours;
+      } catch (calcErr) {
+        // If any error while calculating from bluesheets, keep totalHoursWorked as 0
+        console.error('Error calculating totalHoursWorked from bluesheets:', calcErr.message);
       }
 
 
