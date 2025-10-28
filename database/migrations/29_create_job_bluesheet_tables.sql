@@ -7,7 +7,7 @@ CREATE TABLE job_bluesheet (
     notes TEXT,
     additional_charges DECIMAL(10,2) DEFAULT 0,
     total_cost DECIMAL(10,2) DEFAULT 0,
-    status VARCHAR(50) DEFAULT 'draft',
+    status VARCHAR(50) DEFAULT 'pending',
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
