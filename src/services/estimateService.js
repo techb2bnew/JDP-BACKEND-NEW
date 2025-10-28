@@ -2,6 +2,15 @@ import { Estimate } from '../models/Estimate.js';
 import { supabase } from '../config/database.js';
 
 export class EstimateService {
+  static async deleteProductFromEstimate(estimateProductId) {
+    try {
+      const result = await Estimate.deleteProductFromEstimate(estimateProductId);
+      return result;
+    } catch (error) {
+      throw error;
+    }
+  }
+
   static async createEstimate(estimateData, createdByUserId) {
     try {
       // Clean data - convert empty strings to null for numeric and date fields

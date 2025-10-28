@@ -158,13 +158,13 @@ export class JobBluesheetService {
     }
   }
 
-  static async searchBluesheets(filters) {
+  static async searchBluesheets(filters, pagination = {}) {
     try {
-      const bluesheets = await JobBluesheet.search(filters);
+      const result = await JobBluesheet.search(filters, pagination);
 
       return {
         success: true,
-        data: bluesheets,
+        data: result,
         message: 'Job bluesheets retrieved successfully'
       };
     } catch (error) {

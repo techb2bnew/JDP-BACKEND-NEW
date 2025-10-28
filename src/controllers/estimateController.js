@@ -3,6 +3,30 @@ import { successResponse, errorResponse, validationErrorResponse } from '../help
 import { createEstimateSchema, updateEstimateSchema } from '../validations/estimateValidation.js';
 
 export class EstimateController {
+  static async deleteProductFromEstimate(request, reply) {
+    try {
+      const { estimateProductId } = request.params;
+
+      if (!estimateProductId) {
+        return reply.status(400).send(validationErrorResponse(['Estimate product ID is required']));
+      }
+
+      const estimateProductIdNum = parseInt(estimateProductId);
+      if (isNaN(estimateProductIdNum)) {
+        return reply.status(400).send(validationErrorResponse(['Estimate product ID must be a valid number']));
+      }
+
+      const result = await EstimateService.deleteProductFromEstimate(estimateProductIdNum);
+      
+      return reply.status(200).send(successResponse(result, result.message));
+    } catch (error) {
+      if (error.message.includes('not found')) {
+        return reply.status(404).send(errorResponse(error.message, 404));
+      }
+      return reply.status(500).send(errorResponse(`Failed to delete product from estimate: ${error.message}`, 500));
+    }
+  }
+
   static async searchEstimates(req, reply) {
     try {
       const {

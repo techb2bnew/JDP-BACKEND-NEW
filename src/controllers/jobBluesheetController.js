@@ -85,9 +85,27 @@ export class JobBluesheetController {
 
   static async searchBluesheets(request, reply) {
     try {
-      const filters = request.query;
+      const { page = 1, limit = 10, ...filters } = request.query;
 
-      const result = await JobBluesheetService.searchBluesheets(filters);
+      // Convert page and limit to numbers
+      const pageNum = parseInt(page);
+      const limitNum = parseInt(limit);
+
+      // Validate pagination parameters
+      if (isNaN(pageNum) || pageNum < 1) {
+        return responseHelper.error(reply, 'Page must be a positive number', 400);
+      }
+      if (isNaN(limitNum) || limitNum < 1 || limitNum > 100) {
+        return responseHelper.error(reply, 'Limit must be between 1 and 100', 400);
+      }
+
+      const pagination = {
+        page: pageNum,
+        limit: limitNum,
+        offset: (pageNum - 1) * limitNum
+      };
+
+      const result = await JobBluesheetService.searchBluesheets(filters, pagination);
 
       return responseHelper.success(reply, result.data, result.message);
     } catch (error) {

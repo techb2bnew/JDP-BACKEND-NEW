@@ -192,6 +192,42 @@ export class Estimate {
     }
   }
 
+  static async deleteProductFromEstimate(estimateProductId) {
+    try {
+      // First check if the estimate_product entry exists
+      const { data: existingEntry, error: checkError } = await supabase
+        .from('estimate_products')
+        .select('id, estimate_id, product_id')
+        .eq('id', estimateProductId)
+        .single();
+
+      if (checkError) {
+        if (checkError.code === 'PGRST116') {
+          throw new Error('Estimate product entry not found');
+        }
+        throw new Error(`Database error: ${checkError.message}`);
+      }
+
+      // Delete the entry from estimate_products table
+      const { error: deleteError } = await supabase
+        .from('estimate_products')
+        .delete()
+        .eq('id', estimateProductId);
+
+      if (deleteError) {
+        throw new Error(`Database error: ${deleteError.message}`);
+      }
+
+      return {
+        success: true,
+        message: 'Product removed from estimate successfully',
+        deletedEntry: existingEntry
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+
   static async create(estimateData) {
     try {
       console.log('CREATE - Received estimateData:', {
