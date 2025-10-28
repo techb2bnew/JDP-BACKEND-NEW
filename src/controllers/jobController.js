@@ -532,24 +532,57 @@ export class JobController {
 
   static async approveWeekTimesheet(request, reply) {
     try {
-      const { jobId, laborId, startDate, endDate, status } = request.body;
+      const { jobId, laborId, lead_labor_id, startDate, endDate, status } = request.body;
       const { status: queryStatus } = request.query;
 
-      if (!jobId || !laborId || !startDate || !endDate) {
-        return reply.code(400).send(errorResponse('jobId, laborId, startDate, and endDate are required', 400));
+      if (!jobId || (!laborId && !lead_labor_id) || !startDate || !endDate) {
+        return reply.code(400).send(errorResponse('jobId, (laborId or lead_labor_id), startDate, and endDate are required', 400));
       }
 
       const finalStatus = status || queryStatus || 'approved';
 
-      const result = await Job.approveWeekTimesheet(
-        parseInt(jobId),
-        parseInt(laborId),
-        startDate,
-        endDate,
-        finalStatus
-      );
+      // If both ids are provided, approve for both and aggregate the result
+      let results = [];
+      if (laborId) {
+        const res = await Job.approveWeekTimesheet(
+          parseInt(jobId),
+          parseInt(laborId),
+          startDate,
+          endDate,
+          finalStatus
+        );
+        results.push(res);
+      }
+      if (lead_labor_id) {
+        const res = await Job.approveWeekTimesheet(
+          parseInt(jobId),
+          parseInt(lead_labor_id),
+          startDate,
+          endDate,
+          finalStatus
+        );
+        results.push(res);
+      }
 
-      return reply.code(200).send(result);
+      // Aggregate response if multiple
+      if (results.length === 1) {
+        return reply.code(200).send(results[0]);
+      }
+
+      const totalUpdated = results.reduce((sum, r) => sum + (r?.data?.entries_updated || 0), 0);
+      return reply.code(200).send({
+        success: true,
+        message: `${totalUpdated} timesheet entries ${finalStatus} successfully for the week (labor & lead labor)`,
+        data: {
+          job_id: parseInt(jobId),
+          labor_id: laborId ? parseInt(laborId) : null,
+          lead_labor_id: lead_labor_id ? parseInt(lead_labor_id) : null,
+          start_date: startDate,
+          end_date: endDate,
+          status: finalStatus,
+          entries_updated: totalUpdated
+        }
+      });
     } catch (error) {
       if (error.message.includes('not found')) {
         return reply.code(404).send(errorResponse(error.message, 404));

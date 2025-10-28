@@ -2457,10 +2457,10 @@ export class Job {
   }
 
  
-  static async approveWeekTimesheet(jobId, laborId, startDate, endDate, status = 'approved') {
+  static async approveWeekTimesheet(jobId, laborOrLeadLaborId, startDate, endDate, status = 'approved') {
     try {
-      if (!jobId || !laborId || !startDate || !endDate) {
-        throw new Error('jobId, laborId, startDate, and endDate are required for weekly timesheet approval');
+      if (!jobId || !laborOrLeadLaborId || !startDate || !endDate) {
+        throw new Error('jobId, laborId/lead_labor_id, startDate, and endDate are required for weekly timesheet approval');
       }
 
       // Get timesheets from new table for the specific job, labor, and date range
@@ -2468,7 +2468,7 @@ export class Job {
         .from('labor_timesheets')
         .select('*')
         .eq('job_id', jobId)
-        .or(`labor_id.eq.${laborId},lead_labor_id.eq.${laborId}`)
+        .or(`labor_id.eq.${laborOrLeadLaborId},lead_labor_id.eq.${laborOrLeadLaborId}`)
         .gte('date', startDate)
         .lte('date', endDate);
 
@@ -2477,7 +2477,7 @@ export class Job {
       }
 
       if (!timesheets || timesheets.length === 0) {
-        throw new Error('No timesheet entries found for the given labor_id and date range');
+        throw new Error('No timesheet entries found for the given labor/lead_labor and date range');
       }
 
       // Update each timesheet entry with new status
@@ -2495,7 +2495,7 @@ export class Job {
         message: `${timesheets.length} timesheet entries ${status} successfully for the week`,
         data: {
           job_id: jobId,
-          labor_id: laborId,
+          labor_or_lead_labor_id: laborOrLeadLaborId,
           start_date: startDate,
           end_date: endDate,
           status: status,
@@ -2775,6 +2775,7 @@ export class Job {
             job: `${job.job_title} (Job-${job.job_id})`,
             job_id: job.job_id,
             labor_id: labor.labor_id,
+            lead_labor_id: null,
             week: `${actualStartDate} - ${actualEndDate}`,
             ...employeeHours,
             total: Job.formatTimeDisplay(totalHours),
@@ -2858,7 +2859,8 @@ export class Job {
             employee: labor.labor_name,
             job: `${job.job_title} (Job-${job.job_id})`,
             job_id: job.job_id,
-            labor_id: labor.labor_id,
+            labor_id: null,
+            lead_labor_id: labor.lead_labor_id,
             week: `${actualStartDate} - ${actualEndDate}`,
             ...employeeHours,
             total: Job.formatTimeDisplay(totalHours),
