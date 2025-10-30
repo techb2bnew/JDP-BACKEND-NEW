@@ -22,8 +22,11 @@ export class DashboardController {
 
   static async getRecentActivities(request, reply) {
     try {
-      const { limit } = request.query || {};
-      const result = await DashboardService.getRecentActivities(limit ? parseInt(limit) : 20);
+      const { page, limit } = request.query || {};
+      const result = await DashboardService.getRecentActivities(
+        page ? parseInt(page) : 1,
+        limit ? parseInt(limit) : 20
+      );
       return reply.code(200).send(result);
     } catch (error) {
       return reply.code(500).send(errorResponse(error.message));

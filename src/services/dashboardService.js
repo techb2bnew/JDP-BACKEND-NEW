@@ -96,9 +96,11 @@ export class DashboardService {
     }
   }
 
-  static async getRecentActivities(limit = 20) {
+  static async getRecentActivities(page = 1, limit = 20) {
     try {
-      const maxPerType = Math.min(parseInt(limit) || 20, 50);
+      const pageNum = Math.max(1, parseInt(page) || 1);
+      const limitNum = Math.min(Math.max(1, parseInt(limit) || 20), 100);
+      const maxPerType = Math.min(limitNum, 50);
 
       const activities = [];
 
@@ -194,10 +196,10 @@ export class DashboardService {
 
       // Staff, Labor, Lead Labor, Supplier created
       const tableToType = [
-        { table: 'staff', field: 'id, created_at, updated_at', type: 'staff_created', title: 'New Staff Added' },
-        { table: 'labor', field: 'id, created_at, updated_at', type: 'labor_created', title: 'New Labor Added' },
-        { table: 'lead_labor', field: 'id, created_at, updated_at', type: 'lead_labor_created', title: 'New Lead Labor Added' },
-        { table: 'suppliers', field: 'id, company_name, created_at, updated_at', type: 'supplier_created', title: 'New Supplier Added' }
+        { table: 'staff', field: 'id, created_at, updated_at, users(id, full_name)', type: 'staff_created' },
+        { table: 'labor', field: 'id, created_at, updated_at, users!labor_user_id_fkey(id, full_name)', type: 'labor_created' },
+        { table: 'lead_labor', field: 'id, created_at, updated_at, users!lead_labor_user_id_fkey(id, full_name)', type: 'lead_labor_created' },
+        { table: 'suppliers', field: 'id, company_name, created_at, updated_at', type: 'supplier_created' }
       ];
       for (const cfg of tableToType) {
         const { data, error } = await supabase
@@ -206,14 +208,33 @@ export class DashboardService {
           .order('created_at', { ascending: false, nullsFirst: false })
           .limit(maxPerType);
         if (error) throw new Error(`Database error: ${error.message}`);
-        push((data || []).map(r => ({
-          type: cfg.type,
-          id: r.id,
-          title: cfg.table === 'suppliers' ? `Supplier ${r.company_name || r.name || r.company}` : cfg.title,
-          description: cfg.title,
-          timestamp: r.created_at || r.updated_at || new Date().toISOString()
-        })));
-        (data || []).forEach(r => maybePushUpdated(r, cfg.type.replace('_created','_updated'), (cfg.table === 'suppliers' ? `Supplier ${r.company_name || r.name || r.company}` : cfg.title.replace('New ','') ) + ' Updated'));
+        push((data || []).map(r => {
+          let name = '';
+          if (cfg.table === 'suppliers') name = r.company_name || r.name || r.company || '';
+          if (cfg.table === 'staff') name = r.users?.full_name || '';
+          if (cfg.table === 'labor') name = r.users?.full_name || '';
+          if (cfg.table === 'lead_labor') name = r.users?.full_name || '';
+          const baseTitle =
+            cfg.table === 'suppliers' ? `Supplier ${name} Added` :
+            cfg.table === 'staff' ? `Staff ${name} Added` :
+            cfg.table === 'labor' ? `Labor ${name} Added` :
+            cfg.table === 'lead_labor' ? `Lead Labor ${name} Added` : 'Record Added';
+          return {
+            type: cfg.type,
+            id: r.id,
+            title: baseTitle,
+            description: baseTitle,
+            timestamp: r.created_at || r.updated_at || new Date().toISOString()
+          };
+        }));
+        (data || []).forEach(r => {
+          let name = r.users?.full_name || r.company_name || r.name || r.company || '';
+          const updTitle = (cfg.table === 'suppliers') ? `Supplier ${name} Updated` :
+                           (cfg.table === 'staff') ? `Staff ${name} Updated` :
+                           (cfg.table === 'labor') ? `Labor ${name} Updated` :
+                           (cfg.table === 'lead_labor') ? `Lead Labor ${name} Updated` : 'Record Updated';
+          maybePushUpdated(r, cfg.type.replace('_created','_updated'), updTitle);
+        });
       }
 
       // Products created/updated
@@ -286,9 +307,22 @@ export class DashboardService {
 
       // Sort and cap to limit
       activities.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-      const sliced = activities.slice(0, Math.min(parseInt(limit) || 20, activities.length));
+      const total = activities.length;
+      const totalPages = Math.max(1, Math.ceil(total / limitNum));
+      const offset = (pageNum - 1) * limitNum;
+      const sliced = activities.slice(offset, offset + limitNum);
 
-      return successResponse({ items: sliced, total_found: activities.length }, 'Recent activities retrieved successfully');
+      return successResponse({
+        items: sliced,
+        total_found: total,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total_pages: totalPages,
+          has_next: pageNum < totalPages,
+          has_prev: pageNum > 1
+        }
+      }, 'Recent activities retrieved successfully');
     } catch (error) {
       throw error;
     }
