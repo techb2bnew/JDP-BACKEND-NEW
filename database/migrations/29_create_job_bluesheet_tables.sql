@@ -20,6 +20,7 @@ CREATE TABLE job_bluesheet_labor (
     lead_labor_id INTEGER REFERENCES lead_labor(id),
     employee_name VARCHAR(255) NOT NULL,
     role VARCHAR(100) DEFAULT 'Labor',
+    labor_hours VARCHAR(50) DEFAULT '0h',
     regular_hours VARCHAR(50) DEFAULT '0h',
     overtime_hours VARCHAR(50) DEFAULT '0h',
     total_hours VARCHAR(50) DEFAULT '0h',

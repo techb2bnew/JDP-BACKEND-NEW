@@ -512,7 +512,7 @@ export class Job {
     }
   }
 
-  static async addDetailsToJob(job) {
+  static async addDetailsToJob(job) {5
     const jobWithDetails = { ...job };
 
     const leadLaborIds = safeJsonParse(job.assigned_lead_labor_ids, []);
@@ -554,6 +554,7 @@ export class Job {
             lead_labor_id,
             employee_name,
             role,
+            labor_hours,
             regular_hours,
             overtime_hours,
             total_hours,

@@ -25,19 +25,13 @@ INSERT INTO configuration (settings, markup_percentage, last_updated_by) VALUES
       "id": 1,
       "description": "Up to 3 hours",
       "max_hours": 3,
-      "rate": 165.00
+      "rate": 50.00
     },
     {
       "id": 2,
-      "description": "More than 3 hours",
-      "max_hours": 8,
-      "rate": 135.00
-    },
-    {
-      "id": 3,
-      "description": "More than 8 hours",
-      "max_hours": null,
-      "rate": 100.00
+      "description": "More than 3 hours up to 6 hours",
+      "max_hours": 6,
+      "rate": 60.00
     }
   ]
 }', 0, 1)

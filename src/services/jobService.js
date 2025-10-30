@@ -1,4 +1,5 @@
 import { Job } from "../models/Job.js";
+import { JobBluesheetLabor } from "../models/JobBluesheetLabor.js";
 import { successResponse } from "../helpers/responseHelper.js";
 
 export class JobService {
@@ -115,8 +116,40 @@ export class JobService {
         throw new Error("Job not found");
       }
 
+      // Add derived computed fields for labor entries without mutating DB
+      const jobWithComputed = { ...job };
+      if (Array.isArray(jobWithComputed.bluesheets)) {
+        jobWithComputed.bluesheets = await Promise.all(
+          jobWithComputed.bluesheets.map(async (bluesheet) => {
+            const sheet = { ...bluesheet };
+            if (Array.isArray(sheet.labor_entries)) {
+              sheet.labor_entries = await Promise.all(
+                sheet.labor_entries.map(async (entry) => {
+                  const e = { ...entry };
+                  try {
+                    const reg = e.regular_hours || '0h';
+                    const ot = e.overtime_hours || '0h';
+                    const regDec = JobBluesheetLabor.convertHoursToDecimal(reg);
+                    const otDec = JobBluesheetLabor.convertHoursToDecimal(ot);
+                    const computedCost = await JobBluesheetLabor.calculateDynamicCost(regDec, otDec);
+                    const computedRate = await JobBluesheetLabor.getHourlyRateFromConfig(regDec);
+                    e.computed_total_cost = computedCost;
+                    e.computed_hourly_rate = computedRate;
+                  } catch (_) {
+                    e.computed_total_cost = null;
+                    e.computed_hourly_rate = null;
+                  }
+                  return e;
+                })
+              );
+            }
+            return sheet;
+          })
+        );
+      }
+
       return successResponse(
-        job,
+        jobWithComputed,
         "Job retrieved successfully"
       );
     } catch (error) {
