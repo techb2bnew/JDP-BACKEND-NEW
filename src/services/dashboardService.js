@@ -54,6 +54,7 @@ export class DashboardService {
         throw new Error(`Database error: ${error.message}`);
       }
 
+      let activeRaw = 0;
       const counts = {
         in_progress: 0,
         completed: 0,
@@ -62,7 +63,12 @@ export class DashboardService {
       };
 
       (data || []).forEach(j => {
-        const s = (j.status || '').toLowerCase();
+        let s = (j.status || '').toLowerCase();
+        // Treat 'active' jobs as 'in_progress' for the chart
+        if (s === 'active') {
+          activeRaw += 1;
+          s = 'in_progress';
+        }
         if (s in counts) counts[s] += 1;
       });
 
@@ -71,7 +77,20 @@ export class DashboardService {
         Object.entries(counts).map(([k, v]) => [k, parseFloat(((v / total) * 100).toFixed(1))])
       );
 
-      return successResponse({ counts, percentages, total }, 'Job status distribution retrieved successfully');
+      const activePercentage = parseFloat((((activeRaw || 0) / (total || 1)) * 100).toFixed(1));
+
+      // Also include 'active' alongside the merged buckets, per request
+      const countsWithActive = { ...counts, active: activeRaw };
+      const percentagesWithActive = { ...percentages, active: activePercentage };
+
+      return successResponse(
+        {
+          counts: countsWithActive,
+          percentages: percentagesWithActive,
+          total
+        },
+        'Job status distribution retrieved successfully'
+      );
     } catch (error) {
       throw error;
     }
