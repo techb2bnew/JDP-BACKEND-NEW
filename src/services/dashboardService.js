@@ -43,6 +43,39 @@ export class DashboardService {
       throw error;
     }
   }
+
+  static async getJobStatusDistribution() {
+    try {
+      const { data, error } = await supabase
+        .from('jobs')
+        .select('status');
+
+      if (error) {
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      const counts = {
+        in_progress: 0,
+        completed: 0,
+        pending: 0,
+        on_hold: 0
+      };
+
+      (data || []).forEach(j => {
+        const s = (j.status || '').toLowerCase();
+        if (s in counts) counts[s] += 1;
+      });
+
+      const total = Object.values(counts).reduce((a, b) => a + b, 0) || 1;
+      const percentages = Object.fromEntries(
+        Object.entries(counts).map(([k, v]) => [k, parseFloat(((v / total) * 100).toFixed(1))])
+      );
+
+      return successResponse({ counts, percentages, total }, 'Job status distribution retrieved successfully');
+    } catch (error) {
+      throw error;
+    }
+  }
 }
 
 

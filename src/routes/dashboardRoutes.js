@@ -6,6 +6,9 @@ export default async function dashboardRoutes(fastify) {
 
   // GET /api/dashboard/summary
   fastify.get('/summary', DashboardController.getSummary);
+
+  // GET /api/dashboard/job-status-distribution
+  fastify.get('/job-status-distribution', DashboardController.getJobStatusDistribution);
 }
 
 

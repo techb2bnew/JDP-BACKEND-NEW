@@ -10,6 +10,15 @@ export class DashboardController {
       return reply.code(500).send(errorResponse(error.message));
     }
   }
+
+  static async getJobStatusDistribution(request, reply) {
+    try {
+      const result = await DashboardService.getJobStatusDistribution();
+      return reply.code(200).send(result);
+    } catch (error) {
+      return reply.code(500).send(errorResponse(error.message));
+    }
+  }
 }
 
 
