@@ -9,6 +9,9 @@ export default async function dashboardRoutes(fastify) {
 
   // GET /api/dashboard/job-status-distribution
   fastify.get('/job-status-distribution', DashboardController.getJobStatusDistribution);
+
+  // GET /api/dashboard/recent-activities?limit=20
+  fastify.get('/recent-activities', DashboardController.getRecentActivities);
 }
 
 

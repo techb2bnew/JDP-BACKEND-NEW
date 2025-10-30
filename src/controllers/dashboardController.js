@@ -19,6 +19,16 @@ export class DashboardController {
       return reply.code(500).send(errorResponse(error.message));
     }
   }
+
+  static async getRecentActivities(request, reply) {
+    try {
+      const { limit } = request.query || {};
+      const result = await DashboardService.getRecentActivities(limit ? parseInt(limit) : 20);
+      return reply.code(200).send(result);
+    } catch (error) {
+      return reply.code(500).send(errorResponse(error.message));
+    }
+  }
 }
 
 

@@ -95,6 +95,204 @@ export class DashboardService {
       throw error;
     }
   }
+
+  static async getRecentActivities(limit = 20) {
+    try {
+      const maxPerType = Math.min(parseInt(limit) || 20, 50);
+
+      const activities = [];
+
+      // Helper to normalize
+      const push = (items = []) => {
+        items.forEach((i) => activities.push(i));
+      };
+
+      // Helper to push updated event if updated_at > created_at
+      const maybePushUpdated = (rec, type, title) => {
+        if (rec.updated_at && (!rec.created_at || new Date(rec.updated_at) > new Date(rec.created_at))) {
+          activities.push({
+            type,
+            id: rec.id,
+            title,
+            description: title,
+            timestamp: rec.updated_at
+          });
+        }
+      };
+
+      // Jobs created / updated / completed
+      {
+        const { data, error } = await supabase
+          .from('jobs')
+          .select('id, job_title, status, created_at, updated_at')
+          .order('created_at', { ascending: false })
+          .limit(maxPerType);
+        if (error) throw new Error(`Database error: ${error.message}`);
+        push((data || []).map(j => ({
+          type: 'job_created',
+          id: j.id,
+          title: `Job ${j.job_title} Created`,
+          description: `Job created with status ${j.status}`,
+          timestamp: j.created_at
+        })));
+        (data || []).forEach(j => maybePushUpdated(j, 'job_updated', `Job ${j.job_title} Updated`));
+      }
+
+      // Jobs completed
+      {
+        const { data, error } = await supabase
+          .from('jobs')
+          .select('id, job_title, status, updated_at')
+          .eq('status', 'completed')
+          .order('updated_at', { ascending: false })
+          .limit(maxPerType);
+        if (error) throw new Error(`Database error: ${error.message}`);
+        push((data || []).map(j => ({
+          type: 'job_completed',
+          id: j.id,
+          title: `Job ${j.job_title} Completed`,
+          description: 'Job marked as completed',
+          timestamp: j.updated_at
+        })));
+      }
+
+      // Orders created / updated
+      {
+        const { data, error } = await supabase
+          .from('orders')
+          .select('id, order_number, status, created_at, updated_at')
+          .order('created_at', { ascending: false })
+          .limit(maxPerType);
+        if (error) throw new Error(`Database error: ${error.message}`);
+        push((data || []).map(o => ({
+          type: 'order_created',
+          id: o.id,
+          title: `New Order ${o.order_number}`,
+          description: `Order status ${o.status || 'pending'}`,
+          timestamp: o.created_at
+        })));
+        (data || []).forEach(o => maybePushUpdated(o, 'order_updated', `Order ${o.order_number} Updated`));
+      }
+
+      // Customers created / updated
+      {
+        const { data, error } = await supabase
+          .from('customers')
+          .select('id, customer_name, created_at, updated_at')
+          .order('created_at', { ascending: false })
+          .limit(maxPerType);
+        if (error) throw new Error(`Database error: ${error.message}`);
+        push((data || []).map(c => ({
+          type: 'customer_created',
+          id: c.id,
+          title: `Customer ${c.customer_name} Created`,
+          description: 'New customer added',
+          timestamp: c.created_at
+        })));
+        (data || []).forEach(c => maybePushUpdated(c, 'customer_updated', `Customer ${c.customer_name} Updated`));
+      }
+
+      // Staff, Labor, Lead Labor, Supplier created
+      const tableToType = [
+        { table: 'staff', field: 'id, created_at, updated_at', type: 'staff_created', title: 'New Staff Added' },
+        { table: 'labor', field: 'id, created_at, updated_at', type: 'labor_created', title: 'New Labor Added' },
+        { table: 'lead_labor', field: 'id, created_at, updated_at', type: 'lead_labor_created', title: 'New Lead Labor Added' },
+        { table: 'suppliers', field: 'id, company_name, created_at, updated_at', type: 'supplier_created', title: 'New Supplier Added' }
+      ];
+      for (const cfg of tableToType) {
+        const { data, error } = await supabase
+          .from(cfg.table)
+          .select(cfg.field)
+          .order('created_at', { ascending: false, nullsFirst: false })
+          .limit(maxPerType);
+        if (error) throw new Error(`Database error: ${error.message}`);
+        push((data || []).map(r => ({
+          type: cfg.type,
+          id: r.id,
+          title: cfg.table === 'suppliers' ? `Supplier ${r.company_name || r.name || r.company}` : cfg.title,
+          description: cfg.title,
+          timestamp: r.created_at || r.updated_at || new Date().toISOString()
+        })));
+        (data || []).forEach(r => maybePushUpdated(r, cfg.type.replace('_created','_updated'), (cfg.table === 'suppliers' ? `Supplier ${r.company_name || r.name || r.company}` : cfg.title.replace('New ','') ) + ' Updated'));
+      }
+
+      // Products created/updated
+      {
+        const { data, error } = await supabase
+          .from('products')
+          .select('id, product_name, created_at, updated_at')
+          .order('created_at', { ascending: false })
+          .limit(maxPerType);
+        if (error) throw new Error(`Database error: ${error.message}`);
+        push((data || []).flatMap(p => {
+          const items = [];
+          if (p.created_at) {
+            items.push({
+              type: 'product_created',
+              id: p.id,
+              title: `Product ${p.product_name} Created`,
+              description: 'New product added',
+              timestamp: p.created_at
+            });
+          }
+          if (p.updated_at && (!p.created_at || new Date(p.updated_at) > new Date(p.created_at))) {
+            items.push({
+              type: 'product_updated',
+              id: p.id,
+              title: `Product ${p.product_name} Updated`,
+              description: 'Product details updated',
+              timestamp: p.updated_at
+            });
+          }
+          return items;
+        }));
+      }
+
+      // Bluesheets created / updated
+      {
+        const { data, error } = await supabase
+          .from('job_bluesheet')
+          .select('id, job_id, status, created_at, updated_at')
+          .order('created_at', { ascending: false })
+          .limit(maxPerType);
+        if (error) throw new Error(`Database error: ${error.message}`);
+        push((data || []).map(b => ({
+          type: 'bluesheet_created',
+          id: b.id,
+          title: `Bluesheet #${b.id} Created`,
+          description: `For Job ${b.job_id}`,
+          timestamp: b.created_at
+        })));
+        (data || []).forEach(b => maybePushUpdated(b, 'bluesheet_updated', `Bluesheet #${b.id} Updated`));
+      }
+
+      // Bluesheets approved
+      {
+        const { data, error } = await supabase
+          .from('job_bluesheet')
+          .select('id, job_id, status, updated_at')
+          .eq('status', 'approved')
+          .order('updated_at', { ascending: false })
+          .limit(maxPerType);
+        if (error) throw new Error(`Database error: ${error.message}`);
+        push((data || []).map(b => ({
+          type: 'bluesheet_approved',
+          id: b.id,
+          title: `Bluesheet #${b.id} Approved`,
+          description: `For Job ${b.job_id}`,
+          timestamp: b.updated_at
+        })));
+      }
+
+      // Sort and cap to limit
+      activities.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      const sliced = activities.slice(0, Math.min(parseInt(limit) || 20, activities.length));
+
+      return successResponse({ items: sliced, total_found: activities.length }, 'Recent activities retrieved successfully');
+    } catch (error) {
+      throw error;
+    }
+  }
 }
 
 
