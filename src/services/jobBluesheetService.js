@@ -28,6 +28,7 @@ export class JobBluesheetService {
         job_id, 
         date, 
         notes, 
+        status,
         additional_charges = 0,
         labor_entries = [],
         material_entries = []
@@ -38,6 +39,7 @@ export class JobBluesheetService {
         job_id,
         date,
         notes,
+        status,
         additional_charges,
         created_by: createdByUserId
       });
