@@ -52,6 +52,11 @@ export async function jobRoutes(fastify, options) {
     handler: JobController.updateJob
   });
 
+  // Mark job as completed (or update status via payload)
+  fastify.post('/jobCompleted/:id', {
+    handler: JobController.completeJob
+  });
+
   fastify.delete('/deleteJob/:id', {
     schema: deleteJobSchema,
     handler: JobController.deleteJob

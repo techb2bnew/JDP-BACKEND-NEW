@@ -350,4 +350,22 @@ export class JobBluesheetController {
       return responseHelper.error(reply, error.message, 500);
     }
   }
+
+  // Approve or update status via POST
+  static async approveBluesheet(request, reply) {
+    try {
+      const { id } = request.params;
+      const { status } = request.body || {};
+
+      if (status) {
+        const result = await JobBluesheetService.updateBluesheet(id, { status });
+        return responseHelper.success(reply, result.data, 'Bluesheet status updated successfully');
+      }
+
+      const result = await JobBluesheetService.approveBluesheet(id);
+      return responseHelper.success(reply, result.data, result.message);
+    } catch (error) {
+      return responseHelper.error(reply, error.message, 500);
+    }
+  }
 }

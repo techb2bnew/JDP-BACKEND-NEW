@@ -170,6 +170,25 @@ export class JobController {
     }
   }
 
+  static async completeJob(request, reply) {
+    try {
+      const { id } = request.params;
+      const { status } = request.body || {};
+      const finalStatus = status || 'completed';
+
+      const result = await JobService.updateJob(parseInt(id), { status: finalStatus });
+      return reply.code(200).send(result);
+    } catch (error) {
+      if (error.message.includes('not found')) {
+        return reply.code(404).send(errorResponse(error.message, 404));
+      }
+      if (error.message.includes('Database error')) {
+        return reply.code(500).send(errorResponse('Database error occurred', 500));
+      }
+      return reply.code(500).send(errorResponse(error.message));
+    }
+  }
+
   static async deleteJob(request, reply) {
     try {
       const { id } = request.params;
