@@ -217,6 +217,7 @@ export class JobController {
     }
   }
 
+
   static async getJobsByCustomer(request, reply) {
     try {
       const { customerId } = request.params;

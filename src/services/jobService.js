@@ -213,6 +213,7 @@ export class JobService {
     }
   }
 
+
   static async getJobsByCustomer(customerId) {
     try {
       const jobs = await Job.findByCustomerId(customerId);
