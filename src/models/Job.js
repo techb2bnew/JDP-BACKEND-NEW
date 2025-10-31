@@ -559,7 +559,8 @@ export class Job {
             overtime_hours,
             total_hours,
             hourly_rate,
-            total_cost,
+          total_cost,
+          rate_snapshot,
             labor:labor_id (
               id,
               labor_code,

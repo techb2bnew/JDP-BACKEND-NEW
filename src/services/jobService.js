@@ -126,21 +126,8 @@ export class JobService {
               sheet.labor_entries = await Promise.all(
                 sheet.labor_entries.map(async (entry) => {
                   const e = { ...entry };
-                  try {
-                    // Always calculate computed_* from current config for display
-                    // This shows what the cost would be with current rates
-                    const reg = e.regular_hours || '0h';
-                    const ot = e.overtime_hours || '0h';
-                    const regDec = JobBluesheetLabor.convertHoursToDecimal(reg);
-                    const otDec = JobBluesheetLabor.convertHoursToDecimal(ot);
-                    const computedCost = await JobBluesheetLabor.calculateDynamicCost(regDec, otDec);
-                    const computedRate = await JobBluesheetLabor.getHourlyRateFromConfig(regDec);
-                    e.computed_total_cost = computedCost;
-                    e.computed_hourly_rate = computedRate;
-                  } catch (_) {
-                    e.computed_total_cost = null;
-                    e.computed_hourly_rate = null;
-                  }
+                  e.computed_total_cost = e.total_cost ?? null;
+                  e.computed_hourly_rate = e.hourly_rate ?? null;
                   return e;
                 })
               );
