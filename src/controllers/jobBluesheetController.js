@@ -2,7 +2,6 @@ import { JobBluesheetService } from '../services/jobBluesheetService.js';
 import { responseHelper } from '../helpers/responseHelper.js';
 
 export class JobBluesheetController {
-  // Main Bluesheet CRUD Operations
   static async createBluesheet(request, reply) {
     try {
       const { job_id, date, notes } = request.body;
@@ -20,7 +19,6 @@ export class JobBluesheetController {
     }
   }
 
-  // Create Complete Bluesheet with All Entries
   static async createCompleteBluesheet(request, reply) {
     try {
       const completeData = request.body;
@@ -113,7 +111,6 @@ export class JobBluesheetController {
     }
   }
 
-  // Labor Entry Operations
   static async getLaborEntryById(request, reply) {
     try {
       const { id } = request.params;
@@ -197,7 +194,6 @@ export class JobBluesheetController {
     }
   }
 
-  // Material Entry Operations
   static async getMaterialEntryById(request, reply) {
     try {
       const { id } = request.params;
@@ -281,7 +277,6 @@ export class JobBluesheetController {
     }
   }
 
-  // Summary and Statistics
   static async getBluesheetSummary(request, reply) {
     try {
       const { id } = request.params;
@@ -311,7 +306,6 @@ export class JobBluesheetController {
     }
   }
 
-  // Submit Bluesheet for Approval
   static async submitBluesheetForApproval(request, reply) {
     try {
       const { id } = request.params;
@@ -324,7 +318,6 @@ export class JobBluesheetController {
     }
   }
 
-  // Update Additional Charges
   static async updateAdditionalCharges(request, reply) {
     try {
       const { id } = request.params;
@@ -338,7 +331,6 @@ export class JobBluesheetController {
     }
   }
 
-  // Calculate and Update Total Cost
   static async calculateAndUpdateTotalCost(request, reply) {
     try {
       const { id } = request.params;
@@ -351,7 +343,6 @@ export class JobBluesheetController {
     }
   }
 
-  // Approve or update status via POST
   static async approveBluesheet(request, reply) {
     try {
       const { id } = request.params;
