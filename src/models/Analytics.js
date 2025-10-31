@@ -168,5 +168,34 @@ export class Analytics {
       return sum;
     }, 0);
   }
+
+  static async countJobsByType() {
+    const { data, error } = await supabase
+      .from('jobs')
+      .select('job_type');
+
+    if (error) {
+      throw new Error(`Database error (job types): ${error.message}`);
+    }
+
+    const counts = {
+      service_based: 0,
+      contract_based: 0
+    };
+
+    for (const job of data || []) {
+      const type = (job.job_type || '').toLowerCase();
+      if (type === 'service_based') {
+        counts.service_based += 1;
+      } else if (type === 'contract_based') {
+        counts.contract_based += 1;
+      }
+    }
+
+    return {
+      total: (data || []).length,
+      ...counts
+    };
+  }
 }
 

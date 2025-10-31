@@ -21,6 +21,7 @@ export class AnalyticsService {
     const yesterdayEndIso = todayStart;
 
     const [
+      jobTypeBreakdown,
       activeJobsTotal,
       activeJobsToday,
       activeJobsYesterday,
@@ -33,6 +34,7 @@ export class AnalyticsService {
       revenueToday,
       revenueYesterday
     ] = await Promise.all([
+      Analytics.countJobsByType(),
       Analytics.countActiveJobs(),
       Analytics.countActiveJobsCreatedBetween(todayStartIso, tomorrowStart),
       Analytics.countActiveJobsCreatedBetween(yesterdayStartIso, yesterdayEndIso),
@@ -47,6 +49,7 @@ export class AnalyticsService {
     ]);
 
     return {
+      job_types: jobTypeBreakdown,
       active_jobs: {
         total: activeJobsTotal,
         change_today_vs_yesterday: buildChange(activeJobsToday, activeJobsYesterday)
