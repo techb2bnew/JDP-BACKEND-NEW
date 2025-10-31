@@ -93,13 +93,13 @@ export class SuppliersService {
         }
     }
 
-    static async getSupplierById(supplierId) {
+    static async getSupplierById(supplierId, page = 1, limit = 10) {
         try {
             const [supplier, ordersResult] = await Promise.all([
                 Suppliers.getSupplierById(supplierId),
                 Order.findAll(
                     { supplier_id: supplierId },
-                    { sortBy: 'created_at', sortOrder: 'desc' }
+                    { page, limit, sortBy: 'created_at', sortOrder: 'desc' }
                 )
             ]);
 
@@ -121,7 +121,13 @@ export class SuppliersService {
 
             return {
                 ...supplier,
-                orders,
+                orders: {
+                    total: ordersResult.total ?? orders.length,
+                    page: ordersResult.page ?? page,
+                    limit: ordersResult.limit ?? limit,
+                    totalPages: ordersResult.totalPages ?? Math.ceil((ordersResult.total ?? orders.length) / limit),
+                    records: orders
+                },
                 orders_summary: {
                     total_orders: ordersResult.total ?? orders.length,
                     total_value: Math.round(totalOrderValue * 100) / 100,

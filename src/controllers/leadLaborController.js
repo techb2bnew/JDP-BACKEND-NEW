@@ -120,6 +120,7 @@ export class LeadLaborController {
   static async getLeadLaborById(req, reply) {
     try {
       const { leadLaborId } = req.params;
+      const { page = '1', limit = '50' } = req.query || {};
 
       if (!leadLaborId) {
         return reply.status(400).send(validationErrorResponse(['Lead Labor ID is required']));
@@ -130,7 +131,18 @@ export class LeadLaborController {
         return reply.status(400).send(validationErrorResponse(['Lead Labor ID must be a valid number']));
       }
 
-      const leadLabor = await LeadLaborService.getLeadLaborById(leadLaborIdNum);
+      const pageNum = parseInt(page, 10);
+      const limitNum = parseInt(limit, 10);
+
+      if (Number.isNaN(pageNum) || pageNum < 1) {
+        return reply.status(400).send(validationErrorResponse(['page must be a positive integer']));
+      }
+
+      if (Number.isNaN(limitNum) || limitNum < 1 || limitNum > 100) {
+        return reply.status(400).send(validationErrorResponse(['limit must be between 1 and 100']));
+      }
+
+      const leadLabor = await LeadLaborService.getLeadLaborById(leadLaborIdNum, pageNum, limitNum);
 
       return reply.status(200).send(successResponse(leadLabor, 'Lead Labor retrieved successfully'));
     } catch (error) {

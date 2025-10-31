@@ -100,6 +100,7 @@ export class suppliersController {
   static async getSupplierById(req, reply) {
     try {
       const { supplierId } = req.params;
+      const { page = '1', limit = '10' } = req.query || {};
 
       if (!supplierId) {
         return reply.status(400).send(validationErrorResponse(['Supplier ID is required']));
@@ -110,7 +111,18 @@ export class suppliersController {
         return reply.status(400).send(validationErrorResponse(['Supplier ID must be a valid number']));
       }
 
-      const supplier = await SuppliersService.getSupplierById(supplierIdNum);
+      const pageNum = parseInt(page, 10);
+      const limitNum = parseInt(limit, 10);
+
+      if (Number.isNaN(pageNum) || pageNum < 1) {
+        return reply.status(400).send(validationErrorResponse(['page must be a positive integer']));
+      }
+
+      if (Number.isNaN(limitNum) || limitNum < 1 || limitNum > 100) {
+        return reply.status(400).send(validationErrorResponse(['limit must be between 1 and 100']));
+      }
+
+      const supplier = await SuppliersService.getSupplierById(supplierIdNum, pageNum, limitNum);
       
       return reply.status(200).send(successResponse(supplier, 'Supplier retrieved successfully'));
     } catch (error) {

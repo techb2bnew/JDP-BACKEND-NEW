@@ -1,6 +1,10 @@
 import { Labor } from '../models/Labor.js';
 import { User } from '../models/User.js';
 import { LeadLabor } from '../models/LeadLabor.js';
+import { Job } from '../models/Job.js';
+import { RolePermission } from '../models/RolePermission.js';
+import { JobBluesheetLabor } from '../models/JobBluesheetLabor.js';
+import { JobBluesheet } from '../models/JobBluesheet.js';
 import bcrypt from 'bcryptjs';
 import { generateTemporaryPassword } from "../lib/generateTemporaryPassword.js";
 import {
@@ -120,10 +124,56 @@ export class LaborService {
         }
     }
 
-  static async getLaborById(laborId) {
+  static async getLaborById(laborId, page = 1, limit = 50) {
     try {
       const labor = await Labor.getLaborById(laborId);
-      return labor;
+
+      const roleName = labor?.users?.role || labor?.user?.role || null;
+
+      const [jobsResult, permissionsResult, bluesheetIds] = await Promise.all([
+        Job.getJobsByLabor(laborId, page, limit).catch((error) => {
+          console.error(`Failed to load jobs for labor ${laborId}:`, error.message);
+          return null;
+        }),
+        roleName
+          ? RolePermission.getPermissionsByRoleName(roleName.trim())
+              .catch((error) => {
+                console.warn(`Failed to load permissions for role "${roleName}":`, error.message);
+                return [];
+              })
+          : [],
+        JobBluesheetLabor.findBluesheetIdsByLaborId(laborId).catch((error) => {
+          console.error(`Failed to load bluesheet ids for labor ${laborId}:`, error.message);
+          return [];
+        })
+      ]);
+
+      let bluesheets = [];
+      if (Array.isArray(bluesheetIds) && bluesheetIds.length > 0) {
+        try {
+          bluesheets = await JobBluesheet.findByIds(bluesheetIds);
+        } catch (error) {
+          console.error(`Failed to load bluesheets for labor ${laborId}:`, error.message);
+        }
+      }
+
+      return {
+        ...labor,
+        assigned_jobs: jobsResult
+          ? {
+              total: jobsResult.total,
+              page: jobsResult.page,
+              limit: jobsResult.limit,
+              totalPages: jobsResult.totalPages,
+              jobs: jobsResult.jobs
+            }
+          : { total: 0, page, limit, totalPages: 0, jobs: [] },
+        permissions: permissionsResult || [],
+        bluesheets: {
+          total: bluesheets.length,
+          records: bluesheets
+        }
+      };
     } catch (error) {
       throw error;
     }

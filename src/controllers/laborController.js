@@ -107,6 +107,7 @@ export class LaborController {
   static async getLaborById(req, reply) {
     try {
       const { laborId } = req.params;
+      const { page = '1', limit = '50' } = req.query || {};
 
       if (!laborId) {
         return reply.status(400).send(validationErrorResponse(['Labor ID is required']));
@@ -117,7 +118,18 @@ export class LaborController {
         return reply.status(400).send(validationErrorResponse(['Labor ID must be a valid number']));
       }
 
-      const labor = await LaborService.getLaborById(laborIdNum);
+      const pageNum = parseInt(page, 10);
+      const limitNum = parseInt(limit, 10);
+
+      if (Number.isNaN(pageNum) || pageNum < 1) {
+        return reply.status(400).send(validationErrorResponse(['page must be a positive integer']));
+      }
+
+      if (Number.isNaN(limitNum) || limitNum < 1 || limitNum > 100) {
+        return reply.status(400).send(validationErrorResponse(['limit must be between 1 and 100']));
+      }
+
+      const labor = await LaborService.getLaborById(laborIdNum, pageNum, limitNum);
       
       return reply.status(200).send(successResponse(labor, 'Labor retrieved successfully'));
     } catch (error) {
