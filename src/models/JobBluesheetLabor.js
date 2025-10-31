@@ -286,12 +286,12 @@ export class JobBluesheetLabor {
 
       const fullHours = Math.ceil(regularHoursDecimal || 0);
 
-      // Switch to last tier only when actual hours strictly exceed last max_hours
-      if (regularHoursDecimal > lastTier.max_hours || fullHours > lastTier.max_hours) {
+      // If hours cross first tier max, return tier 2 rate (for display)
+      if (fullHours > firstTier.max_hours) {
         return lastTier.rate;
       }
 
-      // Otherwise stay on tier-1 rate
+      // Within tier 1: return tier 1 rate
       return firstTier.rate;
     } catch (error) {
       // Fallback to default rate if config fetch fails
@@ -322,17 +322,18 @@ export class JobBluesheetLabor {
       
       let totalCost = 0;
 
-      // Calculate cost for regular hours using your specified two-tier rules
+      // Calculate cost for regular hours using tier-crossing logic
       if (regularHoursDecimal > 0) {
         const fullHours = Math.ceil(regularHoursDecimal); // Round up to next hour for billing
         const firstTier = sortedRates[0];
         const lastTier = sortedRates[sortedRates.length - 1];
 
-        // If actual hours strictly exceed last tier max, bill ALL rounded hours at last tier rate
-        if (regularHoursDecimal > lastTier.max_hours || fullHours > lastTier.max_hours) {
+        // If hours cross first tier max, ALL rounded hours at tier 2 rate
+        if (fullHours > firstTier.max_hours) {
+          // All hours charged at tier 2 rate
           totalCost = fullHours * lastTier.rate;
         } else {
-          // Otherwise bill tier-1 rate with a 3h minimum
+          // Within tier 1: all hours at tier 1 rate (minimum 3h)
           const billableTier1Hours = Math.max(firstTier.max_hours, fullHours);
           totalCost = billableTier1Hours * firstTier.rate;
         }
