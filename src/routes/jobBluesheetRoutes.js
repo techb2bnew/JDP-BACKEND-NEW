@@ -6,6 +6,8 @@ export async function jobBluesheetRoutes(fastify, options) {
 
   fastify.post('/bluesheet', JobBluesheetController.createBluesheet);
   fastify.post('/bluesheet/complete', JobBluesheetController.createCompleteBluesheet);
+  fastify.get('/lead-labor/bluesheets', JobBluesheetController.getLeadLaborBluesheets);
+  fastify.get('/labor/bluesheets', JobBluesheetController.getLaborBluesheets);
   fastify.get('/bluesheet/:id', JobBluesheetController.getBluesheetById);
   fastify.get('/job/:jobId/bluesheets', JobBluesheetController.getBluesheetsByJobId);
   fastify.put('/bluesheet/:id', JobBluesheetController.updateBluesheet);

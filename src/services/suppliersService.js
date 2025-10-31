@@ -1,5 +1,6 @@
 import { User } from '../models/User.js';
 import { Suppliers } from '../models/Suppliers.js';
+import { Order } from '../models/Order.js';
 import bcrypt from 'bcryptjs';
 import { generateTemporaryPassword } from "../lib/generateTemporaryPassword.js";
 import {
@@ -94,8 +95,40 @@ export class SuppliersService {
 
     static async getSupplierById(supplierId) {
         try {
-            const supplier = await Suppliers.getSupplierById(supplierId);
-            return supplier;
+            const [supplier, ordersResult] = await Promise.all([
+                Suppliers.getSupplierById(supplierId),
+                Order.findAll(
+                    { supplier_id: supplierId },
+                    { sortBy: 'created_at', sortOrder: 'desc' }
+                )
+            ]);
+
+            const orders = ordersResult.orders || [];
+
+            const totalOrderValue = orders.reduce((sum, order) => {
+                const amount = order?.total_amount ?? order?.total_amount_formatted;
+                if (typeof amount === 'number') {
+                    return sum + amount;
+                }
+                if (typeof amount === 'string') {
+                    const normalized = parseFloat(amount.replace(/[^0-9.-]/g, ''));
+                    return Number.isFinite(normalized) ? sum + normalized : sum;
+                }
+                return sum;
+            }, 0);
+
+            const latestOrderDate = orders.length > 0 ? orders[0]?.created_at ?? orders[0]?.order_date ?? null : null;
+
+            return {
+                ...supplier,
+                orders,
+                orders_summary: {
+                    total_orders: ordersResult.total ?? orders.length,
+                    total_value: Math.round(totalOrderValue * 100) / 100,
+                    total_value_formatted: `$${(Math.round(totalOrderValue * 100) / 100).toFixed(2)}`,
+                    latest_order_date: latestOrderDate
+                }
+            };
         } catch (error) {
             throw error;
         }

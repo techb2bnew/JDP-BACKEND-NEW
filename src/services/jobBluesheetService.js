@@ -1,6 +1,8 @@
 import { JobBluesheet } from '../models/JobBluesheet.js';
 import { JobBluesheetLabor } from '../models/JobBluesheetLabor.js';
 import { JobBluesheetMaterial } from '../models/JobBluesheetMaterial.js';
+import { LeadLabor } from '../models/LeadLabor.js';
+import { Labor } from '../models/Labor.js';
 
 export class JobBluesheetService {
   static async createBluesheet(bluesheetData, createdByUserId) {
@@ -363,6 +365,94 @@ export class JobBluesheetService {
         success: true,
         data: stats,
         message: 'Material usage statistics retrieved successfully'
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async getLeadLaborBluesheets(userId) {
+    try {
+      const leadLabor = await LeadLabor.getLeadLaborByUserId(userId);
+
+      if (!leadLabor) {
+        return {
+          success: true,
+          data: {
+            lead_labor: null,
+            bluesheets: []
+          },
+          message: 'No lead labor profile found for the current user'
+        };
+      }
+
+      const bluesheetIds = await JobBluesheetLabor.findBluesheetIdsByLeadLaborId(leadLabor.id);
+
+      if (bluesheetIds.length === 0) {
+        return {
+          success: true,
+          data: {
+            lead_labor: leadLabor,
+            bluesheets: []
+          },
+          message: 'No bluesheets assigned to this lead labor yet'
+        };
+      }
+
+      const bluesheets = await JobBluesheet.findByIds(bluesheetIds);
+
+      return {
+        success: true,
+        data: {
+          lead_labor: leadLabor,
+          bluesheets,
+          total: bluesheets.length
+        },
+        message: 'Lead labor bluesheets retrieved successfully'
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async getLaborBluesheets(userId) {
+    try {
+      const labor = await Labor.getLaborByUserId(userId);
+
+      if (!labor) {
+        return {
+          success: true,
+          data: {
+            labor: null,
+            bluesheets: []
+          },
+          message: 'No labor profile found for the current user'
+        };
+      }
+
+      const bluesheetIds = await JobBluesheetLabor.findBluesheetIdsByLaborId(labor.id);
+
+      if (bluesheetIds.length === 0) {
+        return {
+          success: true,
+          data: {
+            labor,
+            bluesheets: []
+          },
+          message: 'No bluesheets assigned to this labor yet'
+        };
+      }
+
+      const bluesheets = await JobBluesheet.findByIds(bluesheetIds);
+
+      return {
+        success: true,
+        data: {
+          labor,
+          bluesheets,
+          total: bluesheets.length
+        },
+        message: 'Labor bluesheets retrieved successfully'
       };
     } catch (error) {
       throw error;

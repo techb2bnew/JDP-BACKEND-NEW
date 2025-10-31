@@ -371,6 +371,39 @@ export class JobBluesheetLabor {
     };
   }
 
+  static async findBluesheetIdsByLeadLaborId(leadLaborId) {
+    return JobBluesheetLabor.findBluesheetIdsByField('lead_labor_id', leadLaborId);
+  }
+
+  static async findBluesheetIdsByLaborId(laborId) {
+    return JobBluesheetLabor.findBluesheetIdsByField('labor_id', laborId);
+  }
+
+  static async findBluesheetIdsByField(field, value) {
+    if (!value) {
+      return [];
+    }
+
+    const { data, error } = await supabase
+      .from('job_bluesheet_labor')
+      .select('job_bluesheet_id')
+      .eq(field, value);
+
+    if (error) {
+      throw new Error(`Database error (bluesheet lookup by ${field}): ${error.message}`);
+    }
+
+    const ids = new Set();
+
+    for (const row of data || []) {
+      if (row.job_bluesheet_id) {
+        ids.add(row.job_bluesheet_id);
+      }
+    }
+
+    return Array.from(ids);
+  }
+
   static normalizeRates(rates) {
     if (!Array.isArray(rates) || rates.length === 0) {
       throw new Error('Hourly rate configuration is missing or empty');

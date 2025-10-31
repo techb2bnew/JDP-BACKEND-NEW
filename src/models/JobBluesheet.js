@@ -210,6 +210,22 @@ export class JobBluesheet {
     }
   }
 
+  static async findByIds(bluesheetIds = []) {
+    try {
+      const uniqueIds = Array.from(new Set(bluesheetIds)).filter((id) => id !== null && id !== undefined);
+
+      if (uniqueIds.length === 0) {
+        return [];
+      }
+
+      const results = await Promise.all(uniqueIds.map((id) => this.findById(id)));
+
+      return results.filter(Boolean);
+    } catch (error) {
+      throw error;
+    }
+  }
+
   static async update(id, updateData) {
     try {
       const { data, error } = await supabase

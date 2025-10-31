@@ -56,6 +56,38 @@ export class JobBluesheetController {
     }
   }
 
+  static async getLeadLaborBluesheets(request, reply) {
+    try {
+      const userRole = (request.user?.role || '').toLowerCase();
+
+      if (userRole !== 'lead labor' && userRole !== 'lead_labor') {
+        return responseHelper.forbidden(reply, 'Lead Labor access required');
+      }
+
+      const result = await JobBluesheetService.getLeadLaborBluesheets(request.user.id);
+
+      return responseHelper.success(reply, result.data, result.message);
+    } catch (error) {
+      return responseHelper.error(reply, error.message, 500);
+    }
+  }
+
+  static async getLaborBluesheets(request, reply) {
+    try {
+      const userRole = (request.user?.role || '').toLowerCase();
+
+      if (userRole !== 'labor') {
+        return responseHelper.forbidden(reply, 'Labor access required');
+      }
+
+      const result = await JobBluesheetService.getLaborBluesheets(request.user.id);
+
+      return responseHelper.success(reply, result.data, result.message);
+    } catch (error) {
+      return responseHelper.error(reply, error.message, 500);
+    }
+  }
+
   static async updateBluesheet(request, reply) {
     try {
       const { id } = request.params;
