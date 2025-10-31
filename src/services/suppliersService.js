@@ -1,6 +1,7 @@
 import { User } from '../models/User.js';
 import { Suppliers } from '../models/Suppliers.js';
 import { Order } from '../models/Order.js';
+import { supabase } from '../config/database.js';
 import bcrypt from 'bcryptjs';
 import { generateTemporaryPassword } from "../lib/generateTemporaryPassword.js";
 import {
@@ -95,44 +96,62 @@ export class SuppliersService {
 
     static async getSupplierById(supplierId, page = 1, limit = 10) {
         try {
-            const [supplier, ordersResult] = await Promise.all([
+            const [supplier, ordersResult, aggregateOrders] = await Promise.all([
                 Suppliers.getSupplierById(supplierId),
                 Order.findAll(
                     { supplier_id: supplierId },
                     { page, limit, sortBy: 'created_at', sortOrder: 'desc' }
-                )
+                ),
+                supabase
+                    .from('orders')
+                    .select('status, total_amount, created_at', { count: 'exact' })
+                    .eq('supplier_id', supplierId)
             ]);
 
             const orders = ordersResult.orders || [];
 
-            const totalOrderValue = orders.reduce((sum, order) => {
-                const amount = order?.total_amount ?? order?.total_amount_formatted;
-                if (typeof amount === 'number') {
-                    return sum + amount;
-                }
-                if (typeof amount === 'string') {
-                    const normalized = parseFloat(amount.replace(/[^0-9.-]/g, ''));
-                    return Number.isFinite(normalized) ? sum + normalized : sum;
+            const latestOrderDate = orders.length > 0 ? orders[0]?.created_at ?? orders[0]?.order_date ?? null : null;
+
+            if (aggregateOrders.error) {
+                throw new Error(`Database error (aggregate orders): ${aggregateOrders.error.message}`);
+            }
+
+            const allOrdersData = aggregateOrders.data || [];
+            const aggregateCount = aggregateOrders.count ?? allOrdersData.length;
+
+            const deliveredOrdersCount = allOrdersData.reduce((count, order) => {
+                const status = (order?.status || '').toLowerCase();
+                return status === 'completed' || status === 'delivered' ? count + 1 : count;
+            }, 0);
+
+            const totalAmountAcrossAllOrders = allOrdersData.reduce((sum, order) => {
+                const amount = order?.total_amount;
+                const parsed = parseFloat(amount);
+                if (!Number.isNaN(parsed)) {
+                    return sum + parsed;
                 }
                 return sum;
             }, 0);
 
-            const latestOrderDate = orders.length > 0 ? orders[0]?.created_at ?? orders[0]?.order_date ?? null : null;
+            const computedTotalPages = aggregateCount > 0 ? Math.ceil(aggregateCount / limit) : 1;
 
             return {
                 ...supplier,
                 orders: {
-                    total: ordersResult.total ?? orders.length,
+                    total: aggregateCount,
                     page: ordersResult.page ?? page,
                     limit: ordersResult.limit ?? limit,
-                    totalPages: ordersResult.totalPages ?? Math.ceil((ordersResult.total ?? orders.length) / limit),
+                    totalPages: ordersResult.totalPages ?? computedTotalPages,
                     records: orders
                 },
                 orders_summary: {
-                    total_orders: ordersResult.total ?? orders.length,
-                    total_value: Math.round(totalOrderValue * 100) / 100,
-                    total_value_formatted: `$${(Math.round(totalOrderValue * 100) / 100).toFixed(2)}`,
-                    latest_order_date: latestOrderDate
+                    total_orders: aggregateCount,
+                    total_value: Math.round(totalAmountAcrossAllOrders * 100) / 100,
+                    total_value_formatted: `$${(Math.round(totalAmountAcrossAllOrders * 100) / 100).toFixed(2)}`,
+                    latest_order_date: latestOrderDate,
+                    delivered_orders: deliveredOrdersCount,
+                    total_amount_all_orders: Math.round(totalAmountAcrossAllOrders * 100) / 100,
+                    total_amount_all_orders_formatted: `$${(Math.round(totalAmountAcrossAllOrders * 100) / 100).toFixed(2)}`
                 }
             };
         } catch (error) {

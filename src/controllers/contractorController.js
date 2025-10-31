@@ -55,6 +55,7 @@ export class ContractorController {
         return reply.code(404).send(errorResponse(error.message, 404));
       }
       if (error.message.includes('Database error')) {
+        
         return reply.code(500).send(errorResponse('Database error occurred', 500));
       }
       return reply.code(500).send(errorResponse(`Failed to get contractor: ${error.message}`));

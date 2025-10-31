@@ -2,6 +2,9 @@ import { supabase } from "../config/database.js";
 import { safeJsonParse } from "../utils/helpers.js";
 import { LaborTimesheet } from './LaborTimesheet.js';
 
+const ACTIVE_JOB_STATUSES = new Set(['active', 'in_progress']);
+const COMPLETED_JOB_STATUSES = new Set(['completed', 'done', 'closed']);
+
 export class Job {
   static async searchTimesheets(filters, pagination = {}) {
     try {
@@ -1056,6 +1059,58 @@ export class Job {
           hasNextPage: page < totalPages,
           hasPrevPage: page > 1
         }
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async getJobStatusSummaryByLabor(laborId) {
+    try {
+      if (!laborId) {
+        throw new Error('laborId is required');
+      }
+
+      const { data, error } = await supabase
+        .from('jobs')
+        .select('id, status, assigned_labor_ids');
+
+      if (error) {
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      const targetId = parseInt(laborId);
+      let totalJobs = 0;
+      let activeJobs = 0;
+      let completedJobs = 0;
+
+      for (const job of data || []) {
+        let laborIds = [];
+        if (typeof job.assigned_labor_ids === 'string') {
+          laborIds = safeJsonParse(job.assigned_labor_ids, []);
+        } else if (Array.isArray(job.assigned_labor_ids)) {
+          laborIds = job.assigned_labor_ids;
+        }
+
+        const hasMatch = laborIds.some((id) => parseInt(id) === targetId);
+        if (!hasMatch) {
+          continue;
+        }
+
+        totalJobs += 1;
+        const status = (job.status || '').toLowerCase();
+        if (ACTIVE_JOB_STATUSES.has(status)) {
+          activeJobs += 1;
+        }
+        if (COMPLETED_JOB_STATUSES.has(status)) {
+          completedJobs += 1;
+        }
+      }
+
+      return {
+        total_jobs: totalJobs,
+        active_jobs: activeJobs,
+        completed_jobs: completedJobs
       };
     } catch (error) {
       throw error;

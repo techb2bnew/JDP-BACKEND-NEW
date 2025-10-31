@@ -130,7 +130,7 @@ export class LaborService {
 
       const roleName = labor?.users?.role || labor?.user?.role || null;
 
-      const [jobsResult, permissionsResult, bluesheetIds] = await Promise.all([
+      const [jobsResult, permissionsResult, bluesheetIds, jobSummary] = await Promise.all([
         Job.getJobsByLabor(laborId, page, limit).catch((error) => {
           console.error(`Failed to load jobs for labor ${laborId}:`, error.message);
           return null;
@@ -145,6 +145,10 @@ export class LaborService {
         JobBluesheetLabor.findBluesheetIdsByLaborId(laborId).catch((error) => {
           console.error(`Failed to load bluesheet ids for labor ${laborId}:`, error.message);
           return [];
+        }),
+        Job.getJobStatusSummaryByLabor(laborId).catch((error) => {
+          console.error(`Failed to load job summary for labor ${laborId}:`, error.message);
+          return null;
         })
       ]);
 
@@ -156,6 +160,12 @@ export class LaborService {
           console.error(`Failed to load bluesheets for labor ${laborId}:`, error.message);
         }
       }
+
+      const defaultSummary = {
+        total_jobs: jobsResult?.total ?? 0,
+        active_jobs: 0,
+        completed_jobs: 0
+      };
 
       return {
         ...labor,
@@ -172,7 +182,8 @@ export class LaborService {
         bluesheets: {
           total: bluesheets.length,
           records: bluesheets
-        }
+        },
+        job_summary: jobSummary || defaultSummary
       };
     } catch (error) {
       throw error;
