@@ -7,26 +7,29 @@ export class JobBluesheetLabor {
       // Calculate total hours and total cost using dynamic rates
       const regularHours = laborData.regular_hours || '0h';
       const overtimeHours = laborData.overtime_hours || '0h';
-      
+
       // Convert hours to decimal for calculation
       const regularHoursDecimal = JobBluesheetLabor.convertHoursToDecimal(regularHours);
       const overtimeHoursDecimal = JobBluesheetLabor.convertHoursToDecimal(overtimeHours);
       const totalHoursDecimal = regularHoursDecimal + overtimeHoursDecimal;
-      
-      // Get hourly rate from configuration based on regular hours
-      const hourlyRate = await JobBluesheetLabor.getHourlyRateFromConfig(regularHoursDecimal);
-      
-      // Calculate total cost using dynamic rates from configuration
-      const totalCost = await JobBluesheetLabor.calculateDynamicCost(regularHoursDecimal, overtimeHoursDecimal);
-      
+
+      // Load active configuration snapshot and compute billing
+      const { rates: activeRates, snapshot: rateSnapshot } = await JobBluesheetLabor.loadActiveRates(true);
+      const { hourlyRate, totalCost } = JobBluesheetLabor.calculateBillingFromNormalizedRates(
+        regularHoursDecimal,
+        overtimeHoursDecimal,
+        activeRates
+      );
+
       // Convert back to hours format
       const totalHours = JobBluesheetLabor.convertDecimalToHours(totalHoursDecimal);
-      
+
       const laborEntryData = {
         ...laborData,
-        hourly_rate: hourlyRate, // Store calculated rate from configuration
+        hourly_rate: hourlyRate,
         total_hours: totalHours,
-        total_cost: totalCost
+        total_cost: totalCost,
+        rate_snapshot: rateSnapshot
       };
 
       const { data, error } = await supabase
@@ -162,26 +165,62 @@ export class JobBluesheetLabor {
 
   static async update(id, updateData) {
     try {
-      // If regular_hours or overtime_hours are being updated, recalculate cost
-      if (updateData.regular_hours || updateData.overtime_hours) {
-        const regularHours = updateData.regular_hours || '0h';
-        const overtimeHours = updateData.overtime_hours || '0h';
-        
-        // Convert hours to decimal
+      const shouldRecalculate = Object.prototype.hasOwnProperty.call(updateData, 'regular_hours') ||
+        Object.prototype.hasOwnProperty.call(updateData, 'overtime_hours');
+
+      if (shouldRecalculate) {
+        const { data: existingEntry, error: fetchError } = await supabase
+          .from('job_bluesheet_labor')
+          .select('regular_hours, overtime_hours, rate_snapshot')
+          .eq('id', id)
+          .single();
+
+        if (fetchError) {
+          if (fetchError.code === 'PGRST116') {
+            throw new Error('Labor entry not found for update recalculation');
+          }
+          throw new Error(`Database error while fetching labor entry: ${fetchError.message}`);
+        }
+
+        const regularHours = Object.prototype.hasOwnProperty.call(updateData, 'regular_hours')
+          ? (updateData.regular_hours ?? '0h')
+          : (existingEntry?.regular_hours ?? '0h');
+
+        const overtimeHours = Object.prototype.hasOwnProperty.call(updateData, 'overtime_hours')
+          ? (updateData.overtime_hours ?? '0h')
+          : (existingEntry?.overtime_hours ?? '0h');
+
         const regularHoursDecimal = JobBluesheetLabor.convertHoursToDecimal(regularHours);
         const overtimeHoursDecimal = JobBluesheetLabor.convertHoursToDecimal(overtimeHours);
         const totalHoursDecimal = regularHoursDecimal + overtimeHoursDecimal;
-        
-        // Get hourly rate from configuration based on regular hours
-        const hourlyRate = await JobBluesheetLabor.getHourlyRateFromConfig(regularHoursDecimal);
-        
-        // Calculate total cost using dynamic rates from configuration
-        const totalCost = await JobBluesheetLabor.calculateDynamicCost(regularHoursDecimal, overtimeHoursDecimal);
+
+        let rateSnapshot = existingEntry?.rate_snapshot || null;
+        let normalizedRates;
+
+        if (rateSnapshot && Array.isArray(rateSnapshot.hourly_rates) && rateSnapshot.hourly_rates.length > 0) {
+          normalizedRates = JobBluesheetLabor.normalizeRates(rateSnapshot.hourly_rates);
+        } else {
+          const { rates: activeRates, snapshot } = await JobBluesheetLabor.loadActiveRates(true);
+          normalizedRates = activeRates;
+          rateSnapshot = snapshot;
+        }
+
+        const { hourlyRate, totalCost } = JobBluesheetLabor.calculateBillingFromNormalizedRates(
+          regularHoursDecimal,
+          overtimeHoursDecimal,
+          normalizedRates
+        );
         const totalHours = JobBluesheetLabor.convertDecimalToHours(totalHoursDecimal);
-        
-        updateData.hourly_rate = hourlyRate; // Store calculated rate from configuration
+
+        updateData.hourly_rate = hourlyRate;
         updateData.total_hours = totalHours;
         updateData.total_cost = totalCost;
+        updateData.rate_snapshot = rateSnapshot
+          ? {
+              ...rateSnapshot,
+              hourly_rates: normalizedRates.map((rate) => ({ ...rate }))
+            }
+          : null;
       }
 
       const { data, error } = await supabase
@@ -263,97 +302,164 @@ export class JobBluesheetLabor {
   }
 
   // Get hourly rate from configuration based on regular hours
-  static async getHourlyRateFromConfig(regularHoursDecimal) {
+  static async getHourlyRateFromConfig(regularHoursDecimal, ratesOverride = null) {
     try {
-      // Get configuration
-      const config = await Configuration.getConfiguration();
-      
-      // Default values if config not found
-      let hourlyRates = [
-        { max_hours: 3, rate: 50 },
-        { max_hours: 5, rate: 60 }
-      ];
-      
-      // Extract hourly rates from configuration
-      if (config && config.settings && config.settings.hourly_rates) {
-        hourlyRates = config.settings.hourly_rates;
-      }
-      
-      // Sort rates by max_hours ascending
-      const sortedRates = hourlyRates.sort((a, b) => a.max_hours - b.max_hours);
-      const firstTier = sortedRates[0];
-      const lastTier = sortedRates[sortedRates.length - 1];
+      const normalizedRates = ratesOverride
+        ? JobBluesheetLabor.normalizeRates(ratesOverride)
+        : (await JobBluesheetLabor.loadActiveRates()).rates;
 
-      const fullHours = Math.ceil(regularHoursDecimal || 0);
+      const { hourlyRate } = JobBluesheetLabor.calculateBillingFromNormalizedRates(
+        regularHoursDecimal,
+        0,
+        normalizedRates
+      );
 
-      // If hours cross first tier max, return tier 2 rate (for display)
-      if (fullHours > firstTier.max_hours) {
-        return lastTier.rate;
-      }
-
-      // Within tier 1: return tier 1 rate
-      return firstTier.rate;
+      return hourlyRate;
     } catch (error) {
-      // Fallback to default rate if config fetch fails
       console.error('Error fetching configuration for hourly rate:', error);
-      return 60; // Default rate
+      throw error;
     }
   }
 
   // Calculate dynamic cost based on regular hours and configuration
-  static async calculateDynamicCost(regularHoursDecimal, overtimeHoursDecimal) {
+  static async calculateDynamicCost(regularHoursDecimal, overtimeHoursDecimal, ratesOverride = null) {
     try {
-      // Get configuration
-      const config = await Configuration.getConfiguration();
-      
-      // Default values if config not found
-      let hourlyRates = [
-        { max_hours: 3, rate: 50 },
-        { max_hours: 5, rate: 60 }
-      ];
-      
-      // Extract hourly rates from configuration
-      if (config && config.settings && config.settings.hourly_rates) {
-        hourlyRates = config.settings.hourly_rates;
-      }
-      
-      // Sort rates by max_hours ascending
-      const sortedRates = hourlyRates.sort((a, b) => a.max_hours - b.max_hours);
-      
-      let totalCost = 0;
+      const normalizedRates = ratesOverride
+        ? JobBluesheetLabor.normalizeRates(ratesOverride)
+        : (await JobBluesheetLabor.loadActiveRates()).rates;
 
-      // Calculate cost for regular hours using tier-crossing logic
-      if (regularHoursDecimal > 0) {
-        const fullHours = Math.ceil(regularHoursDecimal); // Round up to next hour for billing
-        const firstTier = sortedRates[0];
-        const lastTier = sortedRates[sortedRates.length - 1];
+      const { totalCost } = JobBluesheetLabor.calculateBillingFromNormalizedRates(
+        regularHoursDecimal,
+        overtimeHoursDecimal,
+        normalizedRates
+      );
 
-        // If hours cross first tier max, ALL rounded hours at tier 2 rate
-        if (fullHours > firstTier.max_hours) {
-          // All hours charged at tier 2 rate
-          totalCost = fullHours * lastTier.rate;
-        } else {
-          // Within tier 1: all hours at tier 1 rate (minimum 3h)
-          const billableTier1Hours = Math.max(firstTier.max_hours, fullHours);
-          totalCost = billableTier1Hours * firstTier.rate;
-        }
-      }
-      
-      // Calculate cost for overtime hours (use highest rate)
-      if (overtimeHoursDecimal > 0) {
-        const overtimeRate = sortedRates[sortedRates.length - 1].rate;
-        const fullOvertimeHours = Math.ceil(overtimeHoursDecimal); // Round up to next hour
-        totalCost += fullOvertimeHours * overtimeRate;
-      }
-      
-      return Math.round(totalCost * 100) / 100; // Round to 2 decimal places
+      return totalCost;
     } catch (error) {
-      // Fallback to default calculation if config fetch fails
       console.error('Error fetching configuration for labor rates:', error);
-      const regularRate = 60;
-      const overtimeRate = 70;
-      return (regularHoursDecimal > 0 ? regularRate : 0) + (overtimeHoursDecimal > 0 ? overtimeRate : 0);
+      throw error;
     }
+  }
+
+  static async loadActiveRates(includeSnapshot = false) {
+    const config = await Configuration.getConfiguration();
+
+    if (!config) {
+      throw new Error('Active configuration not found');
+    }
+
+    const hourlyRates = config.settings?.hourly_rates;
+
+    if (!Array.isArray(hourlyRates) || hourlyRates.length === 0) {
+      throw new Error('Hourly rate configuration is missing or empty');
+    }
+
+    const normalizedRates = JobBluesheetLabor.normalizeRates(hourlyRates);
+
+    if (!includeSnapshot) {
+      return { rates: normalizedRates };
+    }
+
+    return {
+      rates: normalizedRates,
+      snapshot: {
+        configuration_id: config.id ?? null,
+        configuration_updated_at: config.updated_at ?? null,
+        captured_at: new Date().toISOString(),
+        hourly_rates: normalizedRates.map((rate) => ({ ...rate }))
+      }
+    };
+  }
+
+  static normalizeRates(rates) {
+    if (!Array.isArray(rates) || rates.length === 0) {
+      throw new Error('Hourly rate configuration is missing or empty');
+    }
+
+    const normalizedRates = rates
+      .map((rate) => {
+        const numericRate = Number(rate.rate);
+        const hasMax = rate.max_hours !== undefined && rate.max_hours !== null;
+        const numericMax = hasMax ? Number(rate.max_hours) : null;
+
+        if (!Number.isFinite(numericRate)) {
+          throw new Error('Hourly rate value must be numeric');
+        }
+
+        if (hasMax && !Number.isFinite(numericMax)) {
+          throw new Error('Hourly rate max_hours must be numeric');
+        }
+
+        return {
+          ...rate,
+          rate: numericRate,
+          max_hours: hasMax ? numericMax : null
+        };
+      })
+      .sort((a, b) => {
+        const maxA = a.max_hours === null ? Number.POSITIVE_INFINITY : a.max_hours;
+        const maxB = b.max_hours === null ? Number.POSITIVE_INFINITY : b.max_hours;
+        return maxA - maxB;
+      });
+
+    if (normalizedRates.length === 0) {
+      throw new Error('Hourly rate configuration is missing or empty');
+    }
+
+    return normalizedRates;
+  }
+
+  static calculateBillingFromNormalizedRates(regularHoursDecimal, overtimeHoursDecimal, normalizedRates) {
+    if (!Array.isArray(normalizedRates) || normalizedRates.length === 0) {
+      throw new Error('Hourly rate configuration is missing or empty');
+    }
+
+    const regularHours = Number(regularHoursDecimal) || 0;
+    const overtimeHours = Number(overtimeHoursDecimal) || 0;
+
+    const firstTier = normalizedRates[0];
+    const lastTier = normalizedRates[normalizedRates.length - 1];
+
+    const fullRegularHours = Math.ceil(Math.max(0, regularHours));
+
+    let tierForRegular = firstTier;
+
+    if (normalizedRates.length > 1 && fullRegularHours > 0) {
+      const matchingTier = normalizedRates.find((tier, index) => {
+        if (tier.max_hours === null) {
+          return index === normalizedRates.length - 1;
+        }
+        return fullRegularHours <= tier.max_hours;
+      });
+
+      if (matchingTier) {
+        tierForRegular = matchingTier;
+      } else {
+        tierForRegular = lastTier;
+      }
+    }
+
+    let hourlyRate = tierForRegular.rate;
+    let totalCost = 0;
+
+    if (regularHours > 0) {
+      if (tierForRegular === firstTier && firstTier.max_hours !== null) {
+        const billableTier1Hours = Math.max(firstTier.max_hours, fullRegularHours);
+        totalCost = billableTier1Hours * firstTier.rate;
+      } else {
+        totalCost = fullRegularHours * tierForRegular.rate;
+      }
+    }
+
+    if (overtimeHours > 0) {
+      const overtimeBillableHours = Math.ceil(Math.max(0, overtimeHours));
+      totalCost += overtimeBillableHours * lastTier.rate;
+    }
+
+    return {
+      hourlyRate,
+      totalCost: Math.round(totalCost * 100) / 100
+    };
   }
 
   // Helper method to convert hours string to decimal
