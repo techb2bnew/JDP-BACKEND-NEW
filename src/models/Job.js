@@ -3302,6 +3302,16 @@ export class Job {
         // Keep numberOfInvoices as 0 if there's an error
       }
 
+      // Convert decimal hours to "XhYm" format (e.g., 4.82 -> "4h49m")
+      const formatHoursToHm = (decimalHours) => {
+        if (!decimalHours || decimalHours === 0) return "0h0m";
+        const hours = Math.floor(decimalHours);
+        const minutes = Math.round((decimalHours - hours) * 60);
+        return `${hours}h${minutes}m`;
+      };
+
+      const totalHoursWorkedFormatted = formatHoursToHm(totalHoursWorked);
+
       return {
         jobId: job.id,
         jobTitle: job.job_title,
@@ -3309,8 +3319,8 @@ export class Job {
         jobPriority: job.priority,
         dashboardMetrics: {
           totalHoursWorked: {
-            value: parseFloat(totalHoursWorked.toFixed(2)),
-            unit: "hours",
+            value: totalHoursWorkedFormatted,
+            unit: "",
             color: "blue"
           },
           totalMaterialUsed: {
