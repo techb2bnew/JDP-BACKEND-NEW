@@ -56,7 +56,7 @@ export class Job {
       for (const ts of timesheets || []) {
         const laborName = ts.labor?.users?.full_name || ts.lead_labor?.users?.full_name || 'Unknown';
         const isEmployee = laborName.toLowerCase();
-        const isStatus = (ts.job_status || '').toLowerCase();
+        const isStatus = (ts.status || ts.job_status || '').toLowerCase();
         const jobTitle = (ts.job?.job_title || '').toLowerCase();
         const jobIdStr = (ts.job?.id || '').toString();
 
@@ -89,7 +89,7 @@ export class Job {
           labor_id: ts.labor_id || ts.lead_labor_id || null,
           date: ts.date,
           hours: hours,
-          status: ts.job_status || 'pending'
+          status: ts.status || ts.job_status || 'pending'
         });
       }
 
@@ -1782,7 +1782,8 @@ export class Job {
             end_time: timesheetData.end_time || null,
             work_activity: timesheetData.work_activity || null,
             pause_timer: timesheetData.pause_timer || [],
-            job_status: timesheetData.job_status || 'in_progress'
+            job_status: timesheetData.job_status || 'in_progress',
+            status: timesheetData.status || 'draft'
           };
 
           if (existingEntry) {
@@ -1827,7 +1828,8 @@ export class Job {
           end_time: timesheetData.end_time || null,
           work_activity: timesheetData.work_activity || null,
           pause_timer: timesheetData.pause_timer || [],
-          job_status: timesheetData.job_status || 'in_progress'
+          job_status: timesheetData.job_status || 'in_progress',
+          status: timesheetData.status || 'draft'
         };
 
         if (existingEntry) {
@@ -2579,9 +2581,9 @@ export class Job {
       }
 
       // Update each timesheet entry with new status
+      // Only update 'status' field, not 'job_status'
       const updatePromises = timesheets.map(timesheet =>
         LaborTimesheet.update(timesheet.id, {
-          job_status: status,
           status: status
         })
       );
@@ -3198,6 +3200,7 @@ export class Job {
       }
 
       // Calculate totalHoursWorked from bluesheet labor regular_hours for this job
+      // Only count approved bluesheets
       let totalHoursWorked = 0;
       try {
         const { data: bluesheets, error: bsError } = await supabase
@@ -3205,12 +3208,14 @@ export class Job {
           .select(
             `id,
              job_id,
+             status,
              labor_entries:job_bluesheet_labor (
                id,
                regular_hours
              )`
           )
-          .eq('job_id', jobId);
+          .eq('job_id', jobId)
+          .eq('status', 'approved');
 
         if (bsError) {
           throw new Error(`Database error: ${bsError.message}`);
