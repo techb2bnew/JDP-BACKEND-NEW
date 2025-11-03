@@ -31,7 +31,6 @@ export async function jobBluesheetRoutes(fastify, options) {
 
   fastify.post('/bluesheet/:id/submit', JobBluesheetController.submitBluesheetForApproval);
   fastify.post('/bluesheetApproved/:id', JobBluesheetController.approveBluesheet);
-  fastify.get('/bluesheetApproved/:id', JobBluesheetController.approveBluesheet);
   fastify.put('/bluesheet/:id/additional-charges', JobBluesheetController.updateAdditionalCharges);
   fastify.post('/bluesheet/:id/calculate-total', JobBluesheetController.calculateAndUpdateTotalCost);
 }

@@ -17,6 +17,11 @@ export class JobBluesheet {
             id,
             full_name,
             email
+          ),
+          approved_by_user:users!job_bluesheet_approved_by_fkey (
+            id,
+            full_name,
+            email
           )
         `)
         .single();
@@ -66,6 +71,11 @@ export class JobBluesheet {
             )
           ),
           created_by_user:users!job_bluesheet_created_by_fkey (
+            id,
+            full_name,
+            email
+          ),
+          approved_by_user:users!job_bluesheet_approved_by_fkey (
             id,
             full_name,
             email
@@ -166,6 +176,11 @@ export class JobBluesheet {
             status
           ),
           created_by_user:users!job_bluesheet_created_by_fkey (
+            id,
+            full_name,
+            email
+          ),
+          approved_by_user:users!job_bluesheet_approved_by_fkey (
             id,
             full_name,
             email
@@ -300,6 +315,11 @@ export class JobBluesheet {
             )
           ),
           created_by_user:users!job_bluesheet_created_by_fkey (
+            id,
+            full_name,
+            email
+          ),
+          approved_by_user:users!job_bluesheet_approved_by_fkey (
             id,
             full_name,
             email

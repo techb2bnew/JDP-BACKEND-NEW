@@ -379,13 +379,17 @@ export class JobBluesheetController {
     try {
       const { id } = request.params;
       const { status } = request.body || {};
+      const approvedByUserId = request.user.id; // Get the user who is approving
 
       if (status) {
-        const result = await JobBluesheetService.updateBluesheet(id, { status });
+        const result = await JobBluesheetService.updateBluesheet(id, { 
+          status,
+          approved_by: approvedByUserId 
+        });
         return responseHelper.success(reply, result.data, 'Bluesheet status updated successfully');
       }
 
-      const result = await JobBluesheetService.approveBluesheet(id);
+      const result = await JobBluesheetService.approveBluesheet(id, approvedByUserId);
       return responseHelper.success(reply, result.data, result.message);
     } catch (error) {
       return responseHelper.error(reply, error.message, 500);

@@ -553,4 +553,30 @@ export class JobBluesheetService {
       throw error;
     }
   }
+
+  // Approve Bluesheet
+  static async approveBluesheet(id, approvedByUserId) {
+    try {
+      // Get current bluesheet
+      const bluesheet = await JobBluesheet.findById(id);
+      
+      if (!bluesheet) {
+        throw new Error('Job bluesheet not found');
+      }
+
+      // Update bluesheet with approved status and approved_by
+      const updatedBluesheet = await JobBluesheet.update(id, {
+        status: 'approved',
+        approved_by: approvedByUserId
+      });
+
+      return {
+        success: true,
+        data: updatedBluesheet,
+        message: 'Bluesheet approved successfully'
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
 }
