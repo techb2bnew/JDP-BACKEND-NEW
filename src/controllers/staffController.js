@@ -230,4 +230,13 @@ export class StaffController {
       return reply.status(500).send(errorResponse(`Failed to update staff profile: ${error.message}`, 500));
     }
   }
+
+  static async getStaffStats(req, reply) {
+    try {
+      const stats = await StaffService.getStaffStats();
+      return reply.status(200).send(successResponse(stats, 'Staff statistics retrieved successfully'));
+    } catch (error) {
+      return reply.status(500).send(errorResponse(`Failed to retrieve staff statistics: ${error.message}`, 500));
+    }
+  }
 }

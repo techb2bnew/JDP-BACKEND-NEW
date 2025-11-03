@@ -294,4 +294,36 @@ export class Staff {
       throw error;
     }
   }
+
+  static async getStats() {
+    try {
+      // Get all counts in parallel
+      const [
+        { count: totalStaff },
+        { count: staffCount },
+        { count: leadLaborCount },
+        { count: laborCount },
+        { count: supplierCount }
+      ] = await Promise.all([
+        supabase.from('staff').select('*', { count: 'exact', head: true }),
+        supabase.from('staff').select('*', { count: 'exact', head: true }),
+        supabase.from('lead_labor').select('*', { count: 'exact', head: true }),
+        supabase.from('labor').select('*', { count: 'exact', head: true }),
+        supabase.from('suppliers').select('*', { count: 'exact', head: true })
+      ]);
+
+      // Calculate total staff (staff + lead labor + labor + suppliers)
+      const totalStaffAll = (totalStaff || 0) + (leadLaborCount || 0) + (laborCount || 0) + (supplierCount || 0);
+
+      return {
+        total_staff: totalStaffAll,
+        staff: staffCount || 0,
+        lead_labor: leadLaborCount || 0,
+        labor: laborCount || 0,
+        suppliers: supplierCount || 0
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
 }

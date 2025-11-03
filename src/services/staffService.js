@@ -263,4 +263,13 @@ export class StaffService {
       throw error;
     }
   }
+
+  static async getStaffStats() {
+    try {
+      const stats = await Staff.getStats();
+      return stats;
+    } catch (error) {
+      throw error;
+    }
+  }
 }

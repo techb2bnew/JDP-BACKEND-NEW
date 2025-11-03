@@ -98,4 +98,8 @@ export default async function staffRoutes(fastify, options) {
       }
     }
   }, StaffController.deleteStaff);
+
+  fastify.get('/getStaffStats', {
+    preHandler: authenticateToken
+  }, StaffController.getStaffStats);
 }
