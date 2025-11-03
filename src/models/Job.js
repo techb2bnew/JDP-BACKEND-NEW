@@ -3217,19 +3217,42 @@ export class Job {
         }
 
         const parseHours = (hoursString) => {
-          if (!hoursString || typeof hoursString !== 'string') return 0;
-          // supports formats like "8h", "8h30m", "8:30"
-          const hMatch = hoursString.match(/(\d+(?:\.\d+)?)h(?:\d+m)?/);
-          if (hMatch) return parseFloat(hMatch[1]);
-          const timeMatch = hoursString.match(/(\d+):(\d+)/);
-          if (timeMatch) {
-            const h = parseInt(timeMatch[1]);
-            const m = parseInt(timeMatch[2]);
-            return h + m / 60;
+          if (!hoursString) return 0;
+          
+          // Handle string format
+          if (typeof hoursString === 'string') {
+            // Format: HH:MM:SS (e.g., "05:00:00", "00:01:12")
+            const timeMatch = hoursString.match(/^(\d+):(\d+):(\d+)$/);
+            if (timeMatch) {
+              const h = parseInt(timeMatch[1]) || 0;
+              const m = parseInt(timeMatch[2]) || 0;
+              const s = parseInt(timeMatch[3]) || 0;
+              return h + (m / 60) + (s / 3600);
+            }
+            
+            // Format: HH:MM (e.g., "8:30")
+            const timeMatchShort = hoursString.match(/^(\d+):(\d+)$/);
+            if (timeMatchShort) {
+              const h = parseInt(timeMatchShort[1]) || 0;
+              const m = parseInt(timeMatchShort[2]) || 0;
+              return h + (m / 60);
+            }
+            
+            // Format: "8h", "8h30m"
+            const hMatch = hoursString.match(/(\d+(?:\.\d+)?)h(?:\d+m)?/);
+            if (hMatch) return parseFloat(hMatch[1]);
+            
+            // Plain number fallback
+            const num = parseFloat(hoursString);
+            return isNaN(num) ? 0 : num;
           }
-          // plain number fallback
-          const num = parseFloat(hoursString);
-          return isNaN(num) ? 0 : num;
+          
+          // If it's already a number
+          if (typeof hoursString === 'number') {
+            return isNaN(hoursString) ? 0 : hoursString;
+          }
+          
+          return 0;
         };
 
         totalHoursWorked = (bluesheets || []).reduce((sum, bs) => {
@@ -3250,10 +3273,14 @@ export class Job {
 
 
       let totalLabourEntries = 0;
-      if (job.assigned_labor) {
+      // Only count if arrays exist and have elements
+      if (Array.isArray(job.assigned_lead_labor) && job.assigned_lead_labor.length > 0) {
+        totalLabourEntries += job.assigned_lead_labor.length;
+      }
+      if (Array.isArray(job.assigned_labor) && job.assigned_labor.length > 0) {
         totalLabourEntries += job.assigned_labor.length;
       }
-      if (job.custom_labor) {
+      if (Array.isArray(job.custom_labor) && job.custom_labor.length > 0) {
         totalLabourEntries += job.custom_labor.length;
       }
 
