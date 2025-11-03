@@ -122,11 +122,19 @@ export class LeadLaborService {
 
       const roleName = leadLabor?.users?.role || leadLabor?.user?.role || null;
 
-      const [jobsResult, permissionsResult, bluesheetIds] = await Promise.all([
-        Job.getJobsByLeadLabor(leadLaborId, page, limit).catch((error) => {
-          console.error(`Failed to load jobs for lead labor ${leadLaborId}:`, error.message);
-          return null;
-        }),
+      // Fetch all jobs to get complete list for statistics
+      const allJobsResult = await Job.getJobsByLeadLabor(leadLaborId, 1, 99999).catch((error) => {
+        console.error(`Failed to load jobs for lead labor ${leadLaborId}:`, error.message);
+        return null;
+      });
+
+      // Fetch paginated jobs for display
+      const jobsResult = await Job.getJobsByLeadLabor(leadLaborId, page, limit).catch((error) => {
+        console.error(`Failed to load paginated jobs for lead labor ${leadLaborId}:`, error.message);
+        return null;
+      });
+
+      const [permissionsResult, bluesheetIds] = await Promise.all([
         roleName
           ? RolePermission.getPermissionsByRoleName(roleName.trim()).catch((error) => {
               console.warn(`Failed to load permissions for role "${roleName}":`, error.message);
@@ -148,17 +156,39 @@ export class LeadLaborService {
         }
       }
 
+      // Calculate job statistics from all jobs
+      const activeJobStatuses = new Set(['active', 'in_progress']);
+      const completedJobStatuses = new Set(['completed', 'done', 'closed']);
+      
+      let totalJobs = 0;
+      let activeJobs = 0;
+      let completedJobs = 0;
+
+      if (allJobsResult && allJobsResult.jobs) {
+        totalJobs = allJobsResult.total || allJobsResult.jobs.length;
+        allJobsResult.jobs.forEach(job => {
+          const status = (job.status || '').toLowerCase();
+          if (activeJobStatuses.has(status)) {
+            activeJobs++;
+          } else if (completedJobStatuses.has(status)) {
+            completedJobs++;
+          }
+        });
+      }
+
       return {
         ...leadLabor,
         assigned_jobs: jobsResult
           ? {
-              total: jobsResult.total,
+              total: totalJobs,
+              active: activeJobs,
+              completed: completedJobs,
               page: jobsResult.page,
               limit: jobsResult.limit,
               totalPages: jobsResult.totalPages,
               jobs: jobsResult.jobs
             }
-          : { total: 0, page, limit, totalPages: 0, jobs: [] },
+          : { total: 0, active: 0, completed: 0, page, limit, totalPages: 0, jobs: [] },
         permissions: permissionsResult || [],
         bluesheets: {
           total: bluesheets.length,
