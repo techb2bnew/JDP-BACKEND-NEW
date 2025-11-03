@@ -59,8 +59,14 @@ export class JobBluesheetController {
   static async getLeadLaborBluesheets(request, reply) {
     try {
       const userRole = (request.user?.role || '').toLowerCase();
+      const managementType = (request.user?.management_type || '').toLowerCase();
 
-      if (userRole !== 'lead labor' && userRole !== 'lead_labor') {
+      if (
+        userRole !== 'lead labor' &&
+        userRole !== 'lead_labor' &&
+        managementType !== 'lead labor' &&
+        managementType !== 'lead_labor'
+      ) {
         return responseHelper.forbidden(reply, 'Lead Labor access required');
       }
 
@@ -75,8 +81,9 @@ export class JobBluesheetController {
   static async getLaborBluesheets(request, reply) {
     try {
       const userRole = (request.user?.role || '').toLowerCase();
+      const managementType = (request.user?.management_type || '').toLowerCase();
 
-      if (userRole !== 'labor') {
+      if (userRole !== 'labor' && managementType !== 'labor') {
         return responseHelper.forbidden(reply, 'Labor access required');
       }
 

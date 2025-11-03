@@ -46,7 +46,7 @@ export class CustomerController {
       return reply.code(500).send(errorResponse(`Failed to get customers: ${error.message}`));
     }
   }
-
+ 
   static async getCustomerById(request, reply) {
     try {
       const { id } = request.params;

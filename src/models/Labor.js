@@ -119,10 +119,48 @@ export class Labor {
         throw new Error(`Database error: ${error.message}`);
       }
 
+      // Build laborId -> assigned jobs count map
+      let laborIdToJobCount = {};
+      try {
+        const { data: jobs, error: jobsError } = await supabase
+          .from('jobs')
+          .select('id, assigned_labor_ids');
+        if (jobsError) {
+          throw new Error(jobsError.message);
+        }
+
+        laborIdToJobCount = (jobs || []).reduce((acc, job) => {
+          let ids = [];
+          if (typeof job.assigned_labor_ids === 'string') {
+            try {
+              ids = JSON.parse(job.assigned_labor_ids || '[]') || [];
+            } catch (_) {
+              ids = [];
+            }
+          } else if (Array.isArray(job.assigned_labor_ids)) {
+            ids = job.assigned_labor_ids;
+          }
+
+          ids.forEach((id) => {
+            const laborIdNum = parseInt(id);
+            if (!Number.isNaN(laborIdNum)) {
+              acc[laborIdNum] = (acc[laborIdNum] || 0) + 1;
+            }
+          });
+
+          return acc;
+        }, {});
+      } catch (_) {
+        laborIdToJobCount = {};
+      }
+
       const totalPages = Math.ceil(count / limit);
 
       return {
-        data: this.parseLaborData(data || []),
+        data: this.parseLaborData((data || []).map(l => ({
+          ...l,
+          assigned_jobs_count: laborIdToJobCount[l.id] || 0
+        }))),
         pagination: {
           currentPage: page,
           totalPages: totalPages,
@@ -477,11 +515,56 @@ export class Labor {
             status,
             photo_url,
             created_at
+          ),
+          supervisor:users!labor_supervisor_id_fkey (
+            id,
+            full_name,
+            email,
+            phone,
+            role,
+            status,
+            photo_url,
+            created_at
           )
         `);
 
       if (error) {
         throw new Error(`Database error: ${error.message}`);
+      }
+
+      // Build a map of laborId -> assigned jobs count
+      let laborIdToJobCount = {};
+      try {
+        const { data: jobs, error: jobsError } = await supabase
+          .from('jobs')
+          .select('id, assigned_labor_ids');
+        if (jobsError) {
+          throw new Error(jobsError.message);
+        }
+
+        laborIdToJobCount = (jobs || []).reduce((acc, job) => {
+          let ids = [];
+          if (typeof job.assigned_labor_ids === 'string') {
+            try {
+              ids = JSON.parse(job.assigned_labor_ids || '[]') || [];
+            } catch (_) {
+              ids = [];
+            }
+          } else if (Array.isArray(job.assigned_labor_ids)) {
+            ids = job.assigned_labor_ids;
+          }
+
+          ids.forEach((id) => {
+            const laborIdNum = parseInt(id);
+            if (!Number.isNaN(laborIdNum)) {
+              acc[laborIdNum] = (acc[laborIdNum] || 0) + 1;
+            }
+          });
+
+          return acc;
+        }, {});
+      } catch (_) {
+        laborIdToJobCount = {};
       }
 
       const inStr = (s) => (s || '').toString().toLowerCase().includes(q);
@@ -509,7 +592,10 @@ export class Labor {
         return true;
       };
 
-      let filtered = (data || []).filter(matches);
+      let filtered = (data || []).filter(matches).map((labor) => ({
+        ...labor,
+        assigned_jobs_count: laborIdToJobCount[labor.id] || 0
+      }));
 
       // Sort by created_at (most recent first)
       filtered = filtered.sort((a, b) => {
