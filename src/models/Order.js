@@ -546,7 +546,7 @@ export class Order {
         if (filters.job_id && order.job_id !== parseInt(filters.job_id)) return false;
         if (filters.customer && !inStr(order.customer?.customer_name) && !inStr(order.customer?.company_name) && !inStr(order.customer?.email)) return false;
         if (filters.contractor && !inStr(order.contractor?.contractor_name) && !inStr(order.contractor?.company_name) && !inStr(order.contractor?.email)) return false;
-        if (filters.status && order.status !== filters.status) return false;
+        if (filters.status && filters.status.toLowerCase() !== 'all' && order.status !== filters.status) return false;
 
         // Date range filters
         if (filters.order_date_from && order.order_date && new Date(order.order_date) < filters.order_date_from) return false;
