@@ -67,10 +67,42 @@ export class Suppliers {
         throw new Error(`Database error: ${error.message}`);
       }
 
+      // Build supplierId -> orders count map
+      let supplierIdToOrderCount = {};
+      try {
+        const { data: orders, error: ordersError } = await supabase
+          .from('orders')
+          .select('id, supplier_id, status, total_amount');
+        if (ordersError) {
+          throw new Error(ordersError.message);
+        }
+
+        supplierIdToOrderCount = (orders || []).reduce((acc, order) => {
+          const supplierIdNum = parseInt(order.supplier_id);
+          if (!Number.isNaN(supplierIdNum)) {
+            if (!acc[supplierIdNum]) {
+              acc[supplierIdNum] = { total: 0, total_value: 0 };
+            }
+            acc[supplierIdNum].total += 1;
+            const parsedAmount = parseFloat(order.total_amount || 0);
+            if (!Number.isNaN(parsedAmount)) {
+              acc[supplierIdNum].total_value += parsedAmount;
+            }
+          }
+          return acc;
+        }, {});
+      } catch (_) {
+        supplierIdToOrderCount = {};
+      }
+
       const totalPages = Math.ceil(count / limit);
 
       return {
-        data: data || [],
+        data: (data || []).map(s => ({
+          ...s,
+          total_orders: supplierIdToOrderCount[s.id]?.total || 0,
+          total_orders_value: supplierIdToOrderCount[s.id]?.total_value || 0
+        })),
         pagination: {
           currentPage: page,
           totalPages: totalPages,
@@ -358,6 +390,34 @@ export class Suppliers {
 
       let filtered = (data || []).filter(matches);
 
+      // Build supplierId -> orders count map
+      let supplierIdToOrderCount = {};
+      try {
+        const { data: orders, error: ordersError } = await supabase
+          .from('orders')
+          .select('id, supplier_id, status, total_amount');
+        if (ordersError) {
+          throw new Error(ordersError.message);
+        }
+
+        supplierIdToOrderCount = (orders || []).reduce((acc, order) => {
+          const supplierIdNum = parseInt(order.supplier_id);
+          if (!Number.isNaN(supplierIdNum)) {
+            if (!acc[supplierIdNum]) {
+              acc[supplierIdNum] = { total: 0, total_value: 0 };
+            }
+            acc[supplierIdNum].total += 1;
+            const parsedAmount = parseFloat(order.total_amount || 0);
+            if (!Number.isNaN(parsedAmount)) {
+              acc[supplierIdNum].total_value += parsedAmount;
+            }
+          }
+          return acc;
+        }, {});
+      } catch (_) {
+        supplierIdToOrderCount = {};
+      }
+
       // Sort by created_at (most recent first)
       filtered = filtered.sort((a, b) => {
         const dateA = new Date(a.created_at || 0);
@@ -371,7 +431,11 @@ export class Suppliers {
       const sliced = filtered.slice(offset, offset + limit);
 
       return {
-        suppliers: sliced,
+        suppliers: sliced.map(s => ({
+          ...s,
+          total_orders: supplierIdToOrderCount[s.id]?.total || 0,
+          total_orders_value: supplierIdToOrderCount[s.id]?.total_value || 0
+        })),
         total: filtered.length,
         page,
         limit,

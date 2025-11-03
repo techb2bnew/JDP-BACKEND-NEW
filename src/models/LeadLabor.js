@@ -1,4 +1,5 @@
 import { supabase } from '../config/database.js';
+import { safeJsonParse } from '../utils/helpers.js';
 
 export class LeadLabor {
   static async create(leadLaborData) {
@@ -64,10 +65,48 @@ export class LeadLabor {
         throw new Error(`Database error: ${error.message}`);
       }
 
+      // Build leadLaborId -> assigned jobs count map
+      let leadLaborIdToJobCount = {};
+      try {
+        const { data: jobs, error: jobsError } = await supabase
+          .from('jobs')
+          .select('id, assigned_lead_labor_ids');
+        if (jobsError) {
+          throw new Error(jobsError.message);
+        }
+
+        leadLaborIdToJobCount = (jobs || []).reduce((acc, job) => {
+          let ids = [];
+          if (typeof job.assigned_lead_labor_ids === 'string') {
+            try {
+              ids = JSON.parse(job.assigned_lead_labor_ids || '[]') || [];
+            } catch (_) {
+              ids = [];
+            }
+          } else if (Array.isArray(job.assigned_lead_labor_ids)) {
+            ids = job.assigned_lead_labor_ids;
+          }
+
+          ids.forEach((id) => {
+            const leadLaborIdNum = parseInt(id);
+            if (!Number.isNaN(leadLaborIdNum)) {
+              acc[leadLaborIdNum] = (acc[leadLaborIdNum] || 0) + 1;
+            }
+          });
+
+          return acc;
+        }, {});
+      } catch (_) {
+        leadLaborIdToJobCount = {};
+      }
+
       const totalPages = Math.ceil(count / limit);
 
       return {
-        data: data || [],
+        data: (data || []).map(l => ({
+          ...l,
+          assigned_jobs_count: leadLaborIdToJobCount[l.id] || 0
+        })),
         pagination: {
           currentPage: page,
           totalPages: totalPages,
@@ -317,6 +356,41 @@ export class LeadLabor {
 
       let filtered = (data || []).filter(matches);
 
+      // Build leadLaborId -> assigned jobs count map
+      let leadLaborIdToJobCount = {};
+      try {
+        const { data: jobs, error: jobsError } = await supabase
+          .from('jobs')
+          .select('id, assigned_lead_labor_ids');
+        if (jobsError) {
+          throw new Error(jobsError.message);
+        }
+
+        leadLaborIdToJobCount = (jobs || []).reduce((acc, job) => {
+          let ids = [];
+          if (typeof job.assigned_lead_labor_ids === 'string') {
+            try {
+              ids = JSON.parse(job.assigned_lead_labor_ids || '[]') || [];
+            } catch (_) {
+              ids = [];
+            }
+          } else if (Array.isArray(job.assigned_lead_labor_ids)) {
+            ids = job.assigned_lead_labor_ids;
+          }
+
+          ids.forEach((id) => {
+            const leadLaborIdNum = parseInt(id);
+            if (!Number.isNaN(leadLaborIdNum)) {
+              acc[leadLaborIdNum] = (acc[leadLaborIdNum] || 0) + 1;
+            }
+          });
+
+          return acc;
+        }, {});
+      } catch (_) {
+        leadLaborIdToJobCount = {};
+      }
+
       // Sort by created_at (most recent first)
       filtered = filtered.sort((a, b) => {
         const dateA = new Date(a.created_at || 0);
@@ -330,7 +404,10 @@ export class LeadLabor {
       const sliced = filtered.slice(offset, offset + limit);
 
       return {
-        leadLabor: sliced,
+        leadLabor: sliced.map(l => ({
+          ...l,
+          assigned_jobs_count: leadLaborIdToJobCount[l.id] || 0
+        })),
         total: filtered.length,
         page,
         limit,
