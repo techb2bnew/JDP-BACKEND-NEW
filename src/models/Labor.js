@@ -620,4 +620,64 @@ export class Labor {
       throw error;
     }
   }
+
+  static async getStats() {
+    try {
+      // Get all labor with user relationships to check status
+      const { data: allLabor, error: laborError } = await supabase
+        .from('labor')
+        .select(`
+          *,
+          users!labor_user_id_fkey (
+            id,
+            status
+          )
+        `);
+
+      if (laborError) {
+        throw new Error(`Database error: ${laborError.message}`);
+      }
+
+      // Count active and inactive
+      const activeLabor = (allLabor || []).filter(l => l.users?.status === 'active').length;
+      const inactiveLabor = (allLabor || []).filter(l => l.users?.status !== 'active').length;
+      const totalLabor = allLabor?.length || 0;
+
+      // Count total jobs assigned to any labor
+      const { data: allJobs, error: jobsError } = await supabase
+        .from('jobs')
+        .select('id, assigned_labor_ids');
+
+      if (jobsError) {
+        throw new Error(`Database error: ${jobsError.message}`);
+      }
+
+      // Count jobs that have at least one labor assigned
+      let totalJobs = 0;
+      if (allJobs && allJobs.length > 0) {
+        totalJobs = allJobs.filter(job => {
+          let ids = [];
+          if (typeof job.assigned_labor_ids === 'string') {
+            try {
+              ids = JSON.parse(job.assigned_labor_ids || '[]') || [];
+            } catch (_) {
+              ids = [];
+            }
+          } else if (Array.isArray(job.assigned_labor_ids)) {
+            ids = job.assigned_labor_ids;
+          }
+          return ids && ids.length > 0;
+        }).length;
+      }
+
+      return {
+        total_labor: totalLabor,
+        active_labor: activeLabor,
+        inactive_labor: inactiveLabor,
+        total_jobs: totalJobs
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
 }

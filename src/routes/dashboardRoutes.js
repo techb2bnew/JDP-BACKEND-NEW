@@ -12,6 +12,9 @@ export default async function dashboardRoutes(fastify) {
 
   // GET /api/dashboard/recent-activities?limit=20
   fastify.get('/recent-activities', DashboardController.getRecentActivities);
+
+  // GET /api/dashboard/management-stats
+  fastify.get('/management-stats', DashboardController.getManagementStats);
 }
 
 

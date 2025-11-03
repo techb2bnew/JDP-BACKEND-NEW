@@ -1,5 +1,8 @@
 import { successResponse } from "../helpers/responseHelper.js";
 import { Job } from "../models/Job.js";
+import { LeadLabor } from "../models/LeadLabor.js";
+import { Labor } from "../models/Labor.js";
+import { Suppliers } from "../models/Suppliers.js";
 import { supabase } from "../config/database.js";
 
 export class DashboardService {
@@ -323,6 +326,27 @@ export class DashboardService {
           has_prev: pageNum > 1
         }
       }, 'Recent activities retrieved successfully');
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async getManagementStats() {
+    try {
+      const [leadLaborStats, laborStats, supplierStats] = await Promise.all([
+        LeadLabor.getStats(),
+        Labor.getStats(),
+        Suppliers.getStats()
+      ]);
+
+      return successResponse(
+        {
+          lead_labor: leadLaborStats,
+          labor: laborStats,
+          suppliers: supplierStats
+        },
+        'Management statistics retrieved successfully'
+      );
     } catch (error) {
       throw error;
     }

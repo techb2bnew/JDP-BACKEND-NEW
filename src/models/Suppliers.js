@@ -445,4 +445,48 @@ export class Suppliers {
       throw error;
     }
   }
+
+  static async getStats() {
+    try {
+      // Get all suppliers with user relationships to check status
+      const { data: allSuppliers, error: suppliersError } = await supabase
+        .from('suppliers')
+        .select(`
+          *,
+          users!suppliers_user_id_fkey (
+            id,
+            status
+          )
+        `);
+
+      if (suppliersError) {
+        throw new Error(`Database error: ${suppliersError.message}`);
+      }
+
+      // Count active and inactive
+      const activeSuppliers = (allSuppliers || []).filter(s => s.users?.status === 'active').length;
+      const inactiveSuppliers = (allSuppliers || []).filter(s => s.users?.status !== 'active').length;
+      const totalSuppliers = allSuppliers?.length || 0;
+
+      // Count total orders from all suppliers
+      const { data: allOrders, error: ordersError } = await supabase
+        .from('orders')
+        .select('id');
+
+      if (ordersError) {
+        throw new Error(`Database error: ${ordersError.message}`);
+      }
+
+      const totalOrders = allOrders?.length || 0;
+
+      return {
+        total_suppliers: totalSuppliers,
+        active_suppliers: activeSuppliers,
+        inactive_suppliers: inactiveSuppliers,
+        total_orders: totalOrders
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
 }
