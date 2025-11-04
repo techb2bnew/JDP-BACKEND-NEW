@@ -13,13 +13,13 @@ export class EstimateService {
 
   static async createEstimate(estimateData, createdByUserId) {
     try {
-      // Clean data - convert empty strings to null for numeric and date fields
+      
       const cleanedData = {
         ...estimateData,
         created_by: createdByUserId
       };
 
-      // Clean numeric fields
+      
       if (cleanedData.total_amount === '' || cleanedData.total_amount === null) {
         cleanedData.total_amount = 0;
       }
@@ -30,7 +30,7 @@ export class EstimateService {
         cleanedData.balance_due = null;
       }
 
-      // Clean date fields
+     
       if (cleanedData.valid_until === '' || cleanedData.valid_until === null) {
         cleanedData.valid_until = null;
       }
@@ -41,7 +41,7 @@ export class EstimateService {
         cleanedData.due_date = null;
       }
 
-      // Clean string fields that should be null instead of empty string
+     
       if (cleanedData.bill_to_address === '') {
         cleanedData.bill_to_address = null;
       }
@@ -111,10 +111,10 @@ export class EstimateService {
 
   static async updateEstimate(estimateId, updateData, updatedByUserId) {
     try {
-      // Clean data - convert empty strings to null for numeric and date fields
+      
       const cleanedData = { ...updateData };
 
-      // Clean numeric fields
+      
       if (cleanedData.total_amount === '' || cleanedData.total_amount === null) {
         cleanedData.total_amount = 0;
       }
@@ -125,7 +125,7 @@ export class EstimateService {
         cleanedData.balance_due = null;
       }
 
-      // Clean date fields
+
       if (cleanedData.valid_until === '' || cleanedData.valid_until === null) {
         cleanedData.valid_until = null;
       }
@@ -136,7 +136,7 @@ export class EstimateService {
         cleanedData.due_date = null;
       }
 
-      // Clean string fields that should be null instead of empty string
+     
       if (cleanedData.bill_to_address === '') {
         cleanedData.bill_to_address = null;
       }
@@ -170,7 +170,7 @@ export class EstimateService {
     try {
       console.log(`Starting deleteEstimate for ID: ${estimateId}`);
       
-      // First, try to find the estimate using simple method
+      
       let estimate;
       try {
         estimate = await Estimate.simpleFindById(estimateId);
@@ -184,7 +184,7 @@ export class EstimateService {
         throw new Error(`Failed to find estimate: ${findError.message}`);
       }
 
-      // Try to check relationships, but don't fail if this step has issues
+     
       let relationshipCheck = { canDelete: true, relationships: [] };
       try {
         console.log('Checking estimate relationships...');
@@ -192,7 +192,7 @@ export class EstimateService {
         console.log('Relationship check result:', relationshipCheck);
       } catch (relationshipError) {
         console.error('Error checking relationships, proceeding with deletion:', relationshipError);
-        // Continue with deletion even if relationship check fails
+        
         relationshipCheck = { canDelete: true, relationships: [] };
       }
       
@@ -210,7 +210,7 @@ export class EstimateService {
       } catch (deleteError) {
         console.error('Error deleting estimate, trying simple delete:', deleteError);
         try {
-          // Try simple delete as fallback
+          
           await Estimate.simpleDelete(estimateId);
           console.log('Estimate deleted successfully using simple method');
         } catch (simpleDeleteError) {
@@ -263,7 +263,7 @@ export class EstimateService {
     }
   }
 
-  // Additional Cost Methods
+  
   static async createAdditionalCost(additionalCostData, createdByUserId) {
     try {
       const costWithCreator = {
@@ -273,7 +273,7 @@ export class EstimateService {
 
       const additionalCost = await Estimate.createAdditionalCost(costWithCreator);
       
-      // Recalculate total costs
+
       await Estimate.calculateTotalCosts(additionalCostData.estimate_id);
       
       return {
@@ -298,7 +298,7 @@ export class EstimateService {
     try {
       const additionalCost = await Estimate.updateAdditionalCost(additionalCostId, updateData);
       
-      // Recalculate total costs
+      
       await Estimate.calculateTotalCosts(additionalCost.estimate_id);
       
       return {

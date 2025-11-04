@@ -563,7 +563,7 @@ export class JobController {
 
       const finalStatus = status || queryStatus || 'approved';
 
-      // If both ids are provided, approve for both and aggregate the result
+     
       let results = [];
       if (laborId) {
         const res = await Job.approveWeekTimesheet(
@@ -586,7 +586,7 @@ export class JobController {
         results.push(res);
       }
 
-      // Aggregate response if multiple
+      
       if (results.length === 1) {
         return reply.code(200).send(results[0]);
       }

@@ -224,19 +224,51 @@ export class StaffController {
       if (error.message.includes('not found')) {
         return reply.status(404).send(errorResponse('Staff not found', 404));
       }
-      if (error.message.includes('Email already exists')) {
-        return reply.status(400).send(errorResponse('Email already exists', 400));
+            if (error.message.includes('Email already exists')) {
+        return reply.status(400).send(errorResponse('Email already exists', 400));                                                                              
       }
-      return reply.status(500).send(errorResponse(`Failed to update staff profile: ${error.message}`, 500));
+      return reply.status(500).send(errorResponse(`Failed to update staff profile: ${error.message}`, 500));                                                    
     }
   }
 
   static async getStaffStats(req, reply) {
     try {
       const stats = await StaffService.getStaffStats();
-      return reply.status(200).send(successResponse(stats, 'Staff statistics retrieved successfully'));
+      return reply.status(200).send(successResponse(stats, 'Staff statistics retrieved successfully'));                                                         
     } catch (error) {
-      return reply.status(500).send(errorResponse(`Failed to retrieve staff statistics: ${error.message}`, 500));
+      return reply.status(500).send(errorResponse(`Failed to retrieve staff statistics: ${error.message}`, 500));                                               
+    }
+  }
+
+  static async updateProfileImage(req, reply) {
+    try {
+      const { staffId } = req.params;
+      const files = req.files;
+
+      if (!staffId) {
+        return reply.status(400).send(validationErrorResponse(['Staff ID is required']));                                                                       
+      }
+
+      const staffIdNum = parseInt(staffId);
+      if (isNaN(staffIdNum)) {
+        return reply.status(400).send(validationErrorResponse(['Staff ID must be a valid number']));                                                            
+      }
+
+      if (!files || !files.profile_image || !files.profile_image[0]) {
+        return reply.status(400).send(validationErrorResponse(['Profile image file is required']));                                                              
+      }
+
+      const updatedStaff = await StaffService.updateProfileImage(staffIdNum, files);                                                                             
+
+      return reply.status(200).send(successResponse(updatedStaff, 'Staff profile image updated successfully'));                                                  
+    } catch (error) {
+      if (error.message.includes('not found')) {
+        return reply.status(404).send(errorResponse('Staff not found', 404));   
+      }
+      if (error.message.includes('Profile image file is required')) {
+        return reply.status(400).send(errorResponse(error.message, 400));                                                                                       
+      }
+      return reply.status(500).send(errorResponse(`Failed to update staff profile image: ${error.message}`, 500));                                              
     }
   }
 }

@@ -29,7 +29,7 @@ export class ContractorService {
 
   static async getContractors(filters, pagination) {
     try {
-      // If include_jobs is true, use the contractor listing method
+      
       if (filters.include_jobs) {
         console.log('Getting contractors with jobs...');
         const result = await Contractor.getContractorListing(filters, pagination);
@@ -47,7 +47,7 @@ export class ContractorService {
           "Contractors with jobs retrieved successfully"
         );
       } else {
-        // Use the original method for basic contractor listing
+    
         const result = await Contractor.findAll(filters, pagination);
 
         return successResponse(
@@ -75,7 +75,7 @@ export class ContractorService {
         throw new Error("Contractor not found");
       }
 
-      // Get contractor statistics
+      
       const stats = await Contractor.getContractorStatistics(contractorId);
 
       const contractorWithStats = {
@@ -169,7 +169,7 @@ export class ContractorService {
   }
 
 
-  // Get job details with sub-jobs, materials, and timesheet
+  
   static async getJobDetails(jobId) {
     try {
       console.log(`Getting job details for job ID: ${jobId}`);

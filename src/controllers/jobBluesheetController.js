@@ -124,11 +124,11 @@ export class JobBluesheetController {
     try {
       const { page = 1, limit = 10, ...filters } = request.query;
 
-      // Convert page and limit to numbers
+      
       const pageNum = parseInt(page);
       const limitNum = parseInt(limit);
 
-      // Validate pagination parameters
+      
       if (isNaN(pageNum) || pageNum < 1) {
         return responseHelper.error(reply, 'Page must be a positive number', 400);
       }
@@ -386,7 +386,7 @@ export class JobBluesheetController {
     try {
       const { id } = request.params;
       const { status } = request.body || {};
-      const approvedByUserId = request.user.id; // Get the user who is approving
+      const approvedByUserId = request.user.id; 
 
       if (status) {
         const result = await JobBluesheetService.updateBluesheet(id, { 

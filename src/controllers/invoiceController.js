@@ -20,19 +20,18 @@ export class InvoiceController {
         return reply.status(400).send(validationErrorResponse(['Estimate ID must be a valid number']));
       }
 
-      // Get estimate details from database
       const estimate = await Estimate.findById(estimateIdNum);
       if (!estimate) {
         return reply.status(404).send(errorResponse('Estimate not found', 404));
       }
 
-      // Get customer email from payload or database
+      
       const customerEmail = estimateData.customerEmail || estimate.customer?.email;
       if (!customerEmail) {
         return reply.status(400).send(errorResponse('Customer email not found in payload or database', 400));
       }
 
-      // Prepare estimate data for PDF generation with proper totals
+  
       const pdfData = {
         ...estimateData,
         estimateNumber: estimate.invoice_number || estimateData.estimateNumber,
@@ -48,16 +47,16 @@ export class InvoiceController {
         taxPercentage: estimateData.taxPercentage || 0
       };
 
-      // Generate PDF from template
+      
       const pdfBuffer = await PDFService.generateEstimatePDF(pdfData);
 
-      // Use actual invoice number from database or generate one
+      
       const invoiceNumber = estimate.invoice_number || estimateData.estimateNumber || await Estimate.generateInvoiceNumber();
       
-      // Always PDF now
+   
       const s3FileName = `invoices/${estimateId}/${invoiceNumber}.pdf`;
 
-      // Upload to S3
+   
       const uploadParams = {
         Bucket: BUCKET_NAME,
         Key: s3FileName,
@@ -68,7 +67,7 @@ export class InvoiceController {
       const s3Result = await s3.upload(uploadParams).promise();
       const invoiceLink = s3Result.Location;
 
-      // Save invoice link to database
+     
       try {
         await EstimateService.updateEstimate(estimateIdNum, { 
           invoice_link: invoiceLink,
@@ -79,10 +78,10 @@ export class InvoiceController {
         console.log('Invoice link and status saved to database successfully');
       } catch (dbError) {
         console.log('Database save failed (columns may not exist):', dbError.message);
-        // Continue even if database save fails
+        
       }
 
-      // Send email with PDF attachment
+      
       const emailData = {
         to: customerEmail,
         subject: `Estimate #${invoiceNumber} - JDP Electric`,
@@ -104,7 +103,7 @@ export class InvoiceController {
         ]
       };
 
-      // Send email
+    
       await sendEmailWithAttachment(emailData);
 
       return reply.status(200).send(successResponse({

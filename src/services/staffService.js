@@ -200,7 +200,7 @@ export class StaffService {
     try {
       const fileUrls = {};
 
-   
+
       if (files.photo && files.photo[0]) {
         fileUrls.photo_url = files.photo[0].location;
       }
@@ -214,6 +214,30 @@ export class StaffService {
       }
 
       return fileUrls;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async updateProfileImage(staffId, files) {
+    try {
+      // Check if staff exists
+      const currentStaff = await Staff.getStaffById(staffId);
+
+      if (!files || !files.profile_image || !files.profile_image[0]) {
+        throw new Error('Profile image file is required');
+      }
+
+      // Get the uploaded file location from S3
+      const profileImageUrl = files.profile_image[0].location;
+
+      // Update staff record with profile_image URL
+      const updateData = {
+        profile_image: profileImageUrl
+      };
+
+      const updatedStaff = await Staff.update(staffId, updateData);
+      return updatedStaff;
     } catch (error) {
       throw error;
     }

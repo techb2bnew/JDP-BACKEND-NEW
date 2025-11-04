@@ -98,7 +98,7 @@ export class CustomerService {
         throw new Error("Customer not found");
       }
 
-      // Check if customer has relationships with other tables
+      
       const relationshipCheck = await Customer.checkCustomerRelationships(customerId);
       
       if (!relationshipCheck.canDelete) {

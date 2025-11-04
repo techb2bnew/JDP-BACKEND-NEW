@@ -2,16 +2,13 @@ import { NotificationService } from '../services/notificationService.js';
 import { errorResponse, successResponse } from '../helpers/responseHelper.js';
 
 export class NotificationController {
-  /**
-   * Get notifications for current user
-   * GET /api/notifications
-   */
+  
   static async getNotifications(request, reply) {
     try {
       const userId = request.user.id;
       const { page = 1, limit = 20, is_read, type, orderBy = 'created_at', order = 'desc' } = request.query;
 
-      // Validate pagination
+      
       const pageNum = parseInt(page);
       const limitNum = parseInt(limit);
 
@@ -39,10 +36,7 @@ export class NotificationController {
     }
   }
 
-  /**
-   * Get unread notification count
-   * GET /api/notifications/unread-count
-   */
+ 
   static async getUnreadCount(request, reply) {
     try {
       const userId = request.user.id;
@@ -53,22 +47,19 @@ export class NotificationController {
     }
   }
 
-  /**
-   * Mark notification as read
-   * PUT /api/notifications/:id/read
-   */
+
   static async markAsRead(request, reply) {
     try {
       const { id } = request.params;
       const userId = request.user.id;
 
-      // Verify notification belongs to user
+   
       const notification = await NotificationService.getNotifications(userId, { page: 1, limit: 1 });
       const userNotifications = notification.data?.notifications || [];
       const notificationExists = userNotifications.some(n => n.id === parseInt(id));
 
       if (!notificationExists) {
-        // Check if notification exists at all
+       
         const { Notification } = await import('../models/Notification.js');
         const notif = await Notification.findById(id);
         if (!notif) {
@@ -86,10 +77,7 @@ export class NotificationController {
     }
   }
 
-  /**
-   * Mark all notifications as read
-   * PUT /api/notifications/read-all
-   */
+  
   static async markAllAsRead(request, reply) {
     try {
       const userId = request.user.id;
@@ -100,16 +88,13 @@ export class NotificationController {
     }
   }
 
-  /**
-   * Delete notification
-   * DELETE /api/notifications/:id
-   */
+  
   static async deleteNotification(request, reply) {
     try {
       const { id } = request.params;
       const userId = request.user.id;
 
-      // Verify notification belongs to user
+  
       const { Notification } = await import('../models/Notification.js');
       const notification = await Notification.findById(id);
 
@@ -128,10 +113,7 @@ export class NotificationController {
     }
   }
 
-  /**
-   * Delete all notifications for current user
-   * DELETE /api/notifications
-   */
+
   static async deleteAllNotifications(request, reply) {
     try {
       const userId = request.user.id;
@@ -142,10 +124,7 @@ export class NotificationController {
     }
   }
 
-  /**
-   * Create job completed notification (Admin/System only)
-   * POST /api/notifications/job-completed
-   */
+  
   static async createJobCompletedNotification(request, reply) {
     try {
       const { job_id, milestone, user_ids } = request.body;
@@ -165,10 +144,7 @@ export class NotificationController {
     }
   }
 
-  /**
-   * Create job assigned notification (Admin/System only)
-   * POST /api/notifications/job-assigned
-   */
+  
   static async createJobAssignedNotification(request, reply) {
     try {
       const { job_id, user_ids } = request.body;
@@ -188,10 +164,6 @@ export class NotificationController {
     }
   }
 
-  /**
-   * Create job status updated notification (Admin/System only)
-   * POST /api/notifications/job-status-updated
-   */
   static async createJobStatusUpdatedNotification(request, reply) {
     try {
       const { job_id, old_status, new_status, updated_by_user_id, user_ids } = request.body;
@@ -217,10 +189,6 @@ export class NotificationController {
     }
   }
 
-  /**
-   * Create job deleted notification (Admin/System only)
-   * POST /api/notifications/job-deleted
-   */
   static async createJobDeletedNotification(request, reply) {
     try {
       const { job_id, job_number, job_title, deleted_by_user_id, user_ids } = request.body;
@@ -246,10 +214,7 @@ export class NotificationController {
     }
   }
 
-  /**
-   * Create job created notification (Admin/System only)
-   * POST /api/notifications/job-created
-   */
+ 
   static async createJobCreatedNotification(request, reply) {
     try {
       const { job_id, created_by_user_id, user_ids } = request.body;

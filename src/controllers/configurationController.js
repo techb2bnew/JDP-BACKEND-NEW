@@ -10,7 +10,6 @@ import {
 import { errorResponse, successResponse } from '../helpers/responseHelper.js';
 
 export class ConfigurationController {
-  // Hourly Rates Controllers
   static async getAllHourlyRates(request, reply) {
     try {
       const result = await ConfigurationService.getAllHourlyRates();
@@ -37,13 +36,12 @@ export class ConfigurationController {
 
   static async createHourlyRate(request, reply) {
     try {
-      // Validate request body
       const { error, value } = hourlyRateValidation.create.body.validate(request.body);
       if (error) {
         return reply.status(400).send(createResponse(false, null, error.details[0].message));
       }
 
-      // Custom validation
+    
       const logicErrors = validateHourlyRateLogic(value);
       if (logicErrors.length > 0) {
         return reply.status(400).send(createResponse(false, null, logicErrors.join(', ')));
@@ -63,13 +61,13 @@ export class ConfigurationController {
 
   static async updateHourlyRate(request, reply) {
     try {
-      // Validate request body
+     
       const { error, value } = hourlyRateValidation.update.body.validate(request.body);
       if (error) {
         return reply.status(400).send(createResponse(false, null, error.details[0].message));
       }
 
-      // Custom validation
+    
       const logicErrors = validateHourlyRateLogic(value);
       if (logicErrors.length > 0) {
         return reply.status(400).send(createResponse(false, null, logicErrors.join(', ')));
@@ -105,7 +103,7 @@ export class ConfigurationController {
 
   static async updateHourlyRatesOrder(request, reply) {
     try {
-      // Validate request body
+      
       const { error, value } = hourlyRateValidation.updateOrder.body.validate(request.body);
       if (error) {
         return reply.status(400).send(createResponse(false, null, error.details[0].message));
@@ -118,7 +116,7 @@ export class ConfigurationController {
     }
   }
 
-  // System Settings Controllers
+  
   static async getMarkupPercentage(request, reply) {
     try {
       const result = await ConfigurationService.getMarkupPercentage();
@@ -130,13 +128,13 @@ export class ConfigurationController {
 
   static async updateMarkupPercentage(request, reply) {
     try {
-      // Validate request body
+     
       const { error, value } = systemSettingValidation.updateMarkup.body.validate(request.body);
       if (error) {
         return reply.status(400).send(createResponse(false, null, error.details[0].message));
       }
 
-      // Custom validation
+     
       const logicErrors = validateMarkupPercentage(value.percentage);
       if (logicErrors.length > 0) {
         return reply.status(400).send(createResponse(false, null, logicErrors.join(', ')));
@@ -173,7 +171,7 @@ export class ConfigurationController {
     }
   }
 
-  // Combined Configuration Controllers
+ 
   static async getFullConfiguration(request, reply) {
     try {
       const result = await ConfigurationService.getFullConfiguration();
@@ -188,13 +186,13 @@ export class ConfigurationController {
 
   static async createOrUpdateConfiguration(request, reply) {
     try {
-      // Validate request body
+     
       const { error, value } = configurationValidation.updateFull.body.validate(request.body);
       if (error) {
         return reply.code(400).send(errorResponse(error.details[0].message, 400));
       }
 
-      // Custom validation for markup percentage if provided
+     
       if (value.markup_percentage !== undefined) {
         const logicErrors = validateMarkupPercentage(value.markup_percentage);
         if (logicErrors.length > 0) {
@@ -202,7 +200,7 @@ export class ConfigurationController {
         }
       }
 
-      // Custom validation for hourly rates if provided
+    
       if (value.hourly_rates && Array.isArray(value.hourly_rates)) {
         for (const rate of value.hourly_rates) {
           const logicErrors = validateHourlyRateLogic(rate);
@@ -224,18 +222,17 @@ export class ConfigurationController {
 
   static async removeHourlyRates(request, reply) {
     try {
-      // Validate request body
+
       const { error, value } = removeHourlyRates.body.validate(request.body);
       if (error) {
         return reply.code(400).send(errorResponse(error.details[0].message, 400));
       }
 
-      // Custom validation for rate IDs
       if (!value.rate_ids || !Array.isArray(value.rate_ids) || value.rate_ids.length === 0) {
         return reply.code(400).send(errorResponse('Rate IDs array is required and cannot be empty', 400));
       }
 
-      // Validate that all IDs are positive integers
+     
       for (const id of value.rate_ids) {
         if (!Number.isInteger(id) || id <= 0) {
           return reply.code(400).send(errorResponse('All rate IDs must be positive integers', 400));

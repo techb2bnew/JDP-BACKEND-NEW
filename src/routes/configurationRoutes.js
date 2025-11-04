@@ -4,7 +4,7 @@ import { authenticateToken } from '../middleware/authMiddleware.js';
 export async function configurationRoutes(fastify, options) {
   fastify.addHook('preHandler', authenticateToken);
 
-  // Single API for all configuration operations
+
   fastify.get('/getFullConfiguration', {
     handler: ConfigurationController.getFullConfiguration
   });
