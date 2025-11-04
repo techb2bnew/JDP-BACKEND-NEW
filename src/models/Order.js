@@ -195,7 +195,13 @@ export class Order {
             labor_code,
             user_id,
             department,
-            specialization
+            specialization,
+            users:users!lead_labor_user_id_fkey(
+              id,
+              full_name,
+              email,
+              phone
+            )
           ),
           created_by_user:users!orders_created_by_fkey(
             id,
