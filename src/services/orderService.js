@@ -274,11 +274,10 @@ export class OrderService {
         throw new Error("Order not found");
       }
 
-
+      // Step 1: Restore stock for all order items
       if (existingOrder.order_items && existingOrder.order_items.length > 0) {
         for (const item of existingOrder.order_items) {
           if (item.product_id) {
-
             const { data: currentProduct } = await supabase
               .from("products")
               .select("stock_quantity")
@@ -297,10 +296,18 @@ export class OrderService {
             }
           }
         }
+
+        // Step 2: Delete all order items
+        await OrderItem.deleteByOrderId(orderId);
       }
 
+      // Step 3: Delete the order
       await Order.delete(orderId);
-      return { message: "Order deleted successfully" };
+      
+      return { 
+        message: "Order deleted successfully",
+        deletedOrderId: orderId
+      };
     } catch (error) {
       throw error;
     }
