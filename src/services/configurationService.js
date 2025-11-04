@@ -12,7 +12,10 @@ export class ConfigurationService {
           success: true,
           data: {
             hourly_rates: [],
-            markup_percentage: 0
+            markup_percentage: 0,
+            last_updated_by: null,
+            last_updated_by_user: null,
+            updated_at: null
           },
           message: 'Configuration fetched successfully'
         };
@@ -22,7 +25,10 @@ export class ConfigurationService {
         success: true,
         data: {
           hourly_rates: config.settings.hourly_rates || [],
-          markup_percentage: config.markup_percentage || 0
+          markup_percentage: config.markup_percentage || 0,
+          last_updated_by: config.last_updated_by || null,
+          last_updated_by_user: config.last_updated_by_user || null,
+          updated_at: config.updated_at || null
         },
         message: 'Configuration fetched successfully'
       };
