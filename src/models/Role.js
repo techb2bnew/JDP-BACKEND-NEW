@@ -154,9 +154,68 @@ export class Role {
     }
   }
 
+  static async checkRoleRelationships(roleId) {
+    try {
+      if (!roleId) {
+        throw new Error('Role ID is required');
+      }
+
+      // First, get the role to find its role_name
+      const { data: role, error: roleError } = await supabase
+        .from('roles')
+        .select('role_name')
+        .eq('id', roleId)
+        .single();
+
+      if (roleError || !role) {
+        throw new Error('Role not found');
+      }
+
+      const relationships = [];
+
+      // Check if role is assigned to any users (users.role matches roles.role_name)
+      const { data: usersData, error: usersError } = await supabase
+        .from('users')
+        .select('id, full_name, email, role')
+        .eq('role', role.role_name)
+        .limit(100); // Limit to avoid performance issues, but check if any exist
+
+      if (!usersError && usersData && usersData.length > 0) {
+        relationships.push({
+          table: 'users',
+          count: usersData.length,
+          message: `This role is assigned to ${usersData.length} user(s)`
+        });
+      }
+
+      // Check if role has associated role_permissions (already checked in delete, but good to show)
+      const { data: permissionsData, error: permissionsError } = await supabase
+        .from('role_permissions')
+        .select('id')
+        .eq('role_id', roleId)
+        .limit(1);
+
+      if (!permissionsError && permissionsData && permissionsData.length > 0) {
+        relationships.push({
+          table: 'role_permissions',
+          count: permissionsData.length,
+          message: 'This role has associated permissions'
+        });
+      }
+
+      return {
+        hasRelationships: relationships.length > 0,
+        relationships: relationships,
+        canDelete: relationships.length === 0
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+
   static async deleteRole(roleId) {
     try {
-      
+
       const { data: role, error: roleError } = await supabase
         .from('roles')
         .select('*')
@@ -173,7 +232,7 @@ export class Role {
         .eq('role_id', roleId);
 
       if (deletePermissionsError) {
-        throw new Error(`Failed to delete role permissions: ${deletePermissionsError.message}`);
+        throw new Error(`Failed to delete role permissions: ${deletePermissionsError.message}`);                                                                
       }
 
 
@@ -183,10 +242,10 @@ export class Role {
         .eq('id', roleId);
 
       if (deleteRoleError) {
-        throw new Error(`Failed to delete role: ${deleteRoleError.message}`);
+        throw new Error(`Failed to delete role: ${deleteRoleError.message}`);   
       }
 
-      
+
       return {
         success: true,
         message: `Role "${role.role_name}" deleted successfully`,

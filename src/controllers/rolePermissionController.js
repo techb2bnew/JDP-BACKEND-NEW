@@ -128,7 +128,7 @@ export class RolePermissionController {
       if (error.message.includes('not found')) {
         return reply.status(404).send(errorResponse('Role not found', 404));
       }
-      return reply.status(500).send(errorResponse(`Failed to delete role: ${error.message}`, 500));
+      return reply.status(500).send(errorResponse(`${error.message}`, 500));
     }
   }
 }

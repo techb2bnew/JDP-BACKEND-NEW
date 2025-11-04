@@ -197,6 +197,14 @@ export class RolePermissionService {
 
   static async deleteRole(roleId) {
     try {
+      // Check if role has relationships with other tables
+      const relationshipCheck = await Role.checkRoleRelationships(roleId);
+
+      if (!relationshipCheck.canDelete) {
+        const relationshipMessages = relationshipCheck.relationships.map(rel => rel.message).join(', ');
+        throw new Error(`Cannot delete this role because it has related data: ${relationshipMessages}. Please remove all related data first.`);
+      }
+
       const result = await Role.deleteRole(roleId);
       return result;
     } catch (error) {
