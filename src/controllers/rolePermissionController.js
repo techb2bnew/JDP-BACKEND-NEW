@@ -4,25 +4,25 @@ import { successResponse, errorResponse, validationErrorResponse } from '../help
 
 export class RolePermissionController {
   
-  static async createRoleWithPermissions(req, reply) {
+    static async createRoleWithPermissions(req, reply) {
     try {
-      const { roleName, roleType, description, permissions } = req.body;
+      const { roleName, roleType, description, permissions } = req.body;        
 
-      if (!roleName || !roleType) {
-        return reply.status(400).send(validationErrorResponse(['Role name and role type are required']));
+      if (!roleName) {
+        return reply.status(400).send(validationErrorResponse(['Role name is required']));                                                       
       }
 
       if (permissions) {
         try {
           RolePermissionService.validatePermissionData(permissions);
         } catch (validationError) {
-          return reply.status(400).send(validationErrorResponse([validationError.message]));
+          return reply.status(400).send(validationErrorResponse([validationError.message]));                                                                    
         }
       }
 
       const roleData = {
         role_name: roleName,
-        role_type: roleType,
+        role_type: roleType || '',
         description: description || null
       };
 

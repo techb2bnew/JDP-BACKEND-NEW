@@ -73,7 +73,20 @@ export const updateOrderSchema = Joi.object({
   payment_method: Joi.string().max(50).optional().allow(null, ''),
   
   notes: Joi.string().max(2000).optional().allow(null, ''),
-  internal_notes: Joi.string().max(2000).optional().allow(null, '')
+  internal_notes: Joi.string().max(2000).optional().allow(null, ''),
+
+  cartItems: Joi.array()
+    .items(
+      Joi.object({
+        product_id: Joi.number().integer().required(),
+        quantity: Joi.number().integer().min(1).required()
+      })
+    )
+    .min(1)
+    .optional()
+    .messages({
+      'array.min': 'At least one item is required in cart'
+    })
 }).min(1);
 
 export const updateOrderStatusSchema = Joi.object({

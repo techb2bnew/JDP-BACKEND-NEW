@@ -122,7 +122,110 @@ export class OrderService {
         throw new Error("Order not found");
       }
 
-      const updatedOrder = await Order.update(orderId, updateData);
+      // Extract cartItems if provided
+      const { cartItems, ...orderDataToUpdate } = updateData;
+
+      // If cartItems are provided, update order items
+      if (cartItems && Array.isArray(cartItems) && cartItems.length > 0) {
+        // Step 1: Restore stock for old order items
+        if (existingOrder.items && existingOrder.items.length > 0) {
+          for (const oldItem of existingOrder.items) {
+            const { data: currentProduct } = await supabase
+              .from("products")
+              .select("stock_quantity")
+              .eq("id", oldItem.product_id)
+              .single();
+
+            if (currentProduct) {
+              const restoredStock = currentProduct.stock_quantity + oldItem.quantity;
+              
+              await supabase
+                .from("products")
+                .update({
+                  stock_quantity: restoredStock
+                })
+                .eq("id", oldItem.product_id);
+            }
+          }
+        }
+
+        // Step 2: Delete old order items
+        await OrderItem.deleteByOrderId(orderId);
+
+        // Step 3: Calculate new totals and create new order items
+        let subtotal = 0;
+        const orderItemsToCreate = [];
+
+        for (const item of cartItems) {
+          const { data: product, error } = await supabase
+            .from("products")
+            .select("id, product_name, jdp_price, stock_quantity")
+            .eq("id", item.product_id)
+            .single();
+
+          if (error || !product) {
+            throw new Error(`Product with ID ${item.product_id} not found`);
+          }
+
+          if (product.stock_quantity < item.quantity) {
+            throw new Error(`Insufficient stock for product: ${product.product_name}. Available: ${product.stock_quantity}`);
+          }
+
+          const unitPrice = parseFloat(product.jdp_price) || 0;
+          const quantity = parseInt(item.quantity) || 1;
+          const totalPrice = unitPrice * quantity;
+
+          subtotal += totalPrice;
+
+          orderItemsToCreate.push({
+            product_id: product.id,
+            quantity: quantity,
+            total_price: totalPrice
+          });
+        }
+
+        // Step 4: Update order totals
+        const taxAmount = orderDataToUpdate.tax_amount !== undefined ? orderDataToUpdate.tax_amount : (existingOrder.tax_amount || 0);
+        const discountAmount = orderDataToUpdate.discount_amount !== undefined ? orderDataToUpdate.discount_amount : (existingOrder.discount_amount || 0);
+        const totalAmount = subtotal + taxAmount - discountAmount;
+
+        orderDataToUpdate.total_items = cartItems.length;
+        orderDataToUpdate.subtotal = subtotal;
+        orderDataToUpdate.tax_amount = taxAmount;
+        orderDataToUpdate.discount_amount = discountAmount;
+        orderDataToUpdate.total_amount = totalAmount;
+
+        // Step 5: Create new order items
+        const orderItemsWithOrderId = orderItemsToCreate.map(item => ({
+          ...item,
+          order_id: orderId
+        }));
+
+        await OrderItem.createBulk(orderItemsWithOrderId);
+
+        // Step 6: Deduct stock for new items
+        for (const item of cartItems) {
+          const { data: currentProduct } = await supabase
+            .from("products")
+            .select("stock_quantity")
+            .eq("id", item.product_id)
+            .single();
+
+          if (currentProduct) {
+            const newStock = currentProduct.stock_quantity - item.quantity;
+            
+            await supabase
+              .from("products")
+              .update({
+                stock_quantity: newStock
+              })
+              .eq("id", item.product_id);
+          }
+        }
+      }
+
+      // Step 7: Update order data (excluding cartItems as it's already handled)
+      const updatedOrder = await Order.update(orderId, orderDataToUpdate);
       return updatedOrder;
     } catch (error) {
       throw error;
