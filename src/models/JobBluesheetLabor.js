@@ -483,74 +483,123 @@ export class JobBluesheetLabor {
     let tierForRegular = firstTier;
 
     if (normalizedRates.length > 1 && fullRegularHours > 0) {
-      // Find matching tier based on both max_hours (less than equal to) and min_hours (greater than equal to)
-      const matchingTiers = normalizedRates.filter((tier) => {
-        const hasMaxHours = tier.max_hours !== null && tier.max_hours !== undefined;
+      // Priority-based tier matching:
+      // 1. Exact match with min_hours (highest priority)
+      // 2. Exact match with max_hours
+      // 3. Hours between min_hours and max_hours (exclusive) → use max_hours tier
+      // 4. Otherwise, use <= max_hours or >= min_hours logic
+
+      let matchedTier = null;
+
+      // Step 1: Check for exact match with min_hours (highest priority)
+      const exactMinMatch = normalizedRates.find((tier) => {
         const hasMinHours = tier.min_hours !== null && tier.min_hours !== undefined;
-
-        // If tier has no constraints, it's a default tier (matches everything)
-        if (!hasMaxHours && !hasMinHours) {
-          return true;
-        }
-
-        // Check if tier matches based on its constraints
-        let matches = true;
-
-        // Check "Less than equal to" condition (max_hours)
-        if (hasMaxHours) {
-          matches = matches && (fullRegularHours <= tier.max_hours);
-        }
-
-        // Check "Greater than equal to" condition (min_hours)
-        if (hasMinHours) {
-          matches = matches && (fullRegularHours >= tier.min_hours);
-        }
-
-        return matches;
+        return hasMinHours && fullRegularHours === tier.min_hours;
       });
 
-      // If multiple tiers match (e.g., hours = 3 matches both <=3 and >=3),
-      // prefer the tier with min_hours (greater than equal to) as it typically has higher priority
-      // Otherwise, take the first matching tier
-      if (matchingTiers.length > 0) {
-        // Sort matching tiers: prefer min_hours (greater than equal to) tiers
-        const sortedMatchingTiers = matchingTiers.sort((a, b) => {
-          const hasMinA = a.min_hours !== null && a.min_hours !== undefined;
-          const hasMinB = b.min_hours !== null && b.min_hours !== undefined;
-          
-          // Prioritize tiers with min_hours (greater than equal to)
-          if (hasMinA && !hasMinB) return -1;
-          if (!hasMinA && hasMinB) return 1;
-          
-          // If both have min_hours, prefer higher min_hours (more specific condition)
-          if (hasMinA && hasMinB) {
-            return b.min_hours - a.min_hours;
-          }
-          
-          // If both have max_hours, prefer lower max_hours (more specific condition)
-          const hasMaxA = a.max_hours !== null && a.max_hours !== undefined;
-          const hasMaxB = b.max_hours !== null && b.max_hours !== undefined;
-          if (hasMaxA && hasMaxB) {
-            return a.max_hours - b.max_hours;
-          }
-          
-          return 0;
-        });
-        
-        tierForRegular = sortedMatchingTiers[0];
+      if (exactMinMatch) {
+        matchedTier = exactMinMatch;
       } else {
-        // If no tier matches, check for default tiers (no constraints)
-        const defaultTier = normalizedRates.find(tier => 
-          (tier.max_hours === null || tier.max_hours === undefined) && 
-          (tier.min_hours === null || tier.min_hours === undefined)
-        );
-        
-        if (defaultTier) {
-          tierForRegular = defaultTier;
+        // Step 2: Check for exact match with max_hours
+        const exactMaxMatch = normalizedRates.find((tier) => {
+          const hasMaxHours = tier.max_hours !== null && tier.max_hours !== undefined;
+          return hasMaxHours && fullRegularHours === tier.max_hours;
+        });
+
+        if (exactMaxMatch) {
+          matchedTier = exactMaxMatch;
         } else {
-          // Fallback to last tier if no default tier found
-          tierForRegular = lastTier;
+          // Step 3: Check if hours is between min_hours and max_hours (exclusive)
+          // Find all tiers that have both min_hours and max_hours
+          const rangeTiers = normalizedRates.filter((tier) => {
+            const hasMinHours = tier.min_hours !== null && tier.min_hours !== undefined;
+            const hasMaxHours = tier.max_hours !== null && tier.max_hours !== undefined;
+            return hasMinHours && hasMaxHours;
+          });
+
+          // Find tiers where hours is strictly between min and max (exclusive)
+          const betweenTiers = rangeTiers.filter((tier) => {
+            return fullRegularHours > tier.min_hours && fullRegularHours < tier.max_hours;
+          });
+
+          if (betweenTiers.length > 0) {
+            // Use the tier with max_hours from the between tiers
+            // Sort by max_hours (ascending) and take the first one (lowest max_hours)
+            betweenTiers.sort((a, b) => a.max_hours - b.max_hours);
+            matchedTier = betweenTiers[0];
+          } else {
+            // Step 4: Use existing <= max_hours and >= min_hours logic
+            const matchingTiers = normalizedRates.filter((tier) => {
+              const hasMaxHours = tier.max_hours !== null && tier.max_hours !== undefined;
+              const hasMinHours = tier.min_hours !== null && tier.min_hours !== undefined;
+
+              // If tier has no constraints, it's a default tier (matches everything)
+              if (!hasMaxHours && !hasMinHours) {
+                return true;
+              }
+
+              // Check if tier matches based on its constraints
+              let matches = true;
+
+              // Check "Less than equal to" condition (max_hours)
+              if (hasMaxHours) {
+                matches = matches && (fullRegularHours <= tier.max_hours);
+              }
+
+              // Check "Greater than equal to" condition (min_hours)
+              if (hasMinHours) {
+                matches = matches && (fullRegularHours >= tier.min_hours);
+              }
+
+              return matches;
+            });
+
+            if (matchingTiers.length > 0) {
+              // Sort matching tiers: prefer min_hours (greater than equal to) tiers
+              const sortedMatchingTiers = matchingTiers.sort((a, b) => {
+                const hasMinA = a.min_hours !== null && a.min_hours !== undefined;
+                const hasMinB = b.min_hours !== null && b.min_hours !== undefined;
+
+                // Prioritize tiers with min_hours (greater than equal to)
+                if (hasMinA && !hasMinB) return -1;
+                if (!hasMinA && hasMinB) return 1;
+
+                // If both have min_hours, prefer higher min_hours (more specific condition)
+                if (hasMinA && hasMinB) {
+                  return b.min_hours - a.min_hours;
+                }
+
+                // If both have max_hours, prefer lower max_hours (more specific condition)
+                const hasMaxA = a.max_hours !== null && a.max_hours !== undefined;
+                const hasMaxB = b.max_hours !== null && b.max_hours !== undefined;
+                if (hasMaxA && hasMaxB) {
+                  return a.max_hours - b.max_hours;
+                }
+
+                return 0;
+              });
+
+              matchedTier = sortedMatchingTiers[0];
+            } else {
+              // If no tier matches, check for default tiers (no constraints)
+              const defaultTier = normalizedRates.find(tier =>
+                (tier.max_hours === null || tier.max_hours === undefined) &&
+                (tier.min_hours === null || tier.min_hours === undefined)
+              );
+
+              if (defaultTier) {
+                matchedTier = defaultTier;
+              } else {
+                // Fallback to last tier if no default tier found
+                matchedTier = lastTier;
+              }
+            }
+          }
         }
+      }
+
+      if (matchedTier) {
+        tierForRegular = matchedTier;
       }
     }
 
