@@ -15,7 +15,7 @@ export class JobBluesheetLabor {
 
       // Load active configuration snapshot and compute billing
       const { rates: activeRates, snapshot: rateSnapshot } = await JobBluesheetLabor.loadActiveRates(true);
-      const { hourlyRate, totalCost } = JobBluesheetLabor.calculateBillingFromNormalizedRates(
+      const { hourlyRate, totalCost, matchedTier } = JobBluesheetLabor.calculateBillingFromNormalizedRates(
         regularHoursDecimal,
         overtimeHoursDecimal,
         activeRates
@@ -29,7 +29,10 @@ export class JobBluesheetLabor {
         hourly_rate: hourlyRate,
         total_hours: totalHours,
         total_cost: totalCost,
-        rate_snapshot: rateSnapshot
+        rate_snapshot: {
+          ...rateSnapshot,
+          matched_tier: matchedTier // Save which tier was used for calculation
+        }
       };
 
       const { data, error } = await supabase
@@ -196,16 +199,21 @@ export class JobBluesheetLabor {
 
         let rateSnapshot = existingEntry?.rate_snapshot || null;
         let normalizedRates;
+        let originalRates = null;
 
         if (rateSnapshot && Array.isArray(rateSnapshot.hourly_rates) && rateSnapshot.hourly_rates.length > 0) {
+          // Use existing snapshot rates (original rates)
+          originalRates = rateSnapshot.hourly_rates;
           normalizedRates = JobBluesheetLabor.normalizeRates(rateSnapshot.hourly_rates);
         } else {
+          // Load fresh rates and snapshot
           const { rates: activeRates, snapshot } = await JobBluesheetLabor.loadActiveRates(true);
           normalizedRates = activeRates;
           rateSnapshot = snapshot;
+          originalRates = snapshot.hourly_rates;
         }
 
-        const { hourlyRate, totalCost } = JobBluesheetLabor.calculateBillingFromNormalizedRates(
+        const { hourlyRate, totalCost, matchedTier } = JobBluesheetLabor.calculateBillingFromNormalizedRates(
           regularHoursDecimal,
           overtimeHoursDecimal,
           normalizedRates
@@ -218,7 +226,8 @@ export class JobBluesheetLabor {
         updateData.rate_snapshot = rateSnapshot
           ? {
               ...rateSnapshot,
-              hourly_rates: normalizedRates.map((rate) => ({ ...rate }))
+              hourly_rates: originalRates || rateSnapshot.hourly_rates, // Keep original rates with min_hours/max_hours
+              matched_tier: matchedTier // Save which tier was used for calculation
             }
           : null;
       }
@@ -366,7 +375,7 @@ export class JobBluesheetLabor {
         configuration_id: config.id ?? null,
         configuration_updated_at: config.updated_at ?? null,
         captured_at: new Date().toISOString(),
-        hourly_rates: normalizedRates.map((rate) => ({ ...rate }))
+        hourly_rates: hourlyRates.map((rate) => ({ ...rate })) // Save original rates with min_hours/max_hours
       }
     };
   }
@@ -404,7 +413,7 @@ export class JobBluesheetLabor {
     return Array.from(ids);
   }
 
-  static normalizeRates(rates) {
+    static normalizeRates(rates) {
     if (!Array.isArray(rates) || rates.length === 0) {
       throw new Error('Hourly rate configuration is missing or empty');
     }
@@ -412,8 +421,10 @@ export class JobBluesheetLabor {
     const normalizedRates = rates
       .map((rate) => {
         const numericRate = Number(rate.rate);
-        const hasMax = rate.max_hours !== undefined && rate.max_hours !== null;
+        const hasMax = rate.max_hours !== undefined && rate.max_hours !== null; 
+        const hasMin = rate.min_hours !== undefined && rate.min_hours !== null;
         const numericMax = hasMax ? Number(rate.max_hours) : null;
+        const numericMin = hasMin ? Number(rate.min_hours) : null;
 
         if (!Number.isFinite(numericRate)) {
           throw new Error('Hourly rate value must be numeric');
@@ -423,16 +434,30 @@ export class JobBluesheetLabor {
           throw new Error('Hourly rate max_hours must be numeric');
         }
 
+        if (hasMin && !Number.isFinite(numericMin)) {
+          throw new Error('Hourly rate min_hours must be numeric');
+        }
+
         return {
           ...rate,
           rate: numericRate,
-          max_hours: hasMax ? numericMax : null
+          max_hours: hasMax ? numericMax : null,
+          min_hours: hasMin ? numericMin : null
         };
       })
       .sort((a, b) => {
+        // Sort by max_hours first (ascending), then by min_hours (ascending)
         const maxA = a.max_hours === null ? Number.POSITIVE_INFINITY : a.max_hours;
         const maxB = b.max_hours === null ? Number.POSITIVE_INFINITY : b.max_hours;
-        return maxA - maxB;
+        
+        if (maxA !== maxB) {
+          return maxA - maxB;
+        }
+        
+        // If max_hours are equal, sort by min_hours
+        const minA = a.min_hours === null ? 0 : a.min_hours;
+        const minB = b.min_hours === null ? 0 : b.min_hours;
+        return minA - minB;
       });
 
     if (normalizedRates.length === 0) {
@@ -442,8 +467,8 @@ export class JobBluesheetLabor {
     return normalizedRates;
   }
 
-  static calculateBillingFromNormalizedRates(regularHoursDecimal, overtimeHoursDecimal, normalizedRates) {
-    if (!Array.isArray(normalizedRates) || normalizedRates.length === 0) {
+    static calculateBillingFromNormalizedRates(regularHoursDecimal, overtimeHoursDecimal, normalizedRates) {                                                      
+    if (!Array.isArray(normalizedRates) || normalizedRates.length === 0) {      
       throw new Error('Hourly rate configuration is missing or empty');
     }
 
@@ -458,30 +483,83 @@ export class JobBluesheetLabor {
     let tierForRegular = firstTier;
 
     if (normalizedRates.length > 1 && fullRegularHours > 0) {
-      const matchingTier = normalizedRates.find((tier, index) => {
-        if (tier.max_hours === null) {
-          return index === normalizedRates.length - 1;
+      // Find matching tier based on both max_hours (less than equal to) and min_hours (greater than equal to)
+      const matchingTiers = normalizedRates.filter((tier) => {
+        const hasMaxHours = tier.max_hours !== null && tier.max_hours !== undefined;
+        const hasMinHours = tier.min_hours !== null && tier.min_hours !== undefined;
+
+        // If tier has no constraints, it's a default tier (matches everything)
+        if (!hasMaxHours && !hasMinHours) {
+          return true;
         }
-        return fullRegularHours <= tier.max_hours;
+
+        // Check if tier matches based on its constraints
+        let matches = true;
+
+        // Check "Less than equal to" condition (max_hours)
+        if (hasMaxHours) {
+          matches = matches && (fullRegularHours <= tier.max_hours);
+        }
+
+        // Check "Greater than equal to" condition (min_hours)
+        if (hasMinHours) {
+          matches = matches && (fullRegularHours >= tier.min_hours);
+        }
+
+        return matches;
       });
 
-      if (matchingTier) {
-        tierForRegular = matchingTier;
+      // If multiple tiers match (e.g., hours = 3 matches both <=3 and >=3),
+      // prefer the tier with min_hours (greater than equal to) as it typically has higher priority
+      // Otherwise, take the first matching tier
+      if (matchingTiers.length > 0) {
+        // Sort matching tiers: prefer min_hours (greater than equal to) tiers
+        const sortedMatchingTiers = matchingTiers.sort((a, b) => {
+          const hasMinA = a.min_hours !== null && a.min_hours !== undefined;
+          const hasMinB = b.min_hours !== null && b.min_hours !== undefined;
+          
+          // Prioritize tiers with min_hours (greater than equal to)
+          if (hasMinA && !hasMinB) return -1;
+          if (!hasMinA && hasMinB) return 1;
+          
+          // If both have min_hours, prefer higher min_hours (more specific condition)
+          if (hasMinA && hasMinB) {
+            return b.min_hours - a.min_hours;
+          }
+          
+          // If both have max_hours, prefer lower max_hours (more specific condition)
+          const hasMaxA = a.max_hours !== null && a.max_hours !== undefined;
+          const hasMaxB = b.max_hours !== null && b.max_hours !== undefined;
+          if (hasMaxA && hasMaxB) {
+            return a.max_hours - b.max_hours;
+          }
+          
+          return 0;
+        });
+        
+        tierForRegular = sortedMatchingTiers[0];
       } else {
-        tierForRegular = lastTier;
+        // If no tier matches, check for default tiers (no constraints)
+        const defaultTier = normalizedRates.find(tier => 
+          (tier.max_hours === null || tier.max_hours === undefined) && 
+          (tier.min_hours === null || tier.min_hours === undefined)
+        );
+        
+        if (defaultTier) {
+          tierForRegular = defaultTier;
+        } else {
+          // Fallback to last tier if no default tier found
+          tierForRegular = lastTier;
+        }
       }
     }
 
-    let hourlyRate = tierForRegular.rate;
+        let hourlyRate = tierForRegular.rate;
     let totalCost = 0;
 
     if (regularHours > 0) {
-      if (tierForRegular === firstTier && firstTier.max_hours !== null) {
-        const billableTier1Hours = Math.max(firstTier.max_hours, fullRegularHours);
-        totalCost = billableTier1Hours * firstTier.rate;
-      } else {
-        totalCost = fullRegularHours * tierForRegular.rate;
-      }
+      // Calculate total cost based on regular hours
+      totalCost = fullRegularHours * tierForRegular.rate;
     }
 
     if (overtimeHours > 0) {
@@ -491,7 +569,15 @@ export class JobBluesheetLabor {
 
     return {
       hourlyRate,
-      totalCost: Math.round(totalCost * 100) / 100
+      totalCost: Math.round(totalCost * 100) / 100,
+      matchedTier: {
+        id: tierForRegular.id,
+        rate: tierForRegular.rate,
+        min_hours: tierForRegular.min_hours,
+        max_hours: tierForRegular.max_hours,
+        description: tierForRegular.description,
+        regular_hours: fullRegularHours
+      }
     };
   }
 

@@ -95,25 +95,30 @@ export const configurationValidation = {
             }),
             description: Joi.string().max(200).required().messages({
               'string.empty': 'Description is required',
-              'string.max': 'Description must not exceed 200 characters'
+              'string.max': 'Description must not exceed 200 characters'        
             }),
-            max_hours: Joi.number().integer().min(0).allow(null).messages({
+            min_hours: Joi.number().integer().min(0).allow(null).optional().messages({
+              'number.base': 'Minimum hours must be a number',
+              'number.integer': 'Minimum hours must be an integer',
+              'number.min': 'Minimum hours must be 0 or greater'
+            }),
+            max_hours: Joi.number().integer().min(0).allow(null).optional().messages({     
               'number.base': 'Maximum hours must be a number',
               'number.integer': 'Maximum hours must be an integer',
               'number.min': 'Maximum hours must be 0 or greater'
             }),
-            rate: Joi.number().positive().precision(2).required().messages({
+            rate: Joi.number().positive().precision(2).required().messages({    
               'number.base': 'Rate must be a number',
               'number.positive': 'Rate must be greater than 0',
-              'number.precision': 'Rate can have maximum 2 decimal places'
+              'number.precision': 'Rate can have maximum 2 decimal places'      
             })
           })
         ).optional(),
-      markup_percentage: Joi.number().min(0).max(100).precision(2).optional().messages({
+      markup_percentage: Joi.number().min(0).max(100).precision(2).optional().messages({                                                                        
         'number.base': 'Markup percentage must be a number',
         'number.min': 'Markup percentage must be 0 or greater',
         'number.max': 'Markup percentage must not exceed 100',
-        'number.precision': 'Markup percentage can have maximum 2 decimal places'
+        'number.precision': 'Markup percentage can have maximum 2 decimal places'                                                                               
       })
     }).min(1).messages({
       'object.min': 'At least one configuration field must be provided'

@@ -55,12 +55,13 @@ export class ConfigurationService {
             // Find existing rate by ID
             const existingIndex = settings.hourly_rates.findIndex(r => r.id === rate.id);
             
-            if (existingIndex !== -1) {
+                        if (existingIndex !== -1) {
               // Update existing rate
               settings.hourly_rates[existingIndex] = {
                 id: rate.id,
                 description: rate.description,
-                max_hours: rate.max_hours,
+                max_hours: rate.max_hours !== undefined ? rate.max_hours : null,
+                min_hours: rate.min_hours !== undefined ? rate.min_hours : null,
                 rate: rate.rate
               };
             } else {
@@ -68,21 +69,23 @@ export class ConfigurationService {
               settings.hourly_rates.push({
                 id: rate.id,
                 description: rate.description,
-                max_hours: rate.max_hours,
+                max_hours: rate.max_hours !== undefined ? rate.max_hours : null,
+                min_hours: rate.min_hours !== undefined ? rate.min_hours : null,
                 rate: rate.rate
               });
             }
           } else {
             // Create new rate with auto-generated ID
-            const maxId = settings.hourly_rates.length > 0 
-              ? Math.max(...settings.hourly_rates.map(r => r.id)) 
+            const maxId = settings.hourly_rates.length > 0
+              ? Math.max(...settings.hourly_rates.map(r => r.id))
               : 0;
             const newId = maxId + 1;
-            
+
             settings.hourly_rates.push({
               id: newId,
               description: rate.description,
-              max_hours: rate.max_hours,
+              max_hours: rate.max_hours !== undefined ? rate.max_hours : null,
+              min_hours: rate.min_hours !== undefined ? rate.min_hours : null,
               rate: rate.rate
             });
           }

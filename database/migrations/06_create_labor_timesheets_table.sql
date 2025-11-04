@@ -8,7 +8,7 @@ CREATE TABLE labor_timesheets (
   end_time TIME,
   work_activity TEXT,
   pause_timer JSONB DEFAULT '[]',
-  job_status VARCHAR(50),
+  job_status VARCHAR(50), 
   status VARCHAR(50),
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
