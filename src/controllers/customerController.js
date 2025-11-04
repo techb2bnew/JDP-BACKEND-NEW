@@ -99,7 +99,7 @@ export class CustomerController {
       if (error.message.includes('Database error')) {
         return reply.code(500).send(errorResponse('Database error occurred', 500));
       }
-      return reply.code(500).send(errorResponse(`Failed to delete customer: ${error.message}`));
+      return reply.code(500).send(errorResponse(`${error.message}`));
     }
   }
 

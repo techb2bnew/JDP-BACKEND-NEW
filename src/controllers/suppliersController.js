@@ -198,7 +198,7 @@ export class suppliersController {
       if (error.message.includes('not found')) {
         return reply.status(404).send(errorResponse('Supplier not found', 404));
       }
-      return reply.status(500).send(errorResponse(`Failed to delete supplier: ${error.message}`, 500));
+      return reply.status(500).send(errorResponse(`${error.message}`, 500));
     }
   }
 }

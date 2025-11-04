@@ -221,17 +221,18 @@ export class Customer {
         });
       }
 
-      const { data: estimatesData, error: estimatesError } = await supabase
-        .from('estimates')
-        .select('id, estimate_title')
+      // Check if customer has associated orders
+      const { data: ordersData, error: ordersError } = await supabase
+        .from('orders')
+        .select('id')
         .eq('customer_id', customerId)
         .limit(1);
 
-      if (!estimatesError && estimatesData && estimatesData.length > 0) {
+      if (!ordersError && ordersData && ordersData.length > 0) {
         relationships.push({
-          table: 'estimates',
-          count: estimatesData.length,
-          message: 'This customer has associated estimates'
+          table: 'orders',
+          count: ordersData.length,
+          message: 'This customer has associated orders'
         });
       }
 

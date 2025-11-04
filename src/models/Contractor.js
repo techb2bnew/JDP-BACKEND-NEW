@@ -338,6 +338,7 @@ export class Contractor {
 
       const relationships = [];
 
+      // Check if contractor has associated jobs
       const { data: jobsData, error: jobsError } = await supabase
         .from('jobs')
         .select('id, job_title')
@@ -349,6 +350,36 @@ export class Contractor {
           table: 'jobs',
           count: jobsData.length,
           message: 'This contractor has associated jobs'
+        });
+      }
+
+      // Check if contractor has associated orders
+      const { data: ordersData, error: ordersError } = await supabase
+        .from('orders')
+        .select('id')
+        .eq('contractor_id', contractorId)
+        .limit(1);
+
+      if (!ordersError && ordersData && ordersData.length > 0) {
+        relationships.push({
+          table: 'orders',
+          count: ordersData.length,
+          message: 'This contractor has associated orders'
+        });
+      }
+
+      // Check if contractor has associated estimates
+      const { data: estimatesData, error: estimatesError } = await supabase
+        .from('estimates')
+        .select('id, estimate_title')
+        .eq('contractor_id', contractorId)
+        .limit(1);
+
+      if (!estimatesError && estimatesData && estimatesData.length > 0) {
+        relationships.push({
+          table: 'estimates',
+          count: estimatesData.length,
+          message: 'This contractor has associated estimates'
         });
       }
 

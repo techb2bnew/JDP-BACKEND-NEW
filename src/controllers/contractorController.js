@@ -107,7 +107,7 @@ export class ContractorController {
       if (error.message.includes('Database error')) {
         return reply.code(500).send(errorResponse('Database error occurred', 500));
       }
-      return reply.code(500).send(errorResponse(`Failed to delete contractor: ${error.message}`));
+      return reply.code(500).send(errorResponse(`${error.message}`));
     }
   }
 

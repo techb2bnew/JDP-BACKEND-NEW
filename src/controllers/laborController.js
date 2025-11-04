@@ -207,7 +207,7 @@ export class LaborController {
       if (error.message.includes('not found')) {
         return reply.status(404).send(errorResponse('Labor not found', 404));
       }
-      return reply.status(500).send(errorResponse(`Failed to delete labor: ${error.message}`, 500));
+      return reply.status(500).send(errorResponse(`${error.message}`, 500));
     }
   }
 

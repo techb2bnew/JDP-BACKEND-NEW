@@ -261,6 +261,14 @@ export class LeadLaborService {
 
   static async deleteLeadLabor(leadLaborId) {
     try {
+      // Check if lead labor has relationships with other tables
+      const relationshipCheck = await LeadLabor.checkLeadLaborRelationships(leadLaborId);
+
+      if (!relationshipCheck.canDelete) {
+        const relationshipMessages = relationshipCheck.relationships.map(rel => rel.message).join(', ');
+        throw new Error(`Cannot delete this lead labor because it has related data: ${relationshipMessages}. Please remove all related data first.`);
+      }
+
       const result = await LeadLabor.delete(leadLaborId);
       return result;
     } catch (error) {

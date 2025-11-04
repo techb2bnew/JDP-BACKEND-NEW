@@ -186,6 +186,106 @@ export class LeadLabor {
     }
   }
 
+  static async checkLeadLaborRelationships(leadLaborId) {
+    try {
+      if (!leadLaborId) {
+        throw new Error('Lead Labor ID is required');
+      }
+
+      const relationships = [];
+
+      // Check if lead labor is assigned to any jobs
+      const { data: jobsData, error: jobsError } = await supabase
+        .from('jobs')
+        .select('id, job_title, assigned_lead_labor_ids')
+        .limit(1000); // Get all jobs to check arrays
+
+      if (!jobsError && jobsData) {
+        const assignedJobs = jobsData.filter(job => {
+          if (!job.assigned_lead_labor_ids) return false;
+          
+          let leadLaborIds = [];
+          try {
+            // Try to parse as JSON array
+            if (typeof job.assigned_lead_labor_ids === 'string') {
+              leadLaborIds = JSON.parse(job.assigned_lead_labor_ids);
+            } else if (Array.isArray(job.assigned_lead_labor_ids)) {
+              leadLaborIds = job.assigned_lead_labor_ids;
+            }
+          } catch (e) {
+            // If parsing fails, try to handle as comma-separated string
+            if (typeof job.assigned_lead_labor_ids === 'string') {
+              leadLaborIds = job.assigned_lead_labor_ids.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+            }
+          }
+          
+          return leadLaborIds.includes(parseInt(leadLaborId));
+        });
+
+        if (assignedJobs.length > 0) {
+          relationships.push({
+            table: 'jobs',
+            count: assignedJobs.length,
+            message: `This lead labor is assigned to ${assignedJobs.length} job(s)`
+          });
+        }
+      }
+
+      // Check if lead labor is referenced in job_bluesheet_labor
+      const { data: bluesheetData, error: bluesheetError } = await supabase
+        .from('job_bluesheet_labor')
+        .select('id')
+        .eq('lead_labor_id', leadLaborId)
+        .limit(1);
+
+      if (!bluesheetError && bluesheetData && bluesheetData.length > 0) {
+        relationships.push({
+          table: 'job_bluesheet_labor',
+          count: bluesheetData.length,
+          message: 'This lead labor has bluesheet entries'
+        });
+      }
+
+      // Check if lead labor is referenced in labor_timesheets
+      const { data: timesheetData, error: timesheetError } = await supabase
+        .from('labor_timesheets')
+        .select('id')
+        .eq('lead_labor_id', leadLaborId)
+        .limit(1);
+
+      if (!timesheetError && timesheetData && timesheetData.length > 0) {
+        relationships.push({
+          table: 'labor_timesheets',
+          count: timesheetData.length,
+          message: 'This lead labor has timesheet entries'
+        });
+      }
+
+      // Check if lead labor is referenced in orders
+      const { data: ordersData, error: ordersError } = await supabase
+        .from('orders')
+        .select('id')
+        .eq('lead_labour_id', leadLaborId)
+        .limit(1);
+
+      if (!ordersError && ordersData && ordersData.length > 0) {
+        relationships.push({
+          table: 'orders',
+          count: ordersData.length,
+          message: 'This lead labor has associated orders'
+        });
+      }
+
+      return {
+        hasRelationships: relationships.length > 0,
+        relationships: relationships,
+        canDelete: relationships.length === 0
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+
   static async delete(leadLaborId) {
     try {
       const leadLabor = await this.getLeadLaborById(leadLaborId);

@@ -268,6 +268,91 @@ export class Labor {
     }
   }
 
+  static async checkLaborRelationships(laborId) {
+    try {
+      if (!laborId) {
+        throw new Error('Labor ID is required');
+      }
+
+      const relationships = [];
+
+      // Check if labor is assigned to any jobs
+      const { data: jobsData, error: jobsError } = await supabase
+        .from('jobs')
+        .select('id, job_title, assigned_labor_ids')
+        .limit(1000); // Get all jobs to check arrays
+
+      if (!jobsError && jobsData) {
+        const assignedJobs = jobsData.filter(job => {
+          if (!job.assigned_labor_ids) return false;
+          
+          let laborIds = [];
+          try {
+            // Try to parse as JSON array
+            if (typeof job.assigned_labor_ids === 'string') {
+              laborIds = JSON.parse(job.assigned_labor_ids);
+            } else if (Array.isArray(job.assigned_labor_ids)) {
+              laborIds = job.assigned_labor_ids;
+            }
+          } catch (e) {
+            // If parsing fails, try to handle as comma-separated string
+            if (typeof job.assigned_labor_ids === 'string') {
+              laborIds = job.assigned_labor_ids.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+            }
+          }
+          
+          return laborIds.includes(parseInt(laborId));
+        });
+
+        if (assignedJobs.length > 0) {
+          relationships.push({
+            table: 'jobs',
+            count: assignedJobs.length,
+            message: `This labor is assigned to ${assignedJobs.length} job(s)`
+          });
+        }
+      }
+
+      // Check if labor is referenced in job_bluesheet_labor
+      const { data: bluesheetData, error: bluesheetError } = await supabase
+        .from('job_bluesheet_labor')
+        .select('id')
+        .eq('labor_id', laborId)
+        .limit(1);
+
+      if (!bluesheetError && bluesheetData && bluesheetData.length > 0) {
+        relationships.push({
+          table: 'job_bluesheet_labor',
+          count: bluesheetData.length,
+          message: 'This labor has bluesheet entries'
+        });
+      }
+
+      // Check if labor is referenced in labor_timesheets
+      const { data: timesheetData, error: timesheetError } = await supabase
+        .from('labor_timesheets')
+        .select('id')
+        .eq('labor_id', laborId)
+        .limit(1);
+
+      if (!timesheetError && timesheetData && timesheetData.length > 0) {
+        relationships.push({
+          table: 'labor_timesheets',
+          count: timesheetData.length,
+          message: 'This labor has timesheet entries'
+        });
+      }
+
+      return {
+        hasRelationships: relationships.length > 0,
+        relationships: relationships,
+        canDelete: relationships.length === 0
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+
   static async delete(laborId) {
     try {
       const labor = await this.getLaborById(laborId);
