@@ -1072,9 +1072,22 @@ export class Job {
         }
       });
 
+      // Optimize: Calculate job summary from filtered jobs (avoid separate query)
+      let totalJobs = filteredJobs.length;
+      let activeJobs = 0;
+      let completedJobs = 0;
+
+      for (const job of filteredJobs) {
+        const status = (job.status || '').toLowerCase();
+        if (ACTIVE_JOB_STATUSES.has(status)) {
+          activeJobs += 1;
+        }
+        if (COMPLETED_JOB_STATUSES.has(status)) {
+          completedJobs += 1;
+        }
+      }
 
       const paginatedJobs = filteredJobs.slice(offset, offset + limit);
-
 
       const jobsWithDetails = await Promise.all(
         paginatedJobs.map(job => Job.addDetailsToJob(job))
@@ -1095,6 +1108,12 @@ export class Job {
           itemsPerPage: limit,
           hasNextPage: page < totalPages,
           hasPrevPage: page > 1
+        },
+        // Include summary in response to avoid separate query
+        summary: {
+          total_jobs: totalJobs,
+          active_jobs: activeJobs,
+          completed_jobs: completedJobs
         }
       };
     } catch (error) {

@@ -36,46 +36,51 @@ export class LeadLabor {
     try {
       const offset = (page - 1) * limit;
 
-      const { count, error: countError } = await supabase
-        .from('lead_labor')
-        .select('*', { count: 'exact', head: true });
-
-      if (countError) {
-        throw new Error(`Database error: ${countError.message}`);
-      }
-
-      const { data, error } = await supabase
-        .from('lead_labor')
-        .select(`
-          *,
-          users!inner (
-            id,
-            full_name,
-            email,
-            phone,
-            role,
-            status,
-            created_at
-          )
-        `)
-        .order('id', { ascending: false })
-        .range(offset, offset + limit - 1);
-
-      if (error) {
-        throw new Error(`Database error: ${error.message}`);
-      }
-
-      // Build leadLaborId -> assigned jobs count map
-      let leadLaborIdToJobCount = {};
-      try {
-        const { data: jobs, error: jobsError } = await supabase
+      // Optimize: Run count and data queries in parallel
+      const [countResult, dataResult, jobsResult] = await Promise.all([
+        supabase
+          .from('lead_labor')
+          .select('*', { count: 'exact', head: true }),
+        supabase
+          .from('lead_labor')
+          .select(`
+            *,
+            users!inner (
+              id,
+              full_name,
+              email,
+              phone,
+              role,
+              status,
+              created_at
+            )
+          `)
+          .order('id', { ascending: false })
+          .range(offset, offset + limit - 1),
+        // Optimize: Fetch jobs in parallel (only required fields)
+        supabase
           .from('jobs')
-          .select('id, assigned_lead_labor_ids');
-        if (jobsError) {
-          throw new Error(jobsError.message);
-        }
+          .select('id, assigned_lead_labor_ids')
+      ]);
 
-        leadLaborIdToJobCount = (jobs || []).reduce((acc, job) => {
+      if (countResult.error) {
+        throw new Error(`Database error: ${countResult.error.message}`);
+      }
+
+      if (dataResult.error) {
+        throw new Error(`Database error: ${dataResult.error.message}`);
+      }
+
+      const count = countResult.count || 0;
+      const data = dataResult.data || [];
+
+      // Optimize: Build leadLaborId -> assigned jobs count map efficiently
+      let leadLaborIdToJobCount = {};
+      if (!jobsResult.error && jobsResult.data) {
+        // Use Map for O(1) lookups during counting
+        const leadLaborIdsSet = new Set(data.map(l => l.id));
+        
+        for (const job of jobsResult.data) {
           let ids = [];
           if (typeof job.assigned_lead_labor_ids === 'string') {
             try {
@@ -87,26 +92,29 @@ export class LeadLabor {
             ids = job.assigned_lead_labor_ids;
           }
 
-          ids.forEach((id) => {
+          // Only process IDs that are in the current page's lead labor
+          for (const id of ids) {
             const leadLaborIdNum = parseInt(id);
-            if (!Number.isNaN(leadLaborIdNum)) {
-              acc[leadLaborIdNum] = (acc[leadLaborIdNum] || 0) + 1;
+            if (!Number.isNaN(leadLaborIdNum) && leadLaborIdsSet.has(leadLaborIdNum)) {
+              leadLaborIdToJobCount[leadLaborIdNum] = (leadLaborIdToJobCount[leadLaborIdNum] || 0) + 1;
             }
-          });
-
-          return acc;
-        }, {});
-      } catch (_) {
-        leadLaborIdToJobCount = {};
+          }
+        }
       }
 
       const totalPages = Math.ceil(count / limit);
 
+      // Optimize: Pre-allocate array for better performance
+      const resultData = new Array(data.length);
+      for (let i = 0; i < data.length; i++) {
+        resultData[i] = {
+          ...data[i],
+          assigned_jobs_count: leadLaborIdToJobCount[data[i].id] || 0
+        };
+      }
+
       return {
-        data: (data || []).map(l => ({
-          ...l,
-          assigned_jobs_count: leadLaborIdToJobCount[l.id] || 0
-        })),
+        data: resultData,
         pagination: {
           currentPage: page,
           totalPages: totalPages,

@@ -130,7 +130,18 @@ export class LaborService {
 
       const roleName = labor?.users?.role || labor?.user?.role || null;
 
-      const [jobsResult, permissionsResult, bluesheetIds, jobSummary] = await Promise.all([
+      // Optimize: Fetch bluesheet IDs first, then include bluesheets fetch in parallel
+      const bluesheetIdsPromise = JobBluesheetLabor.findBluesheetIdsByLaborId(laborId).catch((error) => {
+        console.error(`Failed to load bluesheet ids for labor ${laborId}:`, error.message);
+        return [];
+      });
+
+      // Fetch bluesheet IDs first (needed for bluesheets fetch)
+      const bluesheetIds = await bluesheetIdsPromise;
+
+      // Optimize: Run all remaining queries in parallel, including bluesheets fetch
+      // Note: getJobsByLabor now includes summary, so we don't need getJobStatusSummaryByLabor
+      const [jobsResult, permissionsResult, bluesheets] = await Promise.all([
         Job.getJobsByLabor(laborId, page, limit).catch((error) => {
           console.error(`Failed to load jobs for labor ${laborId}:`, error.message);
           return null;
@@ -142,26 +153,17 @@ export class LaborService {
                 return [];
               })
           : [],
-        JobBluesheetLabor.findBluesheetIdsByLaborId(laborId).catch((error) => {
-          console.error(`Failed to load bluesheet ids for labor ${laborId}:`, error.message);
-          return [];
-        }),
-        Job.getJobStatusSummaryByLabor(laborId).catch((error) => {
-          console.error(`Failed to load job summary for labor ${laborId}:`, error.message);
-          return null;
-        })
+        // Include bluesheets fetch in parallel
+        Array.isArray(bluesheetIds) && bluesheetIds.length > 0
+          ? JobBluesheet.findByIds(bluesheetIds).catch((error) => {
+              console.error(`Failed to load bluesheets for labor ${laborId}:`, error.message);
+              return [];
+            })
+          : []
       ]);
 
-      let bluesheets = [];
-      if (Array.isArray(bluesheetIds) && bluesheetIds.length > 0) {
-        try {
-          bluesheets = await JobBluesheet.findByIds(bluesheetIds);
-        } catch (error) {
-          console.error(`Failed to load bluesheets for labor ${laborId}:`, error.message);
-        }
-      }
-
-      const defaultSummary = {
+      // Use summary from jobsResult (now included in getJobsByLabor response)
+      const jobSummary = jobsResult?.summary || {
         total_jobs: jobsResult?.total ?? 0,
         active_jobs: 0,
         completed_jobs: 0
@@ -183,7 +185,7 @@ export class LaborService {
           total: bluesheets.length,
           records: bluesheets
         },
-        job_summary: jobSummary || defaultSummary
+        job_summary: jobSummary
       };
     } catch (error) {
       throw error;
