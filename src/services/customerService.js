@@ -1,5 +1,6 @@
 import { Customer } from "../models/Customer.js";
 import { successResponse } from "../helpers/responseHelper.js";
+import { supabase } from "../config/database.js";
 
 export class CustomerService {
   static async createCustomer(customerData, createdByUserId) {
