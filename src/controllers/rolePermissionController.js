@@ -69,11 +69,20 @@ export class RolePermissionController {
 
   static async getAllRolesWithAllPermissions(req, reply) {
     try {
-      const roles = await RolePermission.getAllRolesWithAllPermissions();
-      
-      return reply.status(200).send(successResponse(roles, 'All roles with permissions retrieved successfully'));
-    } catch (error) {
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 50;
 
+      if (page < 1) {
+        return reply.status(400).send(errorResponse('Page must be greater than 0', 400));
+      }
+      if (limit < 1 || limit > 100) {
+        return reply.status(400).send(errorResponse('Limit must be between 1 and 100', 400));
+      }
+
+      const result = await RolePermission.getAllRolesWithAllPermissions(page, limit);
+      
+      return reply.status(200).send(successResponse(result, 'All roles with permissions retrieved successfully'));
+    } catch (error) {
       return reply.status(500).send(errorResponse(`Failed to retrieve roles with permissions: ${error.message}`, 500));
     }
   }

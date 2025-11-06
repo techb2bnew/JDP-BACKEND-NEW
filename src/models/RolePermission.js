@@ -1,7 +1,11 @@
 import { supabase } from '../config/database.js';
 
 const permissionCache = new Map();
-const CACHE_TTL = 5 * 60 * 1000; 
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+// Cache for getAllRolesWithAllPermissions
+const rolesWithPermissionsCache = new Map();
+const ROLES_CACHE_TTL = 2 * 60 * 1000; // 2 minutes 
 
 export class RolePermission {
   static async getPermissionsByRoleName(roleName) {
@@ -147,20 +151,39 @@ export class RolePermission {
 
   static clearRolePermissionCache(roleId) {
     permissionCache.clear();
+    rolesWithPermissionsCache.clear(); // Also clear roles with permissions cache
   }
 
-  static async getAllRolesWithAllPermissions() {
+  static async getAllRolesWithAllPermissions(page = 1, limit = 50) {
     try {
-     
-      const { data: roles, error: rolesError } = await supabase
+      // Check cache first
+      const cacheKey = `roles_permissions_${page}_${limit}`;
+      const cached = rolesWithPermissionsCache.get(cacheKey);
+      if (cached && (Date.now() - cached.timestamp) < ROLES_CACHE_TTL) {
+        return cached.data;
+      }
+
+      const offset = (page - 1) * limit;
+
+      // Fetch roles with pagination
+      const { data: roles, error: rolesError, count } = await supabase
         .from('roles')
-        .select('*')
-        .order('id', { ascending: false });
+        .select('*', { count: 'exact' })
+        .order('id', { ascending: false })
+        .range(offset, offset + limit - 1);
 
       if (rolesError) {
         throw new Error(`Database error: ${rolesError.message}`);
       }
 
+      if (!roles || roles.length === 0) {
+        return [];
+      }
+
+      // Get role IDs for efficient querying
+      const roleIds = roles.map(r => r.id);
+
+      // Fetch all role_permissions for these roles in a single optimized query
       const { data: allRolePermissions, error: allRpError } = await supabase
         .from('role_permissions')
         .select(`
@@ -174,39 +197,73 @@ export class RolePermission {
             display_name,
             description
           )
-        `);
+        `)
+        .in('role_id', roleIds);
 
       if (allRpError) {
         throw new Error(`Database error: ${allRpError.message}`);
       }
 
-      const permissionsByRole = {};
-      allRolePermissions?.forEach(rp => {
-        if (!permissionsByRole[rp.role_id]) {
-          permissionsByRole[rp.role_id] = [];
-        }
-        if (rp.permissions) {
-          permissionsByRole[rp.role_id].push({
-            ...rp.permissions,
-            allowed: rp.allowed
-          });
-        }
+      // Use Map for O(1) lookups - pre-initialize for all roles
+      const permissionsByRole = new Map();
+      roles.forEach(role => {
+        permissionsByRole.set(role.id, []);
       });
 
-      const rolesWithPermissions = roles.map(role => {
-        const permissions = permissionsByRole[role.id] || [];
-        return {
+      // Process permissions in single pass - calculate counts during processing
+      if (allRolePermissions && allRolePermissions.length > 0) {
+        for (const rp of allRolePermissions) {
+          if (rp.permissions && rp.role_id) {
+            const rolePermissions = permissionsByRole.get(rp.role_id);
+            if (rolePermissions) {
+              rolePermissions.push({
+                ...rp.permissions,
+                allowed: rp.allowed
+              });
+            }
+          }
+        }
+      }
+
+      // Build response efficiently - pre-calculate counts to avoid double iteration
+      const rolesWithPermissions = new Array(roles.length);
+      for (let i = 0; i < roles.length; i++) {
+        const role = roles[i];
+        const permissions = permissionsByRole.get(role.id) || [];
+        
+        // Calculate counts in single pass
+        let allowedCount = 0;
+        let deniedCount = 0;
+        for (let j = 0; j < permissions.length; j++) {
+          if (permissions[j].allowed) {
+            allowedCount++;
+          } else {
+            deniedCount++;
+          }
+        }
+        
+        rolesWithPermissions[i] = {
           ...role,
           permissions: permissions,
           totalPermissions: permissions.length,
-          allowedPermissions: permissions.filter(p => p.allowed).length,
-          deniedPermissions: permissions.filter(p => !p.allowed).length
+          allowedPermissions: allowedCount,
+          deniedPermissions: deniedCount
         };
+      }
+
+      // Cache the result
+      rolesWithPermissionsCache.set(cacheKey, {
+        data: rolesWithPermissions,
+        timestamp: Date.now()
       });
 
       return rolesWithPermissions;
     } catch (error) {
       throw error;
     }
+  }
+
+  static clearRolesWithPermissionsCache() {
+    rolesWithPermissionsCache.clear();
   }
 }
