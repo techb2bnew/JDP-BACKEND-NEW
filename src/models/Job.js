@@ -1020,7 +1020,9 @@ export class Job {
         throw new Error('laborId is required');
       }
 
-      let allJobsQuery = supabase
+      // Optimize: Use text search to find only jobs that might contain this labor ID
+      // This is much faster than fetching all jobs and filtering in memory
+      const { data: potentialJobs, error: jobsError } = await supabase
         .from("jobs")
         .select(`
           *,
@@ -1043,17 +1045,17 @@ export class Job {
             full_name,
             email
           )
-        `, { count: 'exact' });
-
-      const { data: allJobs, error: allJobsError } = await allJobsQuery
+        `, { count: 'exact' })
+        .ilike('assigned_labor_ids', `%${laborId}%`) // Fast text search - finds potential matches
         .order('created_at', { ascending: false });
 
-      if (allJobsError) {
-        throw new Error(`Database error: ${allJobsError.message}`);
+      if (jobsError) {
+        throw new Error(`Database error: ${jobsError.message}`);
       }
 
-
-      const filteredJobs = (allJobs || []).filter(job => {
+      // Verify the matches to ensure the ID is actually in the array (not just a substring)
+      const targetId = parseInt(laborId);
+      const filteredJobs = (potentialJobs || []).filter(job => {
         try {
           let laborIds = [];
           if (typeof job.assigned_labor_ids === 'string') {
@@ -1062,10 +1064,8 @@ export class Job {
             laborIds = job.assigned_labor_ids;
           }
 
-          const targetId = parseInt(laborId);
-          const hasMatch = laborIds.some(id => parseInt(id) === targetId);
-
-          return hasMatch;
+          // Verify the ID is actually in the array (not just a substring match like "157" matching "57")
+          return laborIds.some(id => parseInt(id) === targetId);
         } catch (e) {
           console.error('Error parsing labor IDs:', e);
           return false;
@@ -1182,7 +1182,9 @@ export class Job {
       }
 
 
-      let allJobsQuery = supabase
+      // Optimize: Use text search to find only jobs that might contain this lead labor ID
+      // This is much faster than fetching all jobs and filtering in memory
+      const { data: potentialJobs, error: jobsError } = await supabase
         .from("jobs")
         .select(`
           *,
@@ -1205,17 +1207,17 @@ export class Job {
             full_name,
             email
           )
-        `, { count: 'exact' });
-
-      const { data: allJobs, error: allJobsError } = await allJobsQuery
+        `, { count: 'exact' })
+        .ilike('assigned_lead_labor_ids', `%${leadLaborId}%`) // Fast text search - finds potential matches
         .order('created_at', { ascending: false });
 
-      if (allJobsError) {
-        throw new Error(`Database error: ${allJobsError.message}`);
+      if (jobsError) {
+        throw new Error(`Database error: ${jobsError.message}`);
       }
 
-
-      const filteredJobs = (allJobs || []).filter(job => {
+      // Verify the matches to ensure the ID is actually in the array (not just a substring)
+      const targetId = parseInt(leadLaborId);
+      const filteredJobs = (potentialJobs || []).filter(job => {
         try {
           let leadLaborIds = [];
           if (typeof job.assigned_lead_labor_ids === 'string') {
@@ -1224,20 +1226,32 @@ export class Job {
             leadLaborIds = job.assigned_lead_labor_ids;
           }
 
-          const targetId = parseInt(leadLaborId);
-          const hasMatch = leadLaborIds.some(id => parseInt(id) === targetId);
-
-          return hasMatch;
+          // Verify the ID is actually in the array (not just a substring match like "157" matching "57")
+          return leadLaborIds.some(id => parseInt(id) === targetId);
         } catch (e) {
           console.error('Error parsing lead labor IDs:', e);
           return false;
         }
       });
 
+      // Optimize: Calculate job summary from filtered jobs (avoid separate query)
+      let totalJobs = filteredJobs.length;
+      let activeJobs = 0;
+      let completedJobs = 0;
+
+      for (const job of filteredJobs) {
+        const status = (job.status || '').toLowerCase();
+        if (ACTIVE_JOB_STATUSES.has(status)) {
+          activeJobs += 1;
+        }
+        if (COMPLETED_JOB_STATUSES.has(status)) {
+          completedJobs += 1;
+        }
+      }
 
       const paginatedJobs = filteredJobs.slice(offset, offset + limit);
 
-
+      // Optimize: Add details only to paginated jobs (not all filtered jobs)
       const jobsWithDetails = await Promise.all(
         paginatedJobs.map(job => Job.addDetailsToJob(job))
       );
@@ -1257,6 +1271,12 @@ export class Job {
           itemsPerPage: limit,
           hasNextPage: page < totalPages,
           hasPrevPage: page > 1
+        },
+        // Include summary in response to avoid separate query
+        summary: {
+          total_jobs: totalJobs,
+          active_jobs: activeJobs,
+          completed_jobs: completedJobs
         }
       };
     } catch (error) {
