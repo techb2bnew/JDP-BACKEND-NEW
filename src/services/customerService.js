@@ -66,16 +66,44 @@ export class CustomerService {
 
   static async updateCustomer(customerId, updateData) {
     try {
-      const existingCustomer = await Customer.findById(customerId);
-      if (!existingCustomer) {
-        throw new Error("Customer not found");
-      }
+      // Optimize: Lightweight existence check (only fetch email if needed for comparison)
+      if (updateData.email) {
+        // If email is being updated, fetch current customer email for comparison
+        const { data: currentCustomer, error: fetchError } = await supabase
+          .from('customers')
+          .select('id, email')
+          .eq('id', customerId)
+          .single();
 
-      
-      if (updateData.email && updateData.email !== existingCustomer.email) {
-        const customerWithEmail = await Customer.findByEmail(updateData.email);
-        if (customerWithEmail) {
-          throw new Error("Customer with this email already exists");
+        if (fetchError && fetchError.code !== 'PGRST116') {
+          throw new Error(`Database error: ${fetchError.message}`);
+        }
+
+        if (!currentCustomer) {
+          throw new Error("Customer not found");
+        }
+
+        // Check if new email already exists (only if different from current)
+        if (updateData.email !== currentCustomer.email) {
+          const customerWithEmail = await Customer.findByEmail(updateData.email);
+          if (customerWithEmail) {
+            throw new Error("Customer with this email already exists");
+          }
+        }
+      } else {
+        // If email is not being updated, just check if customer exists (lightweight)
+        const { data: customer, error: fetchError } = await supabase
+          .from('customers')
+          .select('id')
+          .eq('id', customerId)
+          .single();
+
+        if (fetchError && fetchError.code !== 'PGRST116') {
+          throw new Error(`Database error: ${fetchError.message}`);
+        }
+
+        if (!customer) {
+          throw new Error("Customer not found");
         }
       }
 
@@ -92,14 +120,23 @@ export class CustomerService {
 
   static async deleteCustomer(customerId) {
     try {
-     
-      const existingCustomer = await Customer.findById(customerId);
-      if (!existingCustomer) {
-        throw new Error("Customer not found");
+      // Optimize: Run existence check and relationship check in parallel
+      const [existenceCheck, relationshipCheck] = await Promise.all([
+        supabase
+          .from('customers')
+          .select('id')
+          .eq('id', customerId)
+          .single(),
+        Customer.checkCustomerRelationships(customerId)
+      ]);
+
+      if (existenceCheck.error && existenceCheck.error.code !== 'PGRST116') {
+        throw new Error(`Database error: ${existenceCheck.error.message}`);
       }
 
-      
-      const relationshipCheck = await Customer.checkCustomerRelationships(customerId);
+      if (!existenceCheck.data) {
+        throw new Error("Customer not found");
+      }
       
       if (!relationshipCheck.canDelete) {
         const relationshipMessages = relationshipCheck.relationships.map(rel => rel.message).join(', ');

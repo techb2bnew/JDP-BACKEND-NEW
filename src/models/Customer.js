@@ -157,35 +157,36 @@ export class Customer {
 
   static async getStats() {
     try {
-      const { data: totalCustomers, error: totalError } = await supabase
-        .from("customers")
-        .select("id", { count: 'exact' });
+      // Optimize: Run all count queries in parallel
+      const [totalResult, activeResult, inactiveResult] = await Promise.all([
+        supabase
+          .from("customers")
+          .select("id", { count: 'exact', head: true }),
+        supabase
+          .from("customers")
+          .select("id", { count: 'exact', head: true })
+          .eq("status", "active"),
+        supabase
+          .from("customers")
+          .select("id", { count: 'exact', head: true })
+          .eq("status", "inactive")
+      ]);
 
-      if (totalError) {
-        throw new Error(`Database error: ${totalError.message}`);
+      if (totalResult.error) {
+        throw new Error(`Database error: ${totalResult.error.message}`);
       }
 
-      const { data: activeCustomers, error: activeError } = await supabase
-        .from("customers")
-        .select("id", { count: 'exact' })
-        .eq("status", "active");
-
-      if (activeError) {
-        throw new Error(`Database error: ${activeError.message}`);
+      if (activeResult.error) {
+        throw new Error(`Database error: ${activeResult.error.message}`);
       }
 
-      const { data: inactiveCustomers, error: inactiveError } = await supabase
-        .from("customers")
-        .select("id", { count: 'exact' })
-        .eq("status", "inactive");
-
-      if (inactiveError) {
-        throw new Error(`Database error: ${inactiveError.message}`);
+      if (inactiveResult.error) {
+        throw new Error(`Database error: ${inactiveResult.error.message}`);
       }
 
-      const total = totalCustomers?.length || 0;
-      const active = activeCustomers?.length || 0;
-      const inactive = inactiveCustomers?.length || 0;
+      const total = totalResult.count || 0;
+      const active = activeResult.count || 0;
+      const inactive = inactiveResult.count || 0;
 
       return {
         total,
@@ -205,33 +206,34 @@ export class Customer {
         throw new Error('Customer ID is required');
       }
 
+      // Optimize: Run both relationship checks in parallel
+      const [jobsResult, ordersResult] = await Promise.all([
+        supabase
+          .from('jobs')
+          .select('id, job_title')
+          .eq('customer_id', customerId)
+          .limit(1),
+        supabase
+          .from('orders')
+          .select('id')
+          .eq('customer_id', customerId)
+          .limit(1)
+      ]);
+
       const relationships = [];
 
-      const { data: jobsData, error: jobsError } = await supabase
-        .from('jobs')
-        .select('id, job_title')
-        .eq('customer_id', customerId)
-        .limit(1);
-
-      if (!jobsError && jobsData && jobsData.length > 0) {
+      if (!jobsResult.error && jobsResult.data && jobsResult.data.length > 0) {
         relationships.push({
           table: 'jobs',
-          count: jobsData.length,
+          count: jobsResult.data.length,
           message: 'This customer has associated jobs'
         });
       }
 
-      // Check if customer has associated orders
-      const { data: ordersData, error: ordersError } = await supabase
-        .from('orders')
-        .select('id')
-        .eq('customer_id', customerId)
-        .limit(1);
-
-      if (!ordersError && ordersData && ordersData.length > 0) {
+      if (!ordersResult.error && ordersResult.data && ordersResult.data.length > 0) {
         relationships.push({
           table: 'orders',
-          count: ordersData.length,
+          count: ordersResult.data.length,
           message: 'This customer has associated orders'
         });
       }
