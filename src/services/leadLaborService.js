@@ -12,6 +12,7 @@ import {
   sendWelcomeEmail
 } from "../helpers/authHelper.js";
 import { successResponse } from "../helpers/responseHelper.js";
+import { supabase } from '../config/database.js';
 
 export class LeadLaborService {
   static async createLeadLaborWithUser(leadLaborData, files = null) {
@@ -202,14 +203,60 @@ export class LeadLaborService {
 
   static async updateLeadLabor(leadLaborId, updateData, files = null) {
     try {
-      const currentLeadLabor = await LeadLabor.getLeadLaborById(leadLaborId);
-      const userId = currentLeadLabor.user_id;
+      // Optimize: Lightweight existence check (only fetch user_id and email if needed)
+      let currentLeadLaborEmail = null;
+      let userId = null;
 
-      if (updateData.email && updateData.email !== currentLeadLabor.users.email) {
-        const existingUser = await User.findByEmail(updateData.email);
-        if (existingUser) {
-          throw new Error('Email already exists');
+      if (updateData.email) {
+        // If email is being updated, fetch current lead labor email for comparison
+        const { data: currentLeadLabor, error: fetchError } = await supabase
+          .from('lead_labor')
+          .select(`
+            id,
+            user_id,
+            users!inner (
+              id,
+              email
+            )
+          `)
+          .eq('id', leadLaborId)
+          .single();
+
+        if (fetchError && fetchError.code !== 'PGRST116') {
+          throw new Error(`Database error: ${fetchError.message}`);
         }
+
+        if (!currentLeadLabor) {
+          throw new Error('Lead Labor not found');
+        }
+
+        userId = currentLeadLabor.user_id;
+        currentLeadLaborEmail = currentLeadLabor.users.email;
+
+        // Check if new email already exists (only if different from current)
+        if (updateData.email !== currentLeadLaborEmail) {
+          const existingUser = await User.findByEmail(updateData.email);
+          if (existingUser) {
+            throw new Error('Email already exists');
+          }
+        }
+      } else {
+        // If email is not being updated, just check if lead labor exists (lightweight)
+        const { data: currentLeadLabor, error: fetchError } = await supabase
+          .from('lead_labor')
+          .select('id, user_id')
+          .eq('id', leadLaborId)
+          .single();
+
+        if (fetchError && fetchError.code !== 'PGRST116') {
+          throw new Error(`Database error: ${fetchError.message}`);
+        }
+
+        if (!currentLeadLabor) {
+          throw new Error('Lead Labor not found');
+        }
+
+        userId = currentLeadLabor.user_id;
       }
 
       let fileUrls = {};
@@ -244,12 +291,20 @@ export class LeadLaborService {
       if (fileUrls.photo_url) leadLaborData.photo_url = fileUrls.photo_url;
       if (fileUrls.resume_url) leadLaborData.resume_url = fileUrls.resume_url;
 
+      // Optimize: Run user and lead labor updates in parallel
+      const updatePromises = [];
+      
       if (Object.keys(userData).length > 0) {
-        await User.update(userId, userData);
+        updatePromises.push(User.update(userId, userData));
       }
 
       if (Object.keys(leadLaborData).length > 0) {
-        await LeadLabor.update(leadLaborId, leadLaborData);
+        updatePromises.push(LeadLabor.update(leadLaborId, leadLaborData));
+      }
+
+      // Wait for all updates to complete
+      if (updatePromises.length > 0) {
+        await Promise.all(updatePromises);
       }
 
       const updatedLeadLabor = await LeadLabor.getLeadLaborById(leadLaborId);
@@ -300,15 +355,60 @@ export class LeadLaborService {
 
   static async updateProfile(leadLaborId, updateData, files = null) {
     try {
-      const currentLeadLabor = await LeadLabor.getLeadLaborById(leadLaborId);
-      const userId = currentLeadLabor.user_id;
+      // Optimize: Lightweight existence check (only fetch user_id and email if needed)
+      let currentLeadLaborEmail = null;
+      let userId = null;
 
-    
-      if (updateData.email && updateData.email !== currentLeadLabor.users.email) {
-        const existingUser = await User.findByEmail(updateData.email);
-        if (existingUser) {
-          throw new Error('Email already exists');
+      if (updateData.email) {
+        // If email is being updated, fetch current lead labor email for comparison
+        const { data: currentLeadLabor, error: fetchError } = await supabase
+          .from('lead_labor')
+          .select(`
+            id,
+            user_id,
+            users!inner (
+              id,
+              email
+            )
+          `)
+          .eq('id', leadLaborId)
+          .single();
+
+        if (fetchError && fetchError.code !== 'PGRST116') {
+          throw new Error(`Database error: ${fetchError.message}`);
         }
+
+        if (!currentLeadLabor) {
+          throw new Error('Lead Labor not found');
+        }
+
+        userId = currentLeadLabor.user_id;
+        currentLeadLaborEmail = currentLeadLabor.users.email;
+
+        // Check if new email already exists (only if different from current)
+        if (updateData.email !== currentLeadLaborEmail) {
+          const existingUser = await User.findByEmail(updateData.email);
+          if (existingUser) {
+            throw new Error('Email already exists');
+          }
+        }
+      } else {
+        // If email is not being updated, just check if lead labor exists (lightweight)
+        const { data: currentLeadLabor, error: fetchError } = await supabase
+          .from('lead_labor')
+          .select('id, user_id')
+          .eq('id', leadLaborId)
+          .single();
+
+        if (fetchError && fetchError.code !== 'PGRST116') {
+          throw new Error(`Database error: ${fetchError.message}`);
+        }
+
+        if (!currentLeadLabor) {
+          throw new Error('Lead Labor not found');
+        }
+
+        userId = currentLeadLabor.user_id;
       }
 
       let fileUrls = {};

@@ -274,16 +274,34 @@ export class Labor {
         throw new Error('Labor ID is required');
       }
 
+      // Optimize: Run all relationship checks in parallel
+      // For jobs, we use text search to find potential matches (fast with index), then verify only those
+      // This is much faster than fetching all jobs - we only fetch jobs that might contain this ID
+      const [jobsResult, bluesheetResult, timesheetResult] = await Promise.all([
+        // Use text search to find jobs that might contain this labor ID
+        // This is fast because it uses database indexes, then we verify only the matches
+        supabase
+          .from('jobs')
+          .select('id, job_title, assigned_labor_ids')
+          .ilike('assigned_labor_ids', `%${laborId}%`), // Fast text search - finds potential matches
+        supabase
+          .from('job_bluesheet_labor')
+          .select('id')
+          .eq('labor_id', laborId)
+          .limit(1),
+        supabase
+          .from('labor_timesheets')
+          .select('id')
+          .eq('labor_id', laborId)
+          .limit(1)
+      ]);
+
       const relationships = [];
 
       // Check if labor is assigned to any jobs
-      const { data: jobsData, error: jobsError } = await supabase
-        .from('jobs')
-        .select('id, job_title, assigned_labor_ids')
-        .limit(1000); // Get all jobs to check arrays
-
-      if (!jobsError && jobsData) {
-        const assignedJobs = jobsData.filter(job => {
+      // We verify the matches to ensure the ID is actually in the array (not just a substring)
+      if (!jobsResult.error && jobsResult.data) {
+        const assignedJobs = jobsResult.data.filter(job => {
           if (!job.assigned_labor_ids) return false;
           
           let laborIds = [];
@@ -301,7 +319,8 @@ export class Labor {
             }
           }
           
-          return laborIds.includes(parseInt(laborId));
+          // Verify the ID is actually in the array (not just a substring match like "157" matching "57")
+          return laborIds.some(id => parseInt(id) === parseInt(laborId));
         });
 
         if (assignedJobs.length > 0) {
@@ -314,31 +333,19 @@ export class Labor {
       }
 
       // Check if labor is referenced in job_bluesheet_labor
-      const { data: bluesheetData, error: bluesheetError } = await supabase
-        .from('job_bluesheet_labor')
-        .select('id')
-        .eq('labor_id', laborId)
-        .limit(1);
-
-      if (!bluesheetError && bluesheetData && bluesheetData.length > 0) {
+      if (!bluesheetResult.error && bluesheetResult.data && bluesheetResult.data.length > 0) {
         relationships.push({
           table: 'job_bluesheet_labor',
-          count: bluesheetData.length,
+          count: bluesheetResult.data.length,
           message: 'This labor has bluesheet entries'
         });
       }
 
       // Check if labor is referenced in labor_timesheets
-      const { data: timesheetData, error: timesheetError } = await supabase
-        .from('labor_timesheets')
-        .select('id')
-        .eq('labor_id', laborId)
-        .limit(1);
-
-      if (!timesheetError && timesheetData && timesheetData.length > 0) {
+      if (!timesheetResult.error && timesheetResult.data && timesheetResult.data.length > 0) {
         relationships.push({
           table: 'labor_timesheets',
-          count: timesheetData.length,
+          count: timesheetResult.data.length,
           message: 'This labor has timesheet entries'
         });
       }

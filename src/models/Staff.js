@@ -34,40 +34,44 @@ export class Staff {
     try {
       const offset = (page - 1) * limit;
 
-      const { count, error: countError } = await supabase
-        .from('staff')
-        .select('*', { count: 'exact', head: true });
+      // Optimize: Run count and data queries in parallel
+      const [countResult, dataResult] = await Promise.all([
+        supabase
+          .from('staff')
+          .select('*', { count: 'exact', head: true }),
+        supabase
+          .from('staff')
+          .select(`
+            *,
+            users (
+              id,
+              full_name,
+              email,
+              phone,
+              role,
+              status,
+              photo_url,
+              created_at
+            )
+          `)
+          .order('id', { ascending: false })
+          .range(offset, offset + limit - 1)
+      ]);
 
-      if (countError) {
-        throw new Error(`Database error: ${countError.message}`);
+      if (countResult.error) {
+        throw new Error(`Database error: ${countResult.error.message}`);
       }
 
-      const { data, error } = await supabase
-        .from('staff')
-        .select(`
-          *,
-          users (
-            id,
-            full_name,
-            email,
-            phone,
-            role,
-            status,
-            photo_url,
-            created_at
-          )
-        `)
-        .order('id', { ascending: false })
-        .range(offset, offset + limit - 1);
-
-      if (error) {
-        throw new Error(`Database error: ${error.message}`);
+      if (dataResult.error) {
+        throw new Error(`Database error: ${dataResult.error.message}`);
       }
 
+      const count = countResult.count || 0;
+      const data = dataResult.data || [];
       const totalPages = Math.ceil(count / limit);
 
       return {
-        data: data || [],
+        data: data,
         pagination: {
           currentPage: page,
           totalPages: totalPages,
@@ -148,24 +152,51 @@ export class Staff {
 
   static async delete(staffId) {
     try {
-      const staff = await this.getStaffById(staffId);
-      const userId = staff.user_id;
-      const { error: staffError } = await supabase
+      // Optimize: Fetch only required fields for delete response (not full staff details)
+      const { data: staff, error: fetchError } = await supabase
         .from('staff')
-        .delete()
-        .eq('id', staffId);
+        .select(`
+          id,
+          user_id,
+          position,
+          department,
+          users!inner (
+            id,
+            full_name,
+            email
+          )
+        `)
+        .eq('id', staffId)
+        .single();
 
-      if (staffError) {
-        throw new Error(`Database error: ${staffError.message}`);
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        throw new Error(`Database error: ${fetchError.message}`);
       }
 
-      const { error: userError } = await supabase
-        .from('users')
-        .delete()
-        .eq('id', userId);
+      if (!staff) {
+        throw new Error('Staff not found');
+      }
 
-      if (userError) {
-        throw new Error(`Database error: ${userError.message}`);
+      const userId = staff.user_id;
+
+      // Optimize: Run staff and user delete in parallel
+      const [staffDeleteResult, userDeleteResult] = await Promise.all([
+        supabase
+          .from('staff')
+          .delete()
+          .eq('id', staffId),
+        supabase
+          .from('users')
+          .delete()
+          .eq('id', userId)
+      ]);
+
+      if (staffDeleteResult.error) {
+        throw new Error(`Database error: ${staffDeleteResult.error.message}`);
+      }
+
+      if (userDeleteResult.error) {
+        throw new Error(`Database error: ${userDeleteResult.error.message}`);
       }
 
       return {

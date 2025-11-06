@@ -8,6 +8,8 @@ import {
   sendWelcomeEmail
 } from "../helpers/authHelper.js";
 import { successResponse } from "../helpers/responseHelper.js";
+import { supabase } from '../config/database.js';
+
 export class StaffService {
   static async createStaffWithUser(staffData) {
     try {
@@ -87,8 +89,21 @@ export class StaffService {
 
   static async updateStaff(staffId, updateData) {
     try {
+      // Optimize: Lightweight existence check (only fetch user_id if needed)
+      const { data: currentStaff, error: fetchError } = await supabase
+        .from('staff')
+        .select('id, user_id')
+        .eq('id', staffId)
+        .single();
 
-      const currentStaff = await Staff.getStaffById(staffId);
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        throw new Error(`Database error: ${fetchError.message}`);
+      }
+
+      if (!currentStaff) {
+        throw new Error('Staff not found');
+      }
+
       const userId = currentStaff.user_id;
 
       const userData = {};
@@ -106,15 +121,23 @@ export class StaffService {
       if (updateData.address !== undefined) staffData.address = updateData.address;
       if (updateData.dob !== undefined) staffData.dob = updateData.dob;
 
-
+      // Optimize: Run user and staff updates in parallel
+      const updatePromises = [];
+      
       if (Object.keys(userData).length > 0) {
-        await User.update(userId, userData);
+        updatePromises.push(User.update(userId, userData));
       }
 
       if (Object.keys(staffData).length > 0) {
-        await Staff.update(staffId, staffData);
+        updatePromises.push(Staff.update(staffId, staffData));
       }
 
+      // Wait for all updates to complete
+      if (updatePromises.length > 0) {
+        await Promise.all(updatePromises);
+      }
+
+      // Fetch updated staff (only if updates were made)
       const updatedStaff = await Staff.getStaffById(staffId);
       return updatedStaff;
     } catch (error) {
@@ -133,15 +156,60 @@ export class StaffService {
 
   static async updateProfile(staffId, updateData, files = null) {
     try {
-      const currentStaff = await Staff.getStaffById(staffId);
-      const userId = currentStaff.user_id;
+      // Optimize: Lightweight existence check (only fetch user_id and email if needed)
+      let currentStaffEmail = null;
+      let userId = null;
 
+      if (updateData.email) {
+        // If email is being updated, fetch current staff email for comparison
+        const { data: currentStaff, error: fetchError } = await supabase
+          .from('staff')
+          .select(`
+            id,
+            user_id,
+            users!inner (
+              id,
+              email
+            )
+          `)
+          .eq('id', staffId)
+          .single();
 
-      if (updateData.email && updateData.email !== currentStaff.users.email) {
-        const existingUser = await User.findByEmail(updateData.email);
-        if (existingUser) {
-          throw new Error('Email already exists');
+        if (fetchError && fetchError.code !== 'PGRST116') {
+          throw new Error(`Database error: ${fetchError.message}`);
         }
+
+        if (!currentStaff) {
+          throw new Error('Staff not found');
+        }
+
+        userId = currentStaff.user_id;
+        currentStaffEmail = currentStaff.users.email;
+
+        // Check if new email already exists (only if different from current)
+        if (updateData.email !== currentStaffEmail) {
+          const existingUser = await User.findByEmail(updateData.email);
+          if (existingUser) {
+            throw new Error('Email already exists');
+          }
+        }
+      } else {
+        // If email is not being updated, just check if staff exists (lightweight)
+        const { data: currentStaff, error: fetchError } = await supabase
+          .from('staff')
+          .select('id, user_id')
+          .eq('id', staffId)
+          .single();
+
+        if (fetchError && fetchError.code !== 'PGRST116') {
+          throw new Error(`Database error: ${fetchError.message}`);
+        }
+
+        if (!currentStaff) {
+          throw new Error('Staff not found');
+        }
+
+        userId = currentStaff.user_id;
       }
 
       let fileUrls = {};
@@ -221,11 +289,23 @@ export class StaffService {
 
   static async updateProfileImage(staffId, files) {
     try {
-      // Check if staff exists
-      const currentStaff = await Staff.getStaffById(staffId);
-
       if (!files || !files.profile_image || !files.profile_image[0]) {
         throw new Error('Profile image file is required');
+      }
+
+      // Optimize: Lightweight existence check (only check if staff exists)
+      const { data: staff, error: fetchError } = await supabase
+        .from('staff')
+        .select('id')
+        .eq('id', staffId)
+        .single();
+
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        throw new Error(`Database error: ${fetchError.message}`);
+      }
+
+      if (!staff) {
+        throw new Error('Staff not found');
       }
 
       // Get the uploaded file location from S3

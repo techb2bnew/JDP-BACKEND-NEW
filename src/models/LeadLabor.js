@@ -200,16 +200,39 @@ export class LeadLabor {
         throw new Error('Lead Labor ID is required');
       }
 
+      // Optimize: Run all relationship checks in parallel
+      // For jobs, we use text search to find potential matches (fast with index), then verify only those
+      // This is much faster than fetching all jobs - we only fetch jobs that might contain this ID
+      const [jobsResult, bluesheetResult, timesheetResult, ordersResult] = await Promise.all([
+        // Use text search to find jobs that might contain this lead labor ID
+        // This is fast because it uses database indexes, then we verify only the matches
+        supabase
+          .from('jobs')
+          .select('id, job_title, assigned_lead_labor_ids')
+          .ilike('assigned_lead_labor_ids', `%${leadLaborId}%`), // Fast text search - finds potential matches
+        supabase
+          .from('job_bluesheet_labor')
+          .select('id')
+          .eq('lead_labor_id', leadLaborId)
+          .limit(1),
+        supabase
+          .from('labor_timesheets')
+          .select('id')
+          .eq('lead_labor_id', leadLaborId)
+          .limit(1),
+        supabase
+          .from('orders')
+          .select('id')
+          .eq('lead_labour_id', leadLaborId)
+          .limit(1)
+      ]);
+
       const relationships = [];
 
       // Check if lead labor is assigned to any jobs
-      const { data: jobsData, error: jobsError } = await supabase
-        .from('jobs')
-        .select('id, job_title, assigned_lead_labor_ids')
-        .limit(1000); // Get all jobs to check arrays
-
-      if (!jobsError && jobsData) {
-        const assignedJobs = jobsData.filter(job => {
+      // We verify the matches to ensure the ID is actually in the array (not just a substring)
+      if (!jobsResult.error && jobsResult.data) {
+        const assignedJobs = jobsResult.data.filter(job => {
           if (!job.assigned_lead_labor_ids) return false;
           
           let leadLaborIds = [];
@@ -227,7 +250,8 @@ export class LeadLabor {
             }
           }
           
-          return leadLaborIds.includes(parseInt(leadLaborId));
+          // Verify the ID is actually in the array (not just a substring match like "157" matching "57")
+          return leadLaborIds.some(id => parseInt(id) === parseInt(leadLaborId));
         });
 
         if (assignedJobs.length > 0) {
@@ -240,46 +264,28 @@ export class LeadLabor {
       }
 
       // Check if lead labor is referenced in job_bluesheet_labor
-      const { data: bluesheetData, error: bluesheetError } = await supabase
-        .from('job_bluesheet_labor')
-        .select('id')
-        .eq('lead_labor_id', leadLaborId)
-        .limit(1);
-
-      if (!bluesheetError && bluesheetData && bluesheetData.length > 0) {
+      if (!bluesheetResult.error && bluesheetResult.data && bluesheetResult.data.length > 0) {
         relationships.push({
           table: 'job_bluesheet_labor',
-          count: bluesheetData.length,
+          count: bluesheetResult.data.length,
           message: 'This lead labor has bluesheet entries'
         });
       }
 
       // Check if lead labor is referenced in labor_timesheets
-      const { data: timesheetData, error: timesheetError } = await supabase
-        .from('labor_timesheets')
-        .select('id')
-        .eq('lead_labor_id', leadLaborId)
-        .limit(1);
-
-      if (!timesheetError && timesheetData && timesheetData.length > 0) {
+      if (!timesheetResult.error && timesheetResult.data && timesheetResult.data.length > 0) {
         relationships.push({
           table: 'labor_timesheets',
-          count: timesheetData.length,
+          count: timesheetResult.data.length,
           message: 'This lead labor has timesheet entries'
         });
       }
 
       // Check if lead labor is referenced in orders
-      const { data: ordersData, error: ordersError } = await supabase
-        .from('orders')
-        .select('id')
-        .eq('lead_labour_id', leadLaborId)
-        .limit(1);
-
-      if (!ordersError && ordersData && ordersData.length > 0) {
+      if (!ordersResult.error && ordersResult.data && ordersResult.data.length > 0) {
         relationships.push({
           table: 'orders',
-          count: ordersData.length,
+          count: ordersResult.data.length,
           message: 'This lead labor has associated orders'
         });
       }
@@ -296,25 +302,51 @@ export class LeadLabor {
 
   static async delete(leadLaborId) {
     try {
-      const leadLabor = await this.getLeadLaborById(leadLaborId);
-      const userId = leadLabor.user_id;
-      
-      const { error: leadLaborError } = await supabase
+      // Optimize: Fetch only required fields for delete response (not full lead labor details)
+      const { data: leadLabor, error: fetchError } = await supabase
         .from('lead_labor')
-        .delete()
-        .eq('id', leadLaborId);
+        .select(`
+          id,
+          user_id,
+          labor_code,
+          department,
+          users!inner (
+            id,
+            full_name,
+            email
+          )
+        `)
+        .eq('id', leadLaborId)
+        .single();
 
-      if (leadLaborError) {
-        throw new Error(`Database error: ${leadLaborError.message}`);
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        throw new Error(`Database error: ${fetchError.message}`);
       }
 
-      const { error: userError } = await supabase
-        .from('users')
-        .delete()
-        .eq('id', userId);
+      if (!leadLabor) {
+        throw new Error('Lead Labor not found');
+      }
 
-      if (userError) {
-        throw new Error(`Database error: ${userError.message}`);
+      const userId = leadLabor.user_id;
+
+      // Optimize: Run lead labor and user delete in parallel
+      const [leadLaborDeleteResult, userDeleteResult] = await Promise.all([
+        supabase
+          .from('lead_labor')
+          .delete()
+          .eq('id', leadLaborId),
+        supabase
+          .from('users')
+          .delete()
+          .eq('id', userId)
+      ]);
+
+      if (leadLaborDeleteResult.error) {
+        throw new Error(`Database error: ${leadLaborDeleteResult.error.message}`);
+      }
+
+      if (userDeleteResult.error) {
+        throw new Error(`Database error: ${userDeleteResult.error.message}`);
       }
 
       return {
@@ -414,26 +446,34 @@ export class LeadLabor {
     try {
       const q = (filters.q || '').toLowerCase().trim();
 
-      // Fetch all lead labor with user relationships
-      const { data, error } = await supabase
-        .from("lead_labor")
-        .select(`
-          *,
-          users (
-            id,
-            full_name,
-            email,
-            phone,
-            role,
-            status,
-            photo_url,
-            created_at
-          )
-        `);
+      // Optimize: Run lead labor and jobs queries in parallel
+      const [leadLaborResult, jobsResult] = await Promise.all([
+        supabase
+          .from("lead_labor")
+          .select(`
+            *,
+            users (
+              id,
+              full_name,
+              email,
+              phone,
+              role,
+              status,
+              photo_url,
+              created_at
+            )
+          `),
+        supabase
+          .from('jobs')
+          .select('id, assigned_lead_labor_ids')
+      ]);
 
-      if (error) {
-        throw new Error(`Database error: ${error.message}`);
+      if (leadLaborResult.error) {
+        throw new Error(`Database error: ${leadLaborResult.error.message}`);
       }
+
+      const data = leadLaborResult.data || [];
+      const jobs = jobsResult.data || [];
 
       const inStr = (s) => (s || '').toString().toLowerCase().includes(q);
 
@@ -462,19 +502,13 @@ export class LeadLabor {
         return true;
       };
 
-      let filtered = (data || []).filter(matches);
+      let filtered = data.filter(matches);
 
       // Build leadLaborId -> assigned jobs count map
       let leadLaborIdToJobCount = {};
-      try {
-        const { data: jobs, error: jobsError } = await supabase
-          .from('jobs')
-          .select('id, assigned_lead_labor_ids');
-        if (jobsError) {
-          throw new Error(jobsError.message);
-        }
-
-        leadLaborIdToJobCount = (jobs || []).reduce((acc, job) => {
+      
+      if (jobs.length > 0) {
+        leadLaborIdToJobCount = jobs.reduce((acc, job) => {
           let ids = [];
           if (typeof job.assigned_lead_labor_ids === 'string') {
             try {
@@ -495,8 +529,6 @@ export class LeadLabor {
 
           return acc;
         }, {});
-      } catch (_) {
-        leadLaborIdToJobCount = {};
       }
 
       // Sort by created_at (most recent first)
@@ -528,38 +560,41 @@ export class LeadLabor {
 
   static async getStats() {
     try {
-      // Get all lead labor with user relationships to check status
-      const { data: allLeadLabor, error: leadLaborError } = await supabase
-        .from('lead_labor')
-        .select(`
-          *,
-          users (
+      // Optimize: Run all queries in parallel
+      const [leadLaborResult, jobsResult] = await Promise.all([
+        supabase
+          .from('lead_labor')
+          .select(`
             id,
-            status
-          )
-        `);
+            users!inner (
+              id,
+              status
+            )
+          `),
+        supabase
+          .from('jobs')
+          .select('id, assigned_lead_labor_ids')
+      ]);
 
-      if (leadLaborError) {
-        throw new Error(`Database error: ${leadLaborError.message}`);
+      if (leadLaborResult.error) {
+        throw new Error(`Database error: ${leadLaborResult.error.message}`);
       }
+
+      if (jobsResult.error) {
+        throw new Error(`Database error: ${jobsResult.error.message}`);
+      }
+
+      const allLeadLabor = leadLaborResult.data || [];
+      const allJobs = jobsResult.data || [];
 
       // Count active and inactive
-      const activeLeadLabor = (allLeadLabor || []).filter(ll => ll.users?.status === 'active').length;
-      const inactiveLeadLabor = (allLeadLabor || []).filter(ll => ll.users?.status !== 'active').length;
-      const totalLeadLabor = allLeadLabor?.length || 0;
-
-      // Count total jobs assigned to any lead labor
-      const { data: allJobs, error: jobsError } = await supabase
-        .from('jobs')
-        .select('id, assigned_lead_labor_ids');
-
-      if (jobsError) {
-        throw new Error(`Database error: ${jobsError.message}`);
-      }
+      const activeLeadLabor = allLeadLabor.filter(ll => ll.users?.status === 'active').length;
+      const inactiveLeadLabor = allLeadLabor.filter(ll => ll.users?.status !== 'active').length;
+      const totalLeadLabor = allLeadLabor.length;
 
       // Count jobs that have at least one lead labor assigned
       let totalJobs = 0;
-      if (allJobs && allJobs.length > 0) {
+      if (allJobs.length > 0) {
         totalJobs = allJobs.filter(job => {
           let ids = [];
           if (typeof job.assigned_lead_labor_ids === 'string') {
