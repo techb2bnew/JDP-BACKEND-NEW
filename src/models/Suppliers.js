@@ -35,70 +35,71 @@ export class Suppliers {
     try {
       const offset = (page - 1) * limit;
 
-    
-      const { count, error: countError } = await supabase
-        .from('suppliers')
-        .select('*', { count: 'exact', head: true });
-
-      if (countError) {
-        throw new Error(`Database error: ${countError.message}`);
-      }
-
-      
-      const { data, error } = await supabase
-        .from('suppliers')
-        .select(`
-          *,
-          users!suppliers_user_id_fkey (
-            id,
-            full_name,
-            email,
-            phone,
-            role,
-            status,
-            photo_url,
-            created_at
-          )
-        `)
-        .order('id', { ascending: false })
-        .range(offset, offset + limit - 1);
-
-      if (error) {
-        throw new Error(`Database error: ${error.message}`);
-      }
-
-      // Build supplierId -> orders count map
-      let supplierIdToOrderCount = {};
-      try {
-        const { data: orders, error: ordersError } = await supabase
+      // Optimize: Run count, data, and orders queries in parallel
+      const [countResult, dataResult, ordersResult] = await Promise.all([
+        supabase
+          .from('suppliers')
+          .select('*', { count: 'exact', head: true }),
+        supabase
+          .from('suppliers')
+          .select(`
+            *,
+            users!suppliers_user_id_fkey (
+              id,
+              full_name,
+              email,
+              phone,
+              role,
+              status,
+              photo_url,
+              created_at
+            )
+          `)
+          .order('id', { ascending: false })
+          .range(offset, offset + limit - 1),
+        // Optimize: Fetch orders in parallel (only required fields)
+        supabase
           .from('orders')
-          .select('id, supplier_id, status, total_amount');
-        if (ordersError) {
-          throw new Error(ordersError.message);
-        }
+          .select('id, supplier_id, status, total_amount')
+      ]);
 
-        supplierIdToOrderCount = (orders || []).reduce((acc, order) => {
+      if (countResult.error) {
+        throw new Error(`Database error: ${countResult.error.message}`);
+      }
+
+      if (dataResult.error) {
+        throw new Error(`Database error: ${dataResult.error.message}`);
+      }
+
+      const count = countResult.count || 0;
+      const data = dataResult.data || [];
+
+      // Optimize: Build supplierId -> orders count map efficiently
+      // Only process orders for current page's supplier IDs
+      let supplierIdToOrderCount = {};
+      if (!ordersResult.error && ordersResult.data) {
+        // Use Set for O(1) lookups during counting
+        const supplierIdsSet = new Set(data.map(s => s.id));
+        
+        for (const order of ordersResult.data) {
           const supplierIdNum = parseInt(order.supplier_id);
-          if (!Number.isNaN(supplierIdNum)) {
-            if (!acc[supplierIdNum]) {
-              acc[supplierIdNum] = { total: 0, total_value: 0 };
+          if (!Number.isNaN(supplierIdNum) && supplierIdsSet.has(supplierIdNum)) {
+            if (!supplierIdToOrderCount[supplierIdNum]) {
+              supplierIdToOrderCount[supplierIdNum] = { total: 0, total_value: 0 };
             }
-            acc[supplierIdNum].total += 1;
+            supplierIdToOrderCount[supplierIdNum].total += 1;
             const parsedAmount = parseFloat(order.total_amount || 0);
             if (!Number.isNaN(parsedAmount)) {
-              acc[supplierIdNum].total_value += parsedAmount;
+              supplierIdToOrderCount[supplierIdNum].total_value += parsedAmount;
             }
           }
-          return acc;
-        }, {});
-      } catch (_) {
-        supplierIdToOrderCount = {};
+        }
       }
 
       const totalPages = Math.ceil(count / limit);
 
       return {
-        data: (data || []).map(s => ({
+        data: data.map(s => ({
           ...s,
           total_orders: supplierIdToOrderCount[s.id]?.total || 0,
           total_orders_value: supplierIdToOrderCount[s.id]?.total_value || 0
@@ -184,34 +185,56 @@ export class Suppliers {
 
   static async delete(supplierId) {
     try {
-      const supplier = await this.getSupplierById(supplierId);
-      const userId = supplier.user_id;
-      
-      const { error: supplierError } = await supabase
+      // Optimize: Fetch only required fields for delete response
+      const { data: supplier, error: supplierError } = await supabase
         .from('suppliers')
-        .delete()
-        .eq('id', supplierId);
+        .select(`
+          id,
+          supplier_code,
+          company_name,
+          user_id,
+          users!suppliers_user_id_fkey (
+            id,
+            full_name,
+            email
+          )
+        `)
+        .eq('id', supplierId)
+        .single();
 
-      if (supplierError) {
-        throw new Error(`Database error: ${supplierError.message}`);
+      if (supplierError || !supplier) {
+        throw new Error(`Supplier not found with ID: ${supplierId}`);
       }
 
-      const { error: userError } = await supabase
-        .from('users')
-        .delete()
-        .eq('id', userId);
+      const userId = supplier.user_id;
+      
+      // Optimize: Run supplier and user deletion in parallel
+      const [supplierDeleteResult, userDeleteResult] = await Promise.all([
+        supabase
+          .from('suppliers')
+          .delete()
+          .eq('id', supplierId),
+        supabase
+          .from('users')
+          .delete()
+          .eq('id', userId)
+      ]);
 
-      if (userError) {
-        throw new Error(`Database error: ${userError.message}`);
+      if (supplierDeleteResult.error) {
+        throw new Error(`Database error: ${supplierDeleteResult.error.message}`);
+      }
+
+      if (userDeleteResult.error) {
+        throw new Error(`Database error: ${userDeleteResult.error.message}`);
       }
 
       return {
         success: true,
-        message: `Supplier "${supplier.users.full_name}" deleted successfully`,
+        message: `Supplier "${supplier.users?.full_name || 'Unknown'}" deleted successfully`,
         deleted_supplier: {
           id: supplier.id,
-          full_name: supplier.users.full_name,
-          email: supplier.users.email,
+          full_name: supplier.users?.full_name || 'Unknown',
+          email: supplier.users?.email || 'Unknown',
           supplier_code: supplier.supplier_code,
           company_name: supplier.company_name
         }
@@ -344,26 +367,34 @@ export class Suppliers {
     try {
       const q = (filters.q || '').toLowerCase().trim();
 
-      // Fetch all suppliers with user relationships
-      const { data, error } = await supabase
-        .from("suppliers")
-        .select(`
-          *,
-          users (
-            id,
-            full_name,
-            email,
-            phone,
-            role,
-            status,
-            photo_url,
-            created_at
-          )
-        `);
+      // Optimize: Fetch suppliers and orders in parallel
+      const [suppliersResult, ordersResult] = await Promise.all([
+        supabase
+          .from("suppliers")
+          .select(`
+            *,
+            users (
+              id,
+              full_name,
+              email,
+              phone,
+              role,
+              status,
+              photo_url,
+              created_at
+            )
+          `),
+        // Optimize: Fetch orders in parallel (only required fields)
+        supabase
+          .from('orders')
+          .select('id, supplier_id, status, total_amount')
+      ]);
 
-      if (error) {
-        throw new Error(`Database error: ${error.message}`);
+      if (suppliersResult.error) {
+        throw new Error(`Database error: ${suppliersResult.error.message}`);
       }
+
+      const data = suppliersResult.data || [];
 
       const inStr = (s) => (s || '').toString().toLowerCase().includes(q);
 
@@ -388,34 +419,28 @@ export class Suppliers {
         return true;
       };
 
-      let filtered = (data || []).filter(matches);
+      let filtered = data.filter(matches);
 
-      // Build supplierId -> orders count map
+      // Optimize: Build supplierId -> orders count map efficiently
+      // Only process orders for filtered supplier IDs
       let supplierIdToOrderCount = {};
-      try {
-        const { data: orders, error: ordersError } = await supabase
-          .from('orders')
-          .select('id, supplier_id, status, total_amount');
-        if (ordersError) {
-          throw new Error(ordersError.message);
-        }
-
-        supplierIdToOrderCount = (orders || []).reduce((acc, order) => {
+      if (!ordersResult.error && ordersResult.data) {
+        // Use Set for O(1) lookups during counting
+        const filteredSupplierIds = new Set(filtered.map(s => s.id));
+        
+        for (const order of ordersResult.data) {
           const supplierIdNum = parseInt(order.supplier_id);
-          if (!Number.isNaN(supplierIdNum)) {
-            if (!acc[supplierIdNum]) {
-              acc[supplierIdNum] = { total: 0, total_value: 0 };
+          if (!Number.isNaN(supplierIdNum) && filteredSupplierIds.has(supplierIdNum)) {
+            if (!supplierIdToOrderCount[supplierIdNum]) {
+              supplierIdToOrderCount[supplierIdNum] = { total: 0, total_value: 0 };
             }
-            acc[supplierIdNum].total += 1;
+            supplierIdToOrderCount[supplierIdNum].total += 1;
             const parsedAmount = parseFloat(order.total_amount || 0);
             if (!Number.isNaN(parsedAmount)) {
-              acc[supplierIdNum].total_value += parsedAmount;
+              supplierIdToOrderCount[supplierIdNum].total_value += parsedAmount;
             }
           }
-          return acc;
-        }, {});
-      } catch (_) {
-        supplierIdToOrderCount = {};
+        }
       }
 
       // Sort by created_at (most recent first)
@@ -448,36 +473,45 @@ export class Suppliers {
 
   static async getStats() {
     try {
-      // Get all suppliers with user relationships to check status
-      const { data: allSuppliers, error: suppliersError } = await supabase
-        .from('suppliers')
-        .select(`
-          *,
-          users!suppliers_user_id_fkey (
-            id,
-            status
-          )
-        `);
+      // Optimize: Run all queries in parallel
+      const [suppliersResult, ordersResult] = await Promise.all([
+        supabase
+          .from('suppliers')
+          .select(`
+            *,
+            users!suppliers_user_id_fkey (
+              id,
+              status
+            )
+          `),
+        supabase
+          .from('orders')
+          .select('id', { count: 'exact', head: true })
+      ]);
 
-      if (suppliersError) {
-        throw new Error(`Database error: ${suppliersError.message}`);
+      if (suppliersResult.error) {
+        throw new Error(`Database error: ${suppliersResult.error.message}`);
       }
 
-      // Count active and inactive
-      const activeSuppliers = (allSuppliers || []).filter(s => s.users?.status === 'active').length;
-      const inactiveSuppliers = (allSuppliers || []).filter(s => s.users?.status !== 'active').length;
-      const totalSuppliers = allSuppliers?.length || 0;
-
-      // Count total orders from all suppliers
-      const { data: allOrders, error: ordersError } = await supabase
-        .from('orders')
-        .select('id');
-
-      if (ordersError) {
-        throw new Error(`Database error: ${ordersError.message}`);
+      if (ordersResult.error) {
+        throw new Error(`Database error: ${ordersResult.error.message}`);
       }
 
-      const totalOrders = allOrders?.length || 0;
+      const allSuppliers = suppliersResult.data || [];
+      
+      // Count active and inactive in single pass
+      let activeSuppliers = 0;
+      let inactiveSuppliers = 0;
+      for (const supplier of allSuppliers) {
+        if (supplier.users?.status === 'active') {
+          activeSuppliers++;
+        } else {
+          inactiveSuppliers++;
+        }
+      }
+
+      const totalSuppliers = allSuppliers.length;
+      const totalOrders = ordersResult.count || 0;
 
       return {
         total_suppliers: totalSuppliers,

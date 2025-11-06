@@ -5,6 +5,7 @@ import { Job } from '../models/Job.js';
 import { RolePermission } from '../models/RolePermission.js';
 import { JobBluesheetLabor } from '../models/JobBluesheetLabor.js';
 import { JobBluesheet } from '../models/JobBluesheet.js';
+import { supabase } from '../config/database.js';
 import bcrypt from 'bcryptjs';
 import { generateTemporaryPassword } from "../lib/generateTemporaryPassword.js";
 import {
@@ -194,28 +195,48 @@ export class LaborService {
 
   static async updateLabor(laborId, updateData) {
     try {
-      const currentLabor = await Labor.getLaborById(laborId);
-      const userId = currentLabor.user_id;
+      // Optimize: Perform lightweight existence check
+      const { data: laborCheck } = await supabase
+        .from('labor')
+        .select('user_id, labor_code')
+        .eq('id', laborId)
+        .single();
+
+      if (!laborCheck) {
+        throw new Error(`Labor not found with ID: ${laborId}`);
+      }
+
+      const userId = laborCheck.user_id;
 
       const userData = {};
       const laborData = {};
 
-      if (updateData.full_name !== undefined) userData.full_name = updateData.full_name;
+      // Optimize: Only fetch email if email is being updated
+      let currentEmail = null;
       if (updateData.email !== undefined) {
-        if (updateData.email !== currentLabor.users.email) {
-          const existingUser = await User.findByEmail(updateData.email);
+        const { data: currentLabor } = await supabase
+          .from('labor')
+          .select('users!labor_user_id_fkey(email)')
+          .eq('id', laborId)
+          .single();
+        currentEmail = currentLabor?.users?.email;
+
+        if (updateData.email !== currentEmail) {
+          const existingUser = await User.findByEmail(updateData.email, false);
           if (existingUser) {
             throw new Error('Email already exists');
           }
         }
         userData.email = updateData.email;
       }
+
+      if (updateData.full_name !== undefined) userData.full_name = updateData.full_name;
       if (updateData.phone !== undefined) userData.phone = updateData.phone;
       if (updateData.status !== undefined) userData.status = updateData.status;
       if (updateData.role !== undefined) userData.role = updateData.role;
 
       if (updateData.labor_code !== undefined) {
-        if (updateData.labor_code !== currentLabor.labor_code) {
+        if (updateData.labor_code !== laborCheck.labor_code) {
           const existingLabor = await Labor.findByLaborCode(updateData.labor_code);
           if (existingLabor) {
             throw new Error('Labor code already exists');
@@ -233,13 +254,21 @@ export class LaborService {
       if (updateData.hours_worked !== undefined) laborData.hours_worked = updateData.hours_worked;
       if (updateData.supervisor_id !== undefined) {
         if (updateData.supervisor_id) {
-          const supervisor = await User.findById(updateData.supervisor_id);
-          if (!supervisor) {
+          // Optimize: Run supervisor checks in parallel
+          const [supervisorCheck, leadLaborCheck] = await Promise.all([
+            supabase
+              .from('users')
+              .select('id')
+              .eq('id', updateData.supervisor_id)
+              .single(),
+            LeadLabor.getLeadLaborByUserId(updateData.supervisor_id)
+          ]);
+
+          if (!supervisorCheck.data) {
             throw new Error(`Supervisor with ID ${updateData.supervisor_id} not found`);
           }
           
-          const leadLabor = await LeadLabor.getLeadLaborByUserId(updateData.supervisor_id);
-          if (!leadLabor) {
+          if (!leadLaborCheck) {
             throw new Error(`User with ID ${updateData.supervisor_id} is not a lead labor. Only lead labors can be supervisors.`);
           }
         }
@@ -251,13 +280,16 @@ export class LaborService {
       if (updateData.is_custom !== undefined) laborData.is_custom = updateData.is_custom;
       if (updateData.job_id !== undefined) laborData.job_id = updateData.job_id;
 
+      // Optimize: Run user and labor updates in parallel
+      const updatePromises = [];
       if (Object.keys(userData).length > 0) {
-        await User.update(userId, userData);
+        updatePromises.push(User.update(userId, userData));
+      }
+      if (Object.keys(laborData).length > 0) {
+        updatePromises.push(Labor.update(laborId, laborData));
       }
 
-      if (Object.keys(laborData).length > 0) {
-        await Labor.update(laborId, laborData);
-      }
+      await Promise.all(updatePromises);
 
       const updatedLabor = await Labor.getLaborById(laborId);
       return updatedLabor;
@@ -324,13 +356,33 @@ export class LaborService {
 
   static async updateProfile(laborId, updateData, files = null) {
     try {
-      const currentLabor = await Labor.getLaborById(laborId);
-      const userId = currentLabor.user_id;
+      // Optimize: Perform lightweight existence check
+      const { data: laborCheck } = await supabase
+        .from('labor')
+        .select('user_id')
+        .eq('id', laborId)
+        .single();
 
-      if (updateData.email && updateData.email !== currentLabor.users.email) {
-        const existingUser = await User.findByEmail(updateData.email);
-        if (existingUser) {
-          throw new Error('Email already exists');
+      if (!laborCheck) {
+        throw new Error(`Labor not found with ID: ${laborId}`);
+      }
+
+      const userId = laborCheck.user_id;
+
+      // Optimize: Only fetch email if email is being updated
+      if (updateData.email) {
+        const { data: currentLabor } = await supabase
+          .from('labor')
+          .select('users!labor_user_id_fkey(email)')
+          .eq('id', laborId)
+          .single();
+        
+        const currentEmail = currentLabor?.users?.email;
+        if (updateData.email !== currentEmail) {
+          const existingUser = await User.findByEmail(updateData.email, false);
+          if (existingUser) {
+            throw new Error('Email already exists');
+          }
         }
       }
 

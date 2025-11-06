@@ -23,7 +23,7 @@ export class SuppliersService {
             }
 
             const [existingUser, supplierCode] = await Promise.all([
-                User.findByEmail(suppliersData.email),
+                User.findByEmail(suppliersData.email, false), // Optimize: Don't fetch related data
                 suppliersData.supplier_code ?
                     (async () => {
                         const existingSupplier = await Suppliers.findBySupplierCode(suppliersData.supplier_code);
@@ -64,16 +64,18 @@ export class SuppliersService {
 
             const suppliers = await Suppliers.create(suppliersRecordData);
 
-
-            try {
-                await sendSupplierWelcomeEmail(
-                    user.email,
-                    user.full_name,
-                    suppliersData.company_name
-                );
-            } catch (emailError) {
-
-            }
+            // Optimize: Make email sending non-blocking
+            setImmediate(async () => {
+                try {
+                    await sendSupplierWelcomeEmail(
+                        user.email,
+                        user.full_name,
+                        suppliersData.company_name
+                    );
+                } catch (emailError) {
+                    console.error('Email sending failed:', emailError);
+                }
+            });
 
             return {
                 supplier: suppliers,
@@ -161,30 +163,47 @@ export class SuppliersService {
 
     static async updateSupplier(supplierId, updateData) {
         try {
-            const currentSupplier = await Suppliers.getSupplierById(supplierId);
-            const userId = currentSupplier.user_id;
+            // Optimize: Perform lightweight existence check
+            const { data: supplierCheck } = await supabase
+                .from('suppliers')
+                .select('user_id, supplier_code')
+                .eq('id', supplierId)
+                .single();
+
+            if (!supplierCheck) {
+                throw new Error(`Supplier not found with ID: ${supplierId}`);
+            }
+
+            const userId = supplierCheck.user_id;
 
             const userData = {};
             const suppliersData = {};
 
-            if (updateData.full_name !== undefined) userData.full_name = updateData.full_name;
+            // Optimize: Only fetch email if email is being updated
             if (updateData.email !== undefined) {
-
-                if (updateData.email !== currentSupplier.users.email) {
-                    const existingUser = await User.findByEmail(updateData.email);
+                const { data: currentSupplier } = await supabase
+                    .from('suppliers')
+                    .select('users!suppliers_user_id_fkey(email)')
+                    .eq('id', supplierId)
+                    .single();
+                
+                const currentEmail = currentSupplier?.users?.email;
+                if (updateData.email !== currentEmail) {
+                    const existingUser = await User.findByEmail(updateData.email, false);
                     if (existingUser) {
                         throw new Error('Email already exists');
                     }
                 }
                 userData.email = updateData.email;
             }
+
+            if (updateData.full_name !== undefined) userData.full_name = updateData.full_name;
             if (updateData.phone !== undefined) userData.phone = updateData.phone;
             if (updateData.role !== undefined) userData.role = updateData.role;
             if (updateData.status !== undefined) userData.status = updateData.status;
 
             if (updateData.supplier_code !== undefined) {
-
-                if (updateData.supplier_code !== currentSupplier.supplier_code) {
+                if (updateData.supplier_code !== supplierCheck.supplier_code) {
                     const existingSupplier = await Suppliers.findBySupplierCode(updateData.supplier_code);
                     if (existingSupplier) {
                         throw new Error('Supplier code already exists');
@@ -204,13 +223,16 @@ export class SuppliersService {
             }
             if (updateData.notes !== undefined) suppliersData.notes = updateData.notes;
 
+            // Optimize: Run user and supplier updates in parallel
+            const updatePromises = [];
             if (Object.keys(userData).length > 0) {
-                await User.update(userId, userData);
+                updatePromises.push(User.update(userId, userData));
+            }
+            if (Object.keys(suppliersData).length > 0) {
+                updatePromises.push(Suppliers.update(supplierId, suppliersData));
             }
 
-            if (Object.keys(suppliersData).length > 0) {
-                await Suppliers.update(supplierId, suppliersData);
-            }
+            await Promise.all(updatePromises);
 
             const updatedSupplier = await Suppliers.getSupplierById(supplierId);
             return updatedSupplier;

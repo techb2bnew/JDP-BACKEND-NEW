@@ -79,57 +79,63 @@ export class Labor {
     try {
       const offset = (page - 1) * limit;
 
-      const { count, error: countError } = await supabase
-        .from('labor')
-        .select('*', { count: 'exact', head: true });
-
-      if (countError) {
-        throw new Error(`Database error: ${countError.message}`);
-      }
-
-      const { data, error } = await supabase
-        .from('labor')
-        .select(`
-          *,
-          users!labor_user_id_fkey (
-            id,
-            full_name,
-            email,
-            phone,
-            role,
-            status,
-            photo_url,
-            created_at
-          ),
-          supervisor:users!labor_supervisor_id_fkey (
-            id,
-            full_name,
-            email,
-            phone,
-            role,
-            status,
-            photo_url,
-            created_at
-          )
-        `)
-        .order('id', { ascending: false })
-        .range(offset, offset + limit - 1);
-
-      if (error) {
-        throw new Error(`Database error: ${error.message}`);
-      }
-
-      // Build laborId -> assigned jobs count map
-      let laborIdToJobCount = {};
-      try {
-        const { data: jobs, error: jobsError } = await supabase
+      // Optimize: Run count, data, and jobs queries in parallel
+      const [countResult, dataResult, jobsResult] = await Promise.all([
+        supabase
+          .from('labor')
+          .select('*', { count: 'exact', head: true }),
+        supabase
+          .from('labor')
+          .select(`
+            *,
+            users!labor_user_id_fkey (
+              id,
+              full_name,
+              email,
+              phone,
+              role,
+              status,
+              photo_url,
+              created_at
+            ),
+            supervisor:users!labor_supervisor_id_fkey (
+              id,
+              full_name,
+              email,
+              phone,
+              role,
+              status,
+              photo_url,
+              created_at
+            )
+          `)
+          .order('id', { ascending: false })
+          .range(offset, offset + limit - 1),
+        // Optimize: Fetch jobs in parallel (only required fields)
+        supabase
           .from('jobs')
-          .select('id, assigned_labor_ids');
-        if (jobsError) {
-          throw new Error(jobsError.message);
-        }
+          .select('id, assigned_labor_ids')
+      ]);
 
-        laborIdToJobCount = (jobs || []).reduce((acc, job) => {
+      if (countResult.error) {
+        throw new Error(`Database error: ${countResult.error.message}`);
+      }
+
+      if (dataResult.error) {
+        throw new Error(`Database error: ${dataResult.error.message}`);
+      }
+
+      const count = countResult.count || 0;
+      const data = dataResult.data || [];
+
+      // Optimize: Build laborId -> assigned jobs count map efficiently
+      // Only process jobs for current page's labor IDs
+      let laborIdToJobCount = {};
+      if (!jobsResult.error && jobsResult.data) {
+        // Use Set for O(1) lookups during counting
+        const laborIdsSet = new Set(data.map(l => l.id));
+        
+        for (const job of jobsResult.data) {
           let ids = [];
           if (typeof job.assigned_labor_ids === 'string') {
             try {
@@ -141,17 +147,14 @@ export class Labor {
             ids = job.assigned_labor_ids;
           }
 
-          ids.forEach((id) => {
+          // Only process IDs that are in the current page's labor
+          for (const id of ids) {
             const laborIdNum = parseInt(id);
-            if (!Number.isNaN(laborIdNum)) {
-              acc[laborIdNum] = (acc[laborIdNum] || 0) + 1;
+            if (!Number.isNaN(laborIdNum) && laborIdsSet.has(laborIdNum)) {
+              laborIdToJobCount[laborIdNum] = (laborIdToJobCount[laborIdNum] || 0) + 1;
             }
-          });
-
-          return acc;
-        }, {});
-      } catch (_) {
-        laborIdToJobCount = {};
+          }
+        }
       }
 
       const totalPages = Math.ceil(count / limit);
@@ -223,10 +226,18 @@ export class Labor {
     try {
       // Auto-calculate total_cost if not provided but hours_worked or hourly_rate is updated
       if (!updateData.total_cost && (updateData.hours_worked || updateData.hourly_rate)) {
-        const currentLabor = await this.getLaborById(laborId);
-        const hours = updateData.hours_worked || currentLabor.hours_worked || 0;
-        const rate = updateData.hourly_rate || currentLabor.hourly_rate || 0;
-        updateData.total_cost = hours * rate;
+        // Optimize: Only fetch required fields for calculation
+        const { data: currentLabor } = await supabase
+          .from('labor')
+          .select('hours_worked, hourly_rate')
+          .eq('id', laborId)
+          .single();
+        
+        if (currentLabor) {
+          const hours = updateData.hours_worked || currentLabor.hours_worked || 0;
+          const rate = updateData.hourly_rate || currentLabor.hourly_rate || 0;
+          updateData.total_cost = hours * rate;
+        }
       }
       
       const { data, error } = await supabase
@@ -593,48 +604,74 @@ export class Labor {
     try {
       const q = (filters.q || '').toLowerCase().trim();
 
-      // Fetch all labor with user relationships
-      const { data, error } = await supabase
-        .from("labor")
-        .select(`
-          *,
-          users!labor_user_id_fkey (
-            id,
-            full_name,
-            email,
-            phone,
-            role,
-            status,
-            photo_url,
-            created_at
-          ),
-          supervisor:users!labor_supervisor_id_fkey (
-            id,
-            full_name,
-            email,
-            phone,
-            role,
-            status,
-            photo_url,
-            created_at
-          )
-        `);
+      // Optimize: Fetch labor and jobs in parallel
+      const [laborResult, jobsResult] = await Promise.all([
+        supabase
+          .from("labor")
+          .select(`
+            *,
+            users!labor_user_id_fkey (
+              id,
+              full_name,
+              email,
+              phone,
+              role,
+              status,
+              photo_url,
+              created_at
+            ),
+            supervisor:users!labor_supervisor_id_fkey (
+              id,
+              full_name,
+              email,
+              phone,
+              role,
+              status,
+              photo_url,
+              created_at
+            )
+          `),
+        // Optimize: Fetch jobs in parallel (only required fields)
+        supabase
+          .from('jobs')
+          .select('id, assigned_labor_ids')
+      ]);
 
-      if (error) {
-        throw new Error(`Database error: ${error.message}`);
+      if (laborResult.error) {
+        throw new Error(`Database error: ${laborResult.error.message}`);
       }
 
-      // Build a map of laborId -> assigned jobs count
-      let laborIdToJobCount = {};
-      try {
-        const { data: jobs, error: jobsError } = await supabase
-          .from('jobs')
-          .select('id, assigned_labor_ids');
-        if (jobsError) {
-          throw new Error(jobsError.message);
-        }
+      const data = laborResult.data || [];
 
-        laborIdToJobCount = (jobs || []).reduce((acc, job) => {
+      // Build a map of laborId -> assigned jobs count
+      // Optimize: Only process jobs for filtered labor IDs
+      let laborIdToJobCount = {};
+      if (!jobsResult.error && jobsResult.data) {
+        // First filter labor to get the IDs we need
+        const inStr = (s) => (s || '').toString().toLowerCase().includes(q);
+        const matches = (labor) => {
+          if (q) {
+            const laborMatch = inStr(labor.users?.full_name) || 
+                              inStr(labor.users?.email) || 
+                              inStr(labor.users?.phone) || 
+                              inStr(labor.trade) ||
+                              inStr(labor.experience) ||
+                              inStr(labor.availability);
+            if (!laborMatch) return false;
+          }
+          if (filters.name && !inStr(labor.users?.full_name)) return false;
+          if (filters.contact && !inStr(labor.users?.phone) && !inStr(labor.users?.email)) return false;
+          if (filters.trade && !inStr(labor.trade)) return false;
+          if (filters.experience && !inStr(labor.experience)) return false;
+          if (filters.availability && !inStr(labor.availability)) return false;
+          if (filters.status && labor.users?.status !== filters.status) return false;
+          return true;
+        };
+        
+        const filteredLaborIds = new Set(data.filter(matches).map(l => l.id));
+        
+        // Only process jobs for filtered labor IDs
+        for (const job of jobsResult.data) {
           let ids = [];
           if (typeof job.assigned_labor_ids === 'string') {
             try {
@@ -646,19 +683,16 @@ export class Labor {
             ids = job.assigned_labor_ids;
           }
 
-          ids.forEach((id) => {
+          for (const id of ids) {
             const laborIdNum = parseInt(id);
-            if (!Number.isNaN(laborIdNum)) {
-              acc[laborIdNum] = (acc[laborIdNum] || 0) + 1;
+            if (!Number.isNaN(laborIdNum) && filteredLaborIds.has(laborIdNum)) {
+              laborIdToJobCount[laborIdNum] = (laborIdToJobCount[laborIdNum] || 0) + 1;
             }
-          });
-
-          return acc;
-        }, {});
-      } catch (_) {
-        laborIdToJobCount = {};
+          }
+        }
       }
 
+      // Define inStr and matches functions (reuse from above if needed, but define here for clarity)
       const inStr = (s) => (s || '').toString().toLowerCase().includes(q);
 
       const matches = (labor) => {
@@ -684,7 +718,7 @@ export class Labor {
         return true;
       };
 
-      let filtered = (data || []).filter(matches).map((labor) => ({
+      let filtered = data.filter(matches).map((labor) => ({
         ...labor,
         assigned_jobs_count: laborIdToJobCount[labor.id] || 0
       }));
