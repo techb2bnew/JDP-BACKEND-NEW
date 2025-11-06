@@ -225,6 +225,7 @@ export class Job {
         return [];
       }
 
+      // Optimize: Fetch all lead labor data in one query
       const { data: leadLaborData, error } = await supabase
         .from("lead_labor")
         .select(`
@@ -243,20 +244,32 @@ export class Job {
         return [];
       }
 
-      const leadLaborWithUsers = await Promise.all(
-        (leadLaborData || []).map(async (leadLabor) => {
-          const { data: userData } = await supabase
-            .from("users")
-            .select("id, full_name, email, phone")
-            .eq("id", leadLabor.user_id)
-            .single();
+      if (!leadLaborData || leadLaborData.length === 0) {
+        return [];
+      }
 
-          return {
-            ...leadLabor,
-            user: userData || null
-          };
-        })
-      );
+      // Optimize: Batch fetch all users in one query instead of individual queries
+      const userIds = leadLaborData.map(ll => ll.user_id).filter(Boolean);
+      let usersMap = new Map();
+
+      if (userIds.length > 0) {
+        const { data: usersData, error: usersError } = await supabase
+          .from("users")
+          .select("id, full_name, email, phone")
+          .in("id", userIds);
+
+        if (!usersError && usersData) {
+          usersData.forEach(user => {
+            usersMap.set(user.id, user);
+          });
+        }
+      }
+
+      // Map users to lead labor efficiently
+      const leadLaborWithUsers = leadLaborData.map(leadLabor => ({
+        ...leadLabor,
+        user: usersMap.get(leadLabor.user_id) || null
+      }));
 
       return leadLaborWithUsers;
     } catch (error) {
@@ -271,6 +284,7 @@ export class Job {
         return [];
       }
 
+      // Optimize: Fetch all labor data in one query
       const { data: laborData, error } = await supabase
         .from("labor")
         .select(`
@@ -291,20 +305,32 @@ export class Job {
         return [];
       }
 
-      const laborWithUsers = await Promise.all(
-        (laborData || []).map(async (labor) => {
-          const { data: userData } = await supabase
-            .from("users")
-            .select("id, full_name, email, phone")
-            .eq("id", labor.user_id)
-            .single();
+      if (!laborData || laborData.length === 0) {
+        return [];
+      }
 
-          return {
-            ...labor,
-            user: userData || null
-          };
-        })
-      );
+      // Optimize: Batch fetch all users in one query instead of individual queries
+      const userIds = laborData.map(l => l.user_id).filter(Boolean);
+      let usersMap = new Map();
+
+      if (userIds.length > 0) {
+        const { data: usersData, error: usersError } = await supabase
+          .from("users")
+          .select("id, full_name, email, phone")
+          .in("id", userIds);
+
+        if (!usersError && usersData) {
+          usersData.forEach(user => {
+            usersMap.set(user.id, user);
+          });
+        }
+      }
+
+      // Map users to labor efficiently
+      const laborWithUsers = laborData.map(labor => ({
+        ...labor,
+        user: usersMap.get(labor.user_id) || null
+      }));
 
       return laborWithUsers;
     } catch (error) {
