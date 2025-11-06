@@ -492,23 +492,24 @@ export class JobBluesheetLabor {
       let matchedTier = null;
 
       // Step 1: Check for exact match with min_hours (highest priority)
+      // If same value exists in both min_hours and max_hours, min_hours tier takes priority
       const exactMinMatch = normalizedRates.find((tier) => {
-        const hasMinHours = tier.min_hours !== null && tier.min_hours !== undefined;
+        const hasMinHours = tier.min_hours !== null && tier.min_hours !== undefined;                                                                            
         return hasMinHours && fullRegularHours === tier.min_hours;
       });
 
+      // Step 2: Check for exact match with max_hours (only if min_hours didn't match)
+      const exactMaxMatch = normalizedRates.find((tier) => {
+        const hasMaxHours = tier.max_hours !== null && tier.max_hours !== undefined;                                                                          
+        return hasMaxHours && fullRegularHours === tier.max_hours;
+      });
+
+      // Priority: If both match, prefer min_hours tier (first priority)
       if (exactMinMatch) {
         matchedTier = exactMinMatch;
+      } else if (exactMaxMatch) {
+        matchedTier = exactMaxMatch;
       } else {
-        // Step 2: Check for exact match with max_hours
-        const exactMaxMatch = normalizedRates.find((tier) => {
-          const hasMaxHours = tier.max_hours !== null && tier.max_hours !== undefined;
-          return hasMaxHours && fullRegularHours === tier.max_hours;
-        });
-
-        if (exactMaxMatch) {
-          matchedTier = exactMaxMatch;
-        } else {
           // Step 3: Check if hours is between min_hours and max_hours (exclusive)
           // Find all tiers that have both min_hours and max_hours
           const rangeTiers = normalizedRates.filter((tier) => {
@@ -603,7 +604,7 @@ export class JobBluesheetLabor {
       }
     }
 
-        let hourlyRate = tierForRegular.rate;
+    let hourlyRate = tierForRegular.rate;
     let totalCost = 0;
 
     if (regularHours > 0) {
