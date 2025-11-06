@@ -1,6 +1,7 @@
 import { Job } from "../models/Job.js";
 import { JobBluesheetLabor } from "../models/JobBluesheetLabor.js";
 import { successResponse } from "../helpers/responseHelper.js";
+import { supabase } from "../config/database.js";
 
 export class JobService {
   static async createJob(jobData, createdByUserId) {
@@ -148,11 +149,19 @@ export class JobService {
 
   static async updateJob(jobId, updateData) {
     try {
-      const existingJob = await Job.findById(jobId);
-      if (!existingJob) {
+      // Optimize: Use simple existence check instead of full findById
+      // This avoids fetching all job details just to check if job exists
+      const { data: existingJob, error: checkError } = await supabase
+        .from("jobs")
+        .select("id")
+        .eq("id", jobId)
+        .single();
+
+      if (checkError || !existingJob) {
         throw new Error("Job not found");
       }
 
+      // Now update the job (this will fetch full details with addDetailsToJob)
       const updatedJob = await Job.update(jobId, updateData);
 
       return successResponse(
