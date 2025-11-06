@@ -516,26 +516,37 @@ export class Job {
   }
 
   static async addDetailsToJob(job) {
-    5
     const jobWithDetails = { ...job };
 
     const leadLaborIds = safeJsonParse(job.assigned_lead_labor_ids, []);
-    jobWithDetails.assigned_lead_labor = await Job.fetchLeadLaborDetails(leadLaborIds);
-
     const laborIds = safeJsonParse(job.assigned_labor_ids, []);
-    jobWithDetails.assigned_labor = await Job.fetchLaborDetails(laborIds);
 
-    jobWithDetails.assigned_materials = await Job.fetchMaterialsDetails(job.id);
+    // Run all detail fetches in parallel for maximum performance
+    const [
+      assignedLeadLabor,
+      assignedLabor,
+      assignedMaterials,
+      customLabor,
+      orders,
+      laborTimesheets,
+      bluesheets
+    ] = await Promise.all([
+      Job.fetchLeadLaborDetails(leadLaborIds),
+      Job.fetchLaborDetails(laborIds),
+      Job.fetchMaterialsDetails(job.id),
+      Job.fetchCustomLaborDetails(job.id),
+      Job.fetchOrdersDetails(job.id),
+      LaborTimesheet.findByJobId(job.id),
+      Job.fetchBluesheetsDetails(job.id)
+    ]);
 
-    jobWithDetails.custom_labor = await Job.fetchCustomLaborDetails(job.id);
-
-    jobWithDetails.orders = await Job.fetchOrdersDetails(job.id);
-
-    // Get timesheet data from new table
-    jobWithDetails.labor_timesheets = await LaborTimesheet.findByJobId(job.id);
-
-    // Get bluesheet data
-    jobWithDetails.bluesheets = await Job.fetchBluesheetsDetails(job.id);
+    jobWithDetails.assigned_lead_labor = assignedLeadLabor;
+    jobWithDetails.assigned_labor = assignedLabor;
+    jobWithDetails.assigned_materials = assignedMaterials;
+    jobWithDetails.custom_labor = customLabor;
+    jobWithDetails.orders = orders;
+    jobWithDetails.labor_timesheets = laborTimesheets;
+    jobWithDetails.bluesheets = bluesheets;
 
     return jobWithDetails;
   }
@@ -3194,16 +3205,10 @@ export class Job {
         throw new Error('Job ID is required');
       }
 
-      const job = await Job.findById(jobId);
-      if (!job) {
-        throw new Error('Job not found');
-      }
-
-      // Calculate totalHoursWorked from bluesheet labor regular_hours for this job
-      // Only count approved bluesheets
-      let totalHoursWorked = 0;
-      try {
-        const { data: bluesheets, error: bsError } = await supabase
+      // Run job fetch, bluesheets fetch, and estimates count in parallel for better performance
+      const [jobResult, bluesheetsResult, estimatesResult] = await Promise.allSettled([
+        Job.findById(jobId),
+        supabase
           .from('job_bluesheet')
           .select(
             `id,
@@ -3215,68 +3220,85 @@ export class Job {
              )`
           )
           .eq('job_id', jobId)
-          .eq('status', 'approved');
+          .eq('status', 'approved'),
+        supabase
+          .from('estimates')
+          .select('*', { count: 'exact', head: true })
+          .eq('job_id', jobId)
+      ]);
 
-        if (bsError) {
-          throw new Error(`Database error: ${bsError.message}`);
+      // Extract results
+      const job = jobResult.status === 'fulfilled' ? jobResult.value : null;
+      if (!job) {
+        throw new Error('Job not found');
+      }
+
+      const bluesheets = bluesheetsResult.status === 'fulfilled' && !bluesheetsResult.value.error
+        ? bluesheetsResult.value.data || []
+        : [];
+
+      const numberOfInvoices = estimatesResult.status === 'fulfilled' && !estimatesResult.value.error
+        ? (estimatesResult.value.count || 0)
+        : 0;
+
+      // Calculate totalHoursWorked from bluesheet labor regular_hours
+      const parseHours = (hoursString) => {
+        if (!hoursString) return 0;
+        
+        // Handle string format
+        if (typeof hoursString === 'string') {
+          // Format: HH:MM:SS (e.g., "05:00:00", "00:01:12")
+          const timeMatch = hoursString.match(/^(\d+):(\d+):(\d+)$/);
+          if (timeMatch) {
+            const h = parseInt(timeMatch[1]) || 0;
+            const m = parseInt(timeMatch[2]) || 0;
+            const s = parseInt(timeMatch[3]) || 0;
+            return h + (m / 60) + (s / 3600);
+          }
+          
+          // Format: HH:MM (e.g., "8:30")
+          const timeMatchShort = hoursString.match(/^(\d+):(\d+)$/);
+          if (timeMatchShort) {
+            const h = parseInt(timeMatchShort[1]) || 0;
+            const m = parseInt(timeMatchShort[2]) || 0;
+            return h + (m / 60);
+          }
+          
+          // Format: "8h", "8h30m"
+          const hMatch = hoursString.match(/(\d+(?:\.\d+)?)h(?:\d+m)?/);
+          if (hMatch) return parseFloat(hMatch[1]);
+          
+          // Plain number fallback
+          const num = parseFloat(hoursString);
+          return isNaN(num) ? 0 : num;
         }
+        
+        // If it's already a number
+        if (typeof hoursString === 'number') {
+          return isNaN(hoursString) ? 0 : hoursString;
+        }
+        
+        return 0;
+      };
 
-        const parseHours = (hoursString) => {
-          if (!hoursString) return 0;
-          
-          // Handle string format
-          if (typeof hoursString === 'string') {
-            // Format: HH:MM:SS (e.g., "05:00:00", "00:01:12")
-            const timeMatch = hoursString.match(/^(\d+):(\d+):(\d+)$/);
-            if (timeMatch) {
-              const h = parseInt(timeMatch[1]) || 0;
-              const m = parseInt(timeMatch[2]) || 0;
-              const s = parseInt(timeMatch[3]) || 0;
-              return h + (m / 60) + (s / 3600);
-            }
-            
-            // Format: HH:MM (e.g., "8:30")
-            const timeMatchShort = hoursString.match(/^(\d+):(\d+)$/);
-            if (timeMatchShort) {
-              const h = parseInt(timeMatchShort[1]) || 0;
-              const m = parseInt(timeMatchShort[2]) || 0;
-              return h + (m / 60);
-            }
-            
-            // Format: "8h", "8h30m"
-            const hMatch = hoursString.match(/(\d+(?:\.\d+)?)h(?:\d+m)?/);
-            if (hMatch) return parseFloat(hMatch[1]);
-            
-            // Plain number fallback
-            const num = parseFloat(hoursString);
-            return isNaN(num) ? 0 : num;
-          }
-          
-          // If it's already a number
-          if (typeof hoursString === 'number') {
-            return isNaN(hoursString) ? 0 : hoursString;
-          }
-          
-          return 0;
-        };
-
-        totalHoursWorked = (bluesheets || []).reduce((sum, bs) => {
+      let totalHoursWorked = 0;
+      try {
+        totalHoursWorked = bluesheets.reduce((sum, bs) => {
           const entries = bs.labor_entries || [];
           const hoursForSheet = entries.reduce((eSum, e) => eSum + parseHours(e.regular_hours), 0);
           return sum + hoursForSheet;
         }, 0);
       } catch (calcErr) {
-        // If any error while calculating from bluesheets, keep totalHoursWorked as 0
         console.error('Error calculating totalHoursWorked from bluesheets:', calcErr.message);
       }
 
-
+      // Calculate totalMaterialUsed
       let totalMaterialUsed = 0;
       if (job.assigned_materials && job.assigned_materials.length > 0) {
         totalMaterialUsed = job.assigned_materials.length;
       }
 
-
+      // Calculate totalLabourEntries
       let totalLabourEntries = 0;
       // Only count if arrays exist and have elements
       if (Array.isArray(job.assigned_lead_labor) && job.assigned_lead_labor.length > 0) {
@@ -3287,24 +3309,6 @@ export class Job {
       }
       if (Array.isArray(job.custom_labor) && job.custom_labor.length > 0) {
         totalLabourEntries += job.custom_labor.length;
-      }
-
-
-      // Calculate number of invoices from estimates table
-      let numberOfInvoices = 0;
-      try {
-        const { supabase } = await import('../config/database.js');
-        const { count, error } = await supabase
-          .from('estimates')
-          .select('*', { count: 'exact', head: true })
-          .eq('job_id', jobId);
-
-        if (!error && count !== null) {
-          numberOfInvoices = count;
-        }
-      } catch (dbError) {
-        console.error('Error fetching invoice count:', dbError);
-        // Keep numberOfInvoices as 0 if there's an error
       }
 
       // Convert decimal hours to "XhYm" format (e.g., 4.82 -> "4h49m")
