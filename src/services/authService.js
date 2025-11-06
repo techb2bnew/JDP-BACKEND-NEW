@@ -67,8 +67,8 @@ export class AuthService {
 
   static async login(email, password, login_by = 'admin') {
     try {
-
-      const user = await User.findByEmail(email);
+      // For login, we don't need staff/labor/leadLabor data - fetch only user data for faster response
+      const user = await User.findByEmail(email, false);
       if (!user) {
         throw new Error("Invalid email or password");
       }
@@ -97,13 +97,7 @@ export class AuthService {
         throw new Error("Invalid login method");
       }
 
-      let permissions = [];
-      try {
-        permissions = await RolePermission.getPermissionsByRoleName(user.role);
-      } catch (permError) {
-        console.error('Error fetching permissions:', permError);
-      }
-
+      // Generate token first (synchronous operation)
       const token = generateToken({
         id: user.id,
         email: user.email,
@@ -113,14 +107,27 @@ export class AuthService {
       });
 
       const tokenExpiry = new Date();
-      tokenExpiry.setHours(tokenExpiry.getHours() + 24); 
+      tokenExpiry.setHours(tokenExpiry.getHours() + 24);
 
-      await UserToken.create({
+      // Fetch permissions (critical for response)
+      let permissions = [];
+      try {
+        permissions = await RolePermission.getPermissionsByRoleName(user.role);
+      } catch (permError) {
+        console.error('Error fetching permissions:', permError);
+      }
+
+      // Save token in background (non-blocking) - don't wait for it
+      // Token is already generated and will be returned in response
+      UserToken.create({
         user_id: user.id,
         token: token,
         token_type: 'access',
         expires_at: tokenExpiry.toISOString(),
         is_active: true
+      }).catch(err => {
+        console.error('Error saving token (non-critical):', err);
+        // Token is already generated, so this error won't affect login
       });
 
       const { password: userPassword, ...userWithoutPassword } = user;

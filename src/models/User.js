@@ -21,9 +21,9 @@ export class User {
   }
 
 
-  static async findByEmail(email) {
+  static async findByEmail(email, includeRelated = true) {
     try {
-    
+      // First get user
       const { data: user, error: userError } = await supabase
         .from("users")
         .select("*")
@@ -38,26 +38,32 @@ export class User {
         return null; 
       }
 
-      const { data: staff } = await supabase
-        .from("staff")
-        .select("*")
-        .eq("user_id", user.id);
+      // If includeRelated is false, return only user data (faster for login)
+      if (!includeRelated) {
+        return user;
+      }
 
-      const { data: labor } = await supabase
-        .from("labor")
-        .select("*")
-        .eq("user_id", user.id);
-
-      const { data: leadLabor } = await supabase
-        .from("lead_labor")
-        .select("*")
-        .eq("user_id", user.id);
+      // Run all related queries in parallel for better performance
+      const [staffResult, laborResult, leadLaborResult] = await Promise.all([
+        supabase
+          .from("staff")
+          .select("*")
+          .eq("user_id", user.id),
+        supabase
+          .from("labor")
+          .select("*")
+          .eq("user_id", user.id),
+        supabase
+          .from("lead_labor")
+          .select("*")
+          .eq("user_id", user.id)
+      ]);
 
       return {
         ...user,
-        staff,
-        labor,
-        leadLabor,
+        staff: staffResult.data || [],
+        labor: laborResult.data || [],
+        leadLabor: leadLaborResult.data || [],
       };
     } catch (error) {
       throw error;
