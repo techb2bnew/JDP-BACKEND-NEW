@@ -8,6 +8,14 @@ const rolesWithPermissionsCache = new Map();
 const ROLES_CACHE_TTL = 2 * 60 * 1000; // 2 minutes 
 
 export class RolePermission {
+  // Export cache for use in other models
+  static get permissionCache() {
+    return permissionCache;
+  }
+  
+  static get CACHE_TTL() {
+    return CACHE_TTL;
+  }
   static async getPermissionsByRoleName(roleName) {
     try {
       const cacheKey = `permissions_${roleName}`;
@@ -65,93 +73,125 @@ export class RolePermission {
 
   static async bulkUpdateRolePermissions(roleId, permissions, roleName) {
     try {
+      // Prepare permissions to insert efficiently
+      const permissionsToInsert = [];
+      const permissionIdsSet = new Set();
 
-      if (roleName) {
-        const { error: roleUpdateError } = await supabase
-          .from('roles')
-          .update({ role_name: roleName })
-          .eq('id', roleId);
-
-        if (roleUpdateError) {
-          throw new Error(`Database error: ${roleUpdateError.message}`);
-        }
-
-      }
-
-
-      const { error: deleteError } = await supabase
-        .from('role_permissions')
-        .delete()
-        .eq('role_id', roleId);
-
-      if (deleteError) {
-        throw new Error(`Database error: ${deleteError.message}`);
-      }
-
-
-      if (permissions.length > 0) {
-        const permissionsToInsert = [];
-
-        for (const perm of permissions) {
-
-          const permissionId = perm.permission_id || perm.id;
-
-          if (permissionId) {
-            permissionsToInsert.push({
-              role_id: roleId,
-              permission_id: permissionId,
-              allowed: perm.allowed
-            });
-          }
-        }
-
-
-        if (permissionsToInsert.length > 0) {
-          const { data, error: insertError } = await supabase
-            .from('role_permissions')
-            .insert(permissionsToInsert)
-            .select();
-
-          if (insertError) {
-            throw new Error(`Database error: ${insertError.message}`);
-          }
-
-
-          const permissionIds = data.map(rp => rp.permission_id);
-          const { data: allPermissions, error: allPermError } = await supabase
-            .from('permissions')
-            .select('id, module, action, display_name, description')
-            .in('id', permissionIds);
-
-          const permissionsWithDetails = data.map(rp => {
-            const permData = allPermissions?.find(p => p.id === rp.permission_id);
-            if (permData) {
-              return {
-                ...rp,
-                module: permData.module,
-                action: permData.action,
-                display_name: permData.display_name,
-                description: permData.description
-              };
-            }
-            return rp;
+      for (const perm of permissions) {
+        const permissionId = perm.permission_id || perm.id;
+        if (permissionId) {
+          permissionsToInsert.push({
+            role_id: roleId,
+            permission_id: permissionId,
+            allowed: perm.allowed
           });
-
-          this.clearRolePermissionCache(roleId);
-          
-          return permissionsWithDetails;
+          permissionIdsSet.add(permissionId);
         }
       }
 
-      return [];
+      // Run role update and delete in parallel for better performance
+      const operations = [];
+      
+      if (roleName) {
+        operations.push(
+          supabase
+            .from('roles')
+            .update({ role_name: roleName })
+            .eq('id', roleId)
+        );
+      }
+
+      operations.push(
+        supabase
+          .from('role_permissions')
+          .delete()
+          .eq('role_id', roleId)
+      );
+
+      // Execute delete and role update in parallel
+      const results = await Promise.all(operations);
+      
+      // Check for errors
+      for (const result of results) {
+        if (result.error) {
+          throw new Error(`Database error: ${result.error.message}`);
+        }
+      }
+
+      // If no permissions to insert, clear cache and return
+      if (permissionsToInsert.length === 0) {
+        this.clearRolePermissionCache(roleId);
+        return [];
+      }
+
+      // Insert new permissions
+      const { data: insertedData, error: insertError } = await supabase
+        .from('role_permissions')
+        .insert(permissionsToInsert)
+        .select();
+
+      if (insertError) {
+        throw new Error(`Database error: ${insertError.message}`);
+      }
+
+      // Fetch permissions details in parallel with cache clear
+      const permissionIds = Array.from(permissionIdsSet);
+      const [permissionsResult] = await Promise.all([
+        supabase
+          .from('permissions')
+          .select('id, module, action, display_name, description')
+          .in('id', permissionIds),
+        // Clear cache in background (non-blocking)
+        Promise.resolve().then(() => this.clearRolePermissionCache(roleId))
+      ]);
+
+      if (permissionsResult.error) {
+        throw new Error(`Database error: ${permissionsResult.error.message}`);
+      }
+
+      const allPermissions = permissionsResult.data || [];
+
+      // Use Map for O(1) lookups instead of find() for better performance
+      const permissionMap = new Map();
+      allPermissions.forEach(perm => {
+        permissionMap.set(perm.id, perm);
+      });
+
+      // Build response efficiently
+      const permissionsWithDetails = new Array(insertedData.length);
+      for (let i = 0; i < insertedData.length; i++) {
+        const rp = insertedData[i];
+        const permData = permissionMap.get(rp.permission_id);
+        
+        if (permData) {
+          permissionsWithDetails[i] = {
+            ...rp,
+            module: permData.module,
+            action: permData.action,
+            display_name: permData.display_name,
+            description: permData.description
+          };
+        } else {
+          permissionsWithDetails[i] = rp;
+        }
+      }
+
+      return permissionsWithDetails;
     } catch (error) {
       throw error;
     }
   }
 
   static clearRolePermissionCache(roleId) {
+    // Clear all permission caches
     permissionCache.clear();
     rolesWithPermissionsCache.clear(); // Also clear roles with permissions cache
+    
+    // Clear specific role cache if roleId provided
+    if (roleId) {
+      const roleCacheKey = `role_permissions_${roleId}`;
+      permissionCache.delete(roleCacheKey);
+    }
   }
 
   static async getAllRolesWithAllPermissions(page = 1, limit = 50) {

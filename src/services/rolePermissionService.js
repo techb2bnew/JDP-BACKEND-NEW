@@ -47,16 +47,37 @@ export class RolePermissionService {
 
   static async updateRolePermissionsById(roleId, permissions ,roleName) {
     try {
-      const moduleActionPairs = permissions
-        .filter(perm => perm.module && perm.action)
-        .map(perm => ({ module: perm.module, action: perm.action }));
+      // Filter and prepare module-action pairs efficiently
+      const moduleActionPairs = [];
+      const seenPairs = new Set();
+      
+      for (const perm of permissions) {
+        if (perm.module && perm.action) {
+          const pairKey = `${perm.module}:${perm.action}`;
+          if (!seenPairs.has(pairKey)) {
+            moduleActionPairs.push({ module: perm.module, action: perm.action });
+            seenPairs.add(pairKey);
+          }
+        }
+      }
       
       // Optimize: Single query to get existing permissions
       const existingPermissions = await Permission.findByModuleActionPairs(moduleActionPairs);
       
-      const missingPermissions = moduleActionPairs.filter(pair => 
-        !existingPermissions.find(ep => ep.module === pair.module && ep.action === pair.action)
-      );
+      // Use Map for O(1) lookups instead of find()
+      const existingPermissionsMap = new Map();
+      existingPermissions.forEach(perm => {
+        existingPermissionsMap.set(`${perm.module}:${perm.action}`, perm);
+      });
+      
+      // Find missing permissions efficiently
+      const missingPermissions = [];
+      for (const pair of moduleActionPairs) {
+        const pairKey = `${pair.module}:${pair.action}`;
+        if (!existingPermissionsMap.has(pairKey)) {
+          missingPermissions.push(pair);
+        }
+      }
       
       let allPermissions = existingPermissions;
       
@@ -67,28 +88,30 @@ export class RolePermissionService {
         allPermissions = await Permission.findByModuleActionPairs(moduleActionPairs);
       }
       
-      // Create permission mapping for faster lookup
+      // Create permission mapping for faster lookup (rebuild map with all permissions)
       const permissionMap = new Map();
       allPermissions.forEach(perm => {
         permissionMap.set(`${perm.module}:${perm.action}`, perm);
       });
       
-      const permissionsWithIds = permissions
-        .filter(perm => perm.module && perm.action)
-        .map(perm => {
+      // Build permissions with IDs efficiently
+      const permissionsWithIds = [];
+      for (const perm of permissions) {
+        if (perm.module && perm.action) {
           const permissionData = permissionMap.get(`${perm.module}:${perm.action}`);
           
           if (!permissionData) {
             throw new Error(`Failed to find/create permission: ${perm.module}:${perm.action}`);
           }
           
-          return {
+          permissionsWithIds.push({
             permission_id: permissionData.id,
             allowed: perm.allowed,
             module: perm.module,
             action: perm.action
-          };
-        });
+          });
+        }
+      }
       
       const result = await RolePermission.bulkUpdateRolePermissions(roleId, permissionsWithIds, roleName);
       return result;

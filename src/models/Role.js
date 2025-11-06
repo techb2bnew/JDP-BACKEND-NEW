@@ -1,4 +1,5 @@
 import { supabase } from '../config/database.js';
+import { RolePermission } from './RolePermission.js';
 
 export class Role {
   static async create(roleData) {
@@ -94,47 +95,73 @@ export class Role {
 
   static async getRolePermissionsById(roleId) {
     try {
-      
-      const { data: role, error: roleError } = await supabase
-        .from('roles')
-        .select('*')
-        .eq('id', roleId)
-        .single();
+      // Check cache first (using RolePermission cache)
+      const cacheKey = `role_permissions_${roleId}`;
+      const cached = RolePermission.permissionCache?.get(cacheKey);
+      if (cached && (Date.now() - cached.timestamp) < (RolePermission.CACHE_TTL || 5 * 60 * 1000)) {
+        return cached.data;
+      }
 
-      if (roleError) {
+      // Run both queries in parallel for better performance
+      const [roleResult, permissionsResult] = await Promise.all([
+        supabase
+          .from('roles')
+          .select('*')
+          .eq('id', roleId)
+          .single(),
+        supabase
+          .from('role_permissions')
+          .select(`
+            id,
+            allowed,
+            permission_id,
+            permissions!inner (
+              id,
+              module,
+              action,
+              display_name,
+              description
+            )
+          `)
+          .eq('role_id', roleId)
+          .order('permissions(module)', { ascending: true })
+          .order('permissions(action)', { ascending: true })
+      ]);
+
+      if (roleResult.error) {
         throw new Error(`Role not found with ID: ${roleId}`);
       }
 
-      const { data: rolePermissions, error: rpError } = await supabase
-        .from('role_permissions')
-        .select(`
-          id,
-          allowed,
-          permission_id,
-          permissions!inner (
-            id,
-            module,
-            action,
-            display_name,
-            description
-          )
-        `)
-        .eq('role_id', roleId)
-        .order('permissions(module)', { ascending: true })
-        .order('permissions(action)', { ascending: true });
-
-      if (rpError) {
-        throw new Error(`Database error: ${rpError.message}`);
+      if (permissionsResult.error) {
+        throw new Error(`Database error: ${permissionsResult.error.message}`);
       }
 
-      const formattedPermissions = rolePermissions.map(rp => ({
-        id: rp.id,
-        allowed: rp.allowed,
-        permission_id: rp.permission_id,
-        permission: rp.permissions
-      }));
+      const role = roleResult.data;
+      const rolePermissions = permissionsResult.data || [];
 
-      return {
+      // Process permissions efficiently - single pass for formatting and counting
+      const formattedPermissions = new Array(rolePermissions.length);
+      let allowedCount = 0;
+      let deniedCount = 0;
+
+      for (let i = 0; i < rolePermissions.length; i++) {
+        const rp = rolePermissions[i];
+        formattedPermissions[i] = {
+          id: rp.id,
+          allowed: rp.allowed,
+          permission_id: rp.permission_id,
+          permission: rp.permissions
+        };
+        
+        // Count in same pass
+        if (rp.allowed) {
+          allowedCount++;
+        } else {
+          deniedCount++;
+        }
+      }
+
+      const result = {
         role: {
           id: role.id,
           role_name: role.role_name,
@@ -146,9 +173,19 @@ export class Role {
         },
         permissions: formattedPermissions,
         total_permissions: formattedPermissions.length,
-        allowed_permissions: formattedPermissions.filter(p => p.allowed).length,
-        denied_permissions: formattedPermissions.filter(p => !p.allowed).length
+        allowed_permissions: allowedCount,
+        denied_permissions: deniedCount
       };
+
+      // Cache the result
+      if (RolePermission.permissionCache) {
+        RolePermission.permissionCache.set(cacheKey, {
+          data: result,
+          timestamp: Date.now()
+        });
+      }
+
+      return result;
     } catch (error) {
       throw error;
     }
