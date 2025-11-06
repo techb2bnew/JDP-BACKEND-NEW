@@ -1,29 +1,56 @@
 import { Product } from '../models/Product.js';
 import { Suppliers } from '../models/Suppliers.js';
 import { Configuration } from '../models/Configuration.js';
+import { supabase } from '../config/database.js';
 import { successResponse } from '../helpers/responseHelper.js';
 
 export class ProductService {
   static async createProduct(productData, createdByUserId) {
     try {
+      // Optimize: Run supplier check and configuration fetch in parallel if needed
+      const checks = [];
       
       if (productData.supplier_id) {
-        const supplier = await Suppliers.getSupplierById(productData.supplier_id);
-        if (!supplier) {
-          throw new Error('Supplier not found');
-        }
+        // Optimize: Simple existence check instead of full getSupplierById
+        checks.push(
+          supabase
+            .from('suppliers')
+            .select('id')
+            .eq('id', productData.supplier_id)
+            .single()
+            .then(({ data, error }) => {
+              if (error && error.code !== 'PGRST116') {
+                throw new Error(`Database error: ${error.message}`);
+              }
+              if (!data) {
+                throw new Error('Supplier not found');
+              }
+              return data;
+            })
+        );
       }
 
       // Apply default markup from configuration if no markup_percentage is provided
       if (productData.supplier_cost_price && !productData.markup_percentage) {
-        try {
-          const config = await Configuration.getConfiguration();
-          if (config && config.markup_percentage > 0) {
-            productData.markup_percentage = config.markup_percentage;
-          }
-        } catch (error) {
-          console.log('Could not fetch configuration for default markup:', error.message);
-        }
+        // Fetch configuration in parallel with supplier check
+        checks.push(
+          Configuration.getConfiguration()
+            .then(config => {
+              if (config && config.markup_percentage > 0) {
+                productData.markup_percentage = config.markup_percentage;
+              }
+              return config;
+            })
+            .catch(error => {
+              console.log('Could not fetch configuration for default markup:', error.message);
+              return null;
+            })
+        );
+      }
+
+      // Wait for all checks to complete in parallel
+      if (checks.length > 0) {
+        await Promise.all(checks);
       }
 
       if (productData.supplier_cost_price && productData.markup_percentage && !productData.markup_amount) {
@@ -91,23 +118,65 @@ export class ProductService {
 
   static async updateProduct(productId, updateData) {
     try {
+      // Optimize: Run supplier check and product fetch in parallel if needed
+      const checks = [];
+      
       if (updateData.supplier_id) {
-        const supplier = await Suppliers.getSupplierById(updateData.supplier_id);
-        if (!supplier) {
-          throw new Error('Supplier not found');
-        }
+        // Optimize: Simple existence check instead of full getSupplierById
+        checks.push(
+          supabase
+            .from('suppliers')
+            .select('id')
+            .eq('id', updateData.supplier_id)
+            .single()
+            .then(({ data, error }) => {
+              if (error && error.code !== 'PGRST116') {
+                throw new Error(`Database error: ${error.message}`);
+              }
+              if (!data) {
+                throw new Error('Supplier not found');
+              }
+              return data;
+            })
+        );
       }
 
+      // Optimize: Only fetch required fields if pricing calculation is needed
       if (updateData.supplier_cost_price || updateData.markup_percentage) {
-        const currentProduct = await Product.getProductById(productId);
+        // Fetch only required fields for pricing calculation
+        const productCheck = supabase
+          .from('products')
+          .select('supplier_cost_price, markup_percentage')
+          .eq('id', productId)
+          .single();
         
-        const costPrice = updateData.supplier_cost_price || currentProduct.supplier_cost_price;
-        const markupPercentage = updateData.markup_percentage || currentProduct.markup_percentage;
+        checks.push(productCheck);
+      }
+
+      // Wait for all checks to complete in parallel
+      if (checks.length > 0) {
+        const results = await Promise.all(checks);
         
-        if (costPrice && markupPercentage) {
-          updateData.markup_amount = (costPrice * markupPercentage) / 100;
-          updateData.jdp_price = costPrice + updateData.markup_amount;
-          updateData.profit_margin = ((updateData.jdp_price - costPrice) / updateData.jdp_price) * 100;
+        // If pricing calculation is needed, get product data from results
+        if (updateData.supplier_cost_price || updateData.markup_percentage) {
+          const productResult = results[results.length - 1];
+          
+          if (productResult.error && productResult.error.code !== 'PGRST116') {
+            throw new Error(`Database error: ${productResult.error.message}`);
+          }
+          if (!productResult.data) {
+            throw new Error('Product not found');
+          }
+          
+          const currentProduct = productResult.data;
+          const costPrice = updateData.supplier_cost_price || currentProduct.supplier_cost_price;
+          const markupPercentage = updateData.markup_percentage || currentProduct.markup_percentage;
+          
+          if (costPrice && markupPercentage) {
+            updateData.markup_amount = (costPrice * markupPercentage) / 100;
+            updateData.jdp_price = costPrice + updateData.markup_amount;
+            updateData.profit_margin = ((updateData.jdp_price - costPrice) / updateData.jdp_price) * 100;
+          }
         }
       }
 
@@ -129,7 +198,17 @@ export class ProductService {
 
   static async getProductsBySupplier(supplierId, page = 1, limit = 10) {
     try {
-      const supplier = await Suppliers.getSupplierById(supplierId);
+      // Optimize: Simple existence check instead of full getSupplierById
+      const { data: supplier, error: checkError } = await supabase
+        .from('suppliers')
+        .select('id')
+        .eq('id', supplierId)
+        .single();
+
+      if (checkError && checkError.code !== 'PGRST116') {
+        throw new Error(`Database error: ${checkError.message}`);
+      }
+
       if (!supplier) {
         throw new Error('Supplier not found');
       }

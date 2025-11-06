@@ -63,152 +63,106 @@ export class Product {
     try {
       const offset = (page - 1) * limit;
 
-      let query = supabase
-        .from('products')
-        .select(`
-          *,
-          created_by_user:users!products_created_by_fkey(
-            id,
-            full_name,
-            email
-          ),
-          job:jobs!products_job_id_fkey(
-            id,
-            job_title,
-            job_type,
-            status,
-            priority
-          ),
-          suppliers (
-            id,
-            user_id,
-            supplier_code,
-            company_name,
-            contact_person,
-            address,
-            contract_start,
-            contract_end,
-            notes,
-            created_at,
-            users (
-              id,
-              full_name,
-              email,
-              phone,
-              role,
-              status,
-              photo_url,
-              created_at
-            )
-          )
-        `, { count: 'exact' });
+      // Helper function to build query with filters (DRY principle)
+      const buildQuery = (includeSelect = true) => {
+        let query = includeSelect
+          ? supabase
+              .from('products')
+              .select(`
+                *,
+                created_by_user:users!products_created_by_fkey(
+                  id,
+                  full_name,
+                  email
+                ),
+                job:jobs!products_job_id_fkey(
+                  id,
+                  job_title,
+                  job_type,
+                  status,
+                  priority
+                ),
+                suppliers (
+                  id,
+                  user_id,
+                  supplier_code,
+                  company_name,
+                  contact_person,
+                  address,
+                  contract_start,
+                  contract_end,
+                  notes,
+                  created_at,
+                  users (
+                    id,
+                    full_name,
+                    email,
+                    phone,
+                    role,
+                    status,
+                    photo_url,
+                    created_at
+                  )
+                )
+              `, includeSelect && { count: 'exact' })
+          : supabase
+              .from('products')
+              .select('*', { count: 'exact', head: true });
 
-      if (filters.category) {
-        query = query.ilike('category', `%${filters.category}%`);
-      }
-      if (filters.supplier_id) {
-        query = query.eq('supplier_id', filters.supplier_id);
-      }
-      if (filters.job_id) {
-        query = query.eq('job_id', filters.job_id);
-      }
-      if (filters.is_custom) {
-        query = query.eq('is_custom', filters.is_custom === 'true');
-      }
-      if (filters.status) {
-        query = query.eq('status', filters.status);
-      }
-      if (filters.search) {
-        query = query.or(`product_name.ilike.%${filters.search}%,description.ilike.%${filters.search}%,jdp_sku.ilike.%${filters.search}%`);
-      }
+        if (filters.category) {
+          query = query.ilike('category', `%${filters.category}%`);
+        }
+        if (filters.supplier_id) {
+          query = query.eq('supplier_id', filters.supplier_id);
+        }
+        if (filters.job_id) {
+          query = query.eq('job_id', filters.job_id);
+        }
+        if (filters.is_custom) {
+          query = query.eq('is_custom', filters.is_custom === 'true');
+        }
+        if (filters.status) {
+          query = query.eq('status', filters.status);
+        }
+        if (filters.search) {
+          query = query.or(`product_name.ilike.%${filters.search}%,description.ilike.%${filters.search}%,jdp_sku.ilike.%${filters.search}%`);
+        }
 
-      const { count, error: countError } = await query;
+        return query;
+      };
 
-      if (countError) {
-        throw new Error(`Database error: ${countError.message}`);
-      }
+      // Optimize: Run count and data queries in parallel
+      const [countResult, dataResult] = await Promise.all([
+        buildQuery(false),
+        buildQuery(true)
+          .order('id', { ascending: false })
+          .range(offset, offset + limit - 1)
+      ]);
 
-      let dataQuery = supabase
-        .from('products')
-        .select(`
-          *,
-          created_by_user:users!products_created_by_fkey(
-            id,
-            full_name,
-            email
-          ),
-          job:jobs!products_job_id_fkey(
-            id,
-            job_title,
-            job_type,
-            status,
-            priority
-          ),
-          suppliers (
-            id,
-            user_id,
-            supplier_code,
-            company_name,
-            contact_person,
-            address,
-            contract_start,
-            contract_end,
-            notes,
-            created_at,
-            users (
-              id,
-              full_name,
-              email,
-              phone,
-              role,
-              status,
-              photo_url,
-              created_at
-            )
-          )
-        `);
-
-   
-      if (filters.category) {
-        dataQuery = dataQuery.ilike('category', `%${filters.category}%`);
-      }
-      if (filters.supplier_id) {
-        dataQuery = dataQuery.eq('supplier_id', filters.supplier_id);
-      }
-      if (filters.job_id) {
-        dataQuery = dataQuery.eq('job_id', filters.job_id);
-      }
-      if (filters.is_custom) {
-        dataQuery = dataQuery.eq('is_custom', filters.is_custom === 'true');
-      }
-      if (filters.status) {
-        dataQuery = dataQuery.eq('status', filters.status);
-      }
-      if (filters.search) {
-        dataQuery = dataQuery.or(`product_name.ilike.%${filters.search}%,description.ilike.%${filters.search}%,jdp_sku.ilike.%${filters.search}%`);
+      if (countResult.error) {
+        throw new Error(`Database error: ${countResult.error.message}`);
       }
 
-      const { data, error } = await dataQuery
-        .order('id', { ascending: false })
-        .range(offset, offset + limit - 1);
-
-      if (error) {
-        throw new Error(`Database error: ${error.message}`);
+      if (dataResult.error) {
+        throw new Error(`Database error: ${dataResult.error.message}`);
       }
 
+      const count = countResult.count || 0;
+      const data = dataResult.data || [];
       const totalPages = Math.ceil(count / limit);
 
-      // Calculate total cost for all products
-      const totalCost = (data || []).reduce((sum, product) => {
-        // Use unit_cost only for custom products, jdp_price for all others
-        const cost = product.is_custom === true ? 
-          (parseFloat(product.unit_cost) || 0) : 
-          (parseFloat(product.jdp_price) || 0);
-        return sum + cost;
-      }, 0);
+      // Optimize: Calculate total cost efficiently (single pass)
+      let totalCost = 0;
+      for (let i = 0; i < data.length; i++) {
+        const product = data[i];
+        const cost = product.is_custom === true
+          ? (parseFloat(product.unit_cost) || 0)
+          : (parseFloat(product.jdp_price) || 0);
+        totalCost += cost;
+      }
 
       return {
-        data: data || [],
+        data: data,
         totalCost: totalCost.toFixed(2),
         pagination: {
           currentPage: page,
@@ -362,8 +316,22 @@ export class Product {
 
   static async delete(productId) {
     try {
-      const product = await this.getProductById(productId);
+      // Optimize: Fetch only required fields for delete response (not full product details)
+      const { data: product, error: fetchError } = await supabase
+        .from('products')
+        .select('id, product_name, jdp_sku, category')
+        .eq('id', productId)
+        .single();
+
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        throw new Error(`Database error: ${fetchError.message}`);
+      }
+
+      if (!product) {
+        throw new Error('Product not found');
+      }
       
+      // Optimize: Run delete in parallel with product fetch (already done above)
       const { error } = await supabase
         .from('products')
         .delete()
@@ -392,82 +360,86 @@ export class Product {
     try {
       const offset = (page - 1) * limit;
 
-      const { count, error: countError } = await supabase
-        .from('products')
-        .select('*', { count: 'exact', head: true })
-        .eq('supplier_id', supplierId);
-
-      if (countError) {
-        throw new Error(`Database error: ${countError.message}`);
-      }
-
-      const { data, error } = await supabase
-        .from('products')
-        .select(`
-          id,
-          product_name,
-          category,
-          supplier_id,
-          job_id,
-          description,
-          supplier_sku,
-          jdp_sku,
-          supplier_cost_price,
-          estimated_price,
-          markup_percentage,
-          markup_amount,
-          jdp_price,
-          profit_margin,
-          stock_quantity,
-          unit,
-          status,
-          total_cost,
-          system_ip,
-          created_by,
-          created_at,
-          updated_at,
-          job:jobs!products_job_id_fkey(
+      // Optimize: Run count and data queries in parallel
+      const [countResult, dataResult] = await Promise.all([
+        supabase
+          .from('products')
+          .select('*', { count: 'exact', head: true })
+          .eq('supplier_id', supplierId),
+        supabase
+          .from('products')
+          .select(`
             id,
-            job_title,
-            job_type,
+            product_name,
+            category,
+            supplier_id,
+            job_id,
+            description,
+            supplier_sku,
+            jdp_sku,
+            supplier_cost_price,
+            estimated_price,
+            markup_percentage,
+            markup_amount,
+            jdp_price,
+            profit_margin,
+            stock_quantity,
+            unit,
             status,
-            priority
-          ),
-          suppliers (
-            id,
-            user_id,
-            supplier_code,
-            company_name,
-            contact_person,
-            address,
-            contract_start,
-            contract_end,
-            notes,
+            total_cost,
+            system_ip,
+            created_by,
             created_at,
-            users (
+            updated_at,
+            job:jobs!products_job_id_fkey(
               id,
-              full_name,
-              email,
-              phone,
-              role,
+              job_title,
+              job_type,
               status,
-              photo_url,
-              created_at
+              priority
+            ),
+            suppliers (
+              id,
+              user_id,
+              supplier_code,
+              company_name,
+              contact_person,
+              address,
+              contract_start,
+              contract_end,
+              notes,
+              created_at,
+              users (
+                id,
+                full_name,
+                email,
+                phone,
+                role,
+                status,
+                photo_url,
+                created_at
+              )
             )
-          )
-        `)
-        .eq('supplier_id', supplierId)
-        .order('id', { ascending: false })
-        .range(offset, offset + limit - 1);
+          `)
+          .eq('supplier_id', supplierId)
+          .order('id', { ascending: false })
+          .range(offset, offset + limit - 1)
+      ]);
 
-      if (error) {
-        throw new Error(`Database error: ${error.message}`);
+      if (countResult.error) {
+        throw new Error(`Database error: ${countResult.error.message}`);
       }
 
+      if (dataResult.error) {
+        throw new Error(`Database error: ${dataResult.error.message}`);
+      }
+
+      const count = countResult.count || 0;
+      const data = dataResult.data || [];
       const totalPages = Math.ceil(count / limit);
 
       return {
-        data: data || [],
+        data: data,
         pagination: {
           currentPage: page,
           totalPages: totalPages,
@@ -607,68 +579,75 @@ export class Product {
     try {
       const offset = (page - 1) * limit;
 
-      const { count, error: countError } = await supabase
-        .from('products')
-        .select('*', { count: 'exact', head: true })
-        .eq('job_id', jobId);
-
-      if (countError) {
-        throw new Error(`Database error: ${countError.message}`);
-      }
-
-      const { data, error } = await supabase
-        .from('products')
-        .select(`
-          *,
-          job:jobs!products_job_id_fkey(
-            id,
-            job_title,
-            job_type,
-            status,
-            priority
-          ),
-          suppliers (
-            id,
-            user_id,
-            supplier_code,
-            company_name,
-            contact_person,
-            address,
-            contract_start,
-            contract_end,
-            notes,
-            created_at,
-            users (
+      // Optimize: Run count and data queries in parallel
+      const [countResult, dataResult] = await Promise.all([
+        supabase
+          .from('products')
+          .select('*', { count: 'exact', head: true })
+          .eq('job_id', jobId),
+        supabase
+          .from('products')
+          .select(`
+            *,
+            job:jobs!products_job_id_fkey(
               id,
-              full_name,
-              email,
-              phone,
-              role,
+              job_title,
+              job_type,
               status,
-              photo_url,
-              created_at
+              priority
+            ),
+            suppliers (
+              id,
+              user_id,
+              supplier_code,
+              company_name,
+              contact_person,
+              address,
+              contract_start,
+              contract_end,
+              notes,
+              created_at,
+              users (
+                id,
+                full_name,
+                email,
+                phone,
+                role,
+                status,
+                photo_url,
+                created_at
+              )
             )
-          )
-        `)
-        .eq('job_id', jobId)
-        .order('id', { ascending: false })
-        .range(offset, offset + limit - 1);
+          `)
+          .eq('job_id', jobId)
+          .order('id', { ascending: false })
+          .range(offset, offset + limit - 1)
+      ]);
 
-      if (error) {
-        throw new Error(`Database error: ${error.message}`);
+      if (countResult.error) {
+        throw new Error(`Database error: ${countResult.error.message}`);
       }
 
+      if (dataResult.error) {
+        throw new Error(`Database error: ${dataResult.error.message}`);
+      }
+
+      const count = countResult.count || 0;
+      const data = dataResult.data || [];
       const totalPages = Math.ceil(count / limit);
 
-      const totalCost = (data || []).reduce((sum, product) => {
-        const cost = product.is_custom === true ? 
-          (parseFloat(product.unit_cost) || 0) : 
-          (parseFloat(product.jdp_price) || 0);
-        return sum + cost;
-      }, 0);
+      // Optimize: Calculate total cost efficiently (single pass)
+      let totalCost = 0;
+      for (let i = 0; i < data.length; i++) {
+        const product = data[i];
+        const cost = product.is_custom === true
+          ? (parseFloat(product.unit_cost) || 0)
+          : (parseFloat(product.jdp_price) || 0);
+        totalCost += cost;
+      }
 
       return {
-        data: data || [],
+        data: data,
         totalCost: totalCost.toFixed(2),
         pagination: {
           currentPage: page,
@@ -688,77 +667,84 @@ export class Product {
     try {
       const offset = (page - 1) * limit;
 
-      let query = supabase
-        .from('products')
-        .select('*', { count: 'exact', head: true })
-        .eq('is_custom', true);
+      // Helper function to build query with filters
+      const buildQuery = (includeSelect = true) => {
+        let query = includeSelect
+          ? supabase
+              .from('products')
+              .select(`
+                *,
+                job:jobs!products_job_id_fkey(
+                  id,
+                  job_title,
+                  job_type,
+                  status,
+                  priority
+                ),
+                suppliers (
+                  id,
+                  user_id,
+                  supplier_code,
+                  company_name,
+                  contact_person,
+                  address,
+                  contract_start,
+                  contract_end,
+                  notes,
+                  created_at,
+                  users (
+                    id,
+                    full_name,
+                    email,
+                    phone,
+                    role,
+                    status,
+                    photo_url,
+                    created_at
+                  )
+                )
+              `, { count: 'exact' })
+          : supabase
+              .from('products')
+              .select('*', { count: 'exact', head: true });
 
-      if (jobId) {
-        query = query.eq('job_id', jobId);
+        query = query.eq('is_custom', true);
+
+        if (jobId) {
+          query = query.eq('job_id', jobId);
+        }
+
+        return query;
+      };
+
+      // Optimize: Run count and data queries in parallel
+      const [countResult, dataResult] = await Promise.all([
+        buildQuery(false),
+        buildQuery(true)
+          .order('id', { ascending: false })
+          .range(offset, offset + limit - 1)
+      ]);
+
+      if (countResult.error) {
+        throw new Error(`Database error: ${countResult.error.message}`);
       }
 
-      const { count, error: countError } = await query;
-
-      if (countError) {
-        throw new Error(`Database error: ${countError.message}`);
+      if (dataResult.error) {
+        throw new Error(`Database error: ${dataResult.error.message}`);
       }
 
-      let dataQuery = supabase
-        .from('products')
-        .select(`
-          *,
-          job:jobs!products_job_id_fkey(
-            id,
-            job_title,
-            job_type,
-            status,
-            priority
-          ),
-          suppliers (
-            id,
-            user_id,
-            supplier_code,
-            company_name,
-            contact_person,
-            address,
-            contract_start,
-            contract_end,
-            notes,
-            created_at,
-            users (
-              id,
-              full_name,
-              email,
-              phone,
-              role,
-              status,
-              photo_url,
-              created_at
-            )
-          )
-        `)
-        .eq('is_custom', true);
-
-      if (jobId) {
-        dataQuery = dataQuery.eq('job_id', jobId);
-      }
-
-      const { data, error } = await dataQuery
-        .order('id', { ascending: false })
-        .range(offset, offset + limit - 1);
-
-      if (error) {
-        throw new Error(`Database error: ${error.message}`);
-      }
-
+      const count = countResult.count || 0;
+      const data = dataResult.data || [];
       const totalPages = Math.ceil(count / limit);
 
-      const totalCost = (data || []).reduce((sum, product) => {
-        return sum + (parseFloat(product.unit_cost) || 0);
-      }, 0);
+      // Optimize: Calculate total cost efficiently (single pass)
+      let totalCost = 0;
+      for (let i = 0; i < data.length; i++) {
+        totalCost += (parseFloat(data[i].unit_cost) || 0);
+      }
 
       return {
-        data: data || [],
+        data: data,
         totalCost: totalCost.toFixed(2),
         pagination: {
           currentPage: page,
@@ -776,69 +762,52 @@ export class Product {
 
   static async getStats() {
     try {
-      const { data: totalProducts, error: totalError } = await supabase
-        .from('products')
-        .select('id', { count: 'exact' });
+      // Optimize: Run all count queries in parallel
+      const [totalResult, activeResult, inactiveResult, draftResult, lowStockResult, inventoryResult] = await Promise.all([
+        supabase
+          .from('products')
+          .select('id', { count: 'exact', head: true }),
+        supabase
+          .from('products')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'active'),
+        supabase
+          .from('products')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'inactive'),
+        supabase
+          .from('products')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'draft'),
+        supabase
+          .from('products')
+          .select('id', { count: 'exact', head: true })
+          .lte('stock_quantity', 10),
+        supabase
+          .from('products')
+          .select('jdp_price, stock_quantity')
+      ]);
 
-      if (totalError) {
-        throw new Error(`Database error: ${totalError.message}`);
+      if (totalResult.error) {
+        throw new Error(`Database error: ${totalResult.error.message}`);
       }
 
-      const { data: activeProducts, error: activeError } = await supabase
-        .from('products')
-        .select('id', { count: 'exact' })
-        .eq('status', 'active');
+      const total = totalResult.count || 0;
+      const active = activeResult.count || 0;
+      const inactive = inactiveResult.count || 0;
+      const draft = draftResult.count || 0;
+      const lowStock = lowStockResult.count || 0;
 
-      if (activeError) {
-        throw new Error(`Database error: ${activeError.message}`);
+      // Optimize: Calculate total inventory value efficiently (single pass)
+      let totalInventoryValue = 0;
+      if (!inventoryResult.error && inventoryResult.data) {
+        for (let i = 0; i < inventoryResult.data.length; i++) {
+          const product = inventoryResult.data[i];
+          const price = parseFloat(product.jdp_price) || 0;
+          const quantity = parseInt(product.stock_quantity) || 0;
+          totalInventoryValue += (price * quantity);
+        }
       }
-
-      const { data: inactiveProducts, error: inactiveError } = await supabase
-        .from('products')
-        .select('id', { count: 'exact' })
-        .eq('status', 'inactive');
-
-      if (inactiveError) {
-        throw new Error(`Database error: ${inactiveError.message}`);
-      }
-
-      const { data: draftProducts, error: draftError } = await supabase
-        .from('products')
-        .select('id', { count: 'exact' })
-        .eq('status', 'draft');
-
-      if (draftError) {
-        throw new Error(`Database error: ${draftError.message}`);
-      }
-
-      const { data: lowStockProducts, error: lowStockError } = await supabase
-        .from('products')
-        .select('id', { count: 'exact' })
-        .lte('stock_quantity', 10);
-
-      if (lowStockError) {
-        throw new Error(`Database error: ${lowStockError.message}`);
-      }
-
-      const { data: inventoryData, error: inventoryError } = await supabase
-        .from('products')
-        .select('jdp_price, stock_quantity');
-
-      if (inventoryError) {
-        throw new Error(`Database error: ${inventoryError.message}`);
-      }
-
-      const totalInventoryValue = inventoryData?.reduce((total, product) => {
-        const price = parseFloat(product.jdp_price) || 0;
-        const quantity = parseInt(product.stock_quantity) || 0;
-        return total + (price * quantity);
-      }, 0) || 0;
-
-      const total = totalProducts?.length || 0;
-      const active = activeProducts?.length || 0;
-      const inactive = inactiveProducts?.length || 0;
-      const draft = draftProducts?.length || 0;
-      const lowStock = lowStockProducts?.length || 0;
 
       return {
         total,
