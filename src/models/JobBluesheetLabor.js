@@ -491,23 +491,27 @@ export class JobBluesheetLabor {
 
       let matchedTier = null;
 
-      // Step 1: Check for exact match with min_hours (highest priority)
-      // If same value exists in both min_hours and max_hours, min_hours tier takes priority
+      // Step 1: Check for exact match with min_hours
       const exactMinMatch = normalizedRates.find((tier) => {
-        const hasMinHours = tier.min_hours !== null && tier.min_hours !== undefined;                                                                            
+        const hasMinHours = tier.min_hours !== null && tier.min_hours !== undefined;
         return hasMinHours && fullRegularHours === tier.min_hours;
       });
 
-      // Step 2: Check for exact match with max_hours (only if min_hours didn't match)
+      // Step 2: Check for exact match with max_hours
       const exactMaxMatch = normalizedRates.find((tier) => {
-        const hasMaxHours = tier.max_hours !== null && tier.max_hours !== undefined;                                                                          
+        const hasMaxHours = tier.max_hours !== null && tier.max_hours !== undefined;
         return hasMaxHours && fullRegularHours === tier.max_hours;
       });
 
-      // Priority: If both match, prefer min_hours tier (first priority)
-      if (exactMinMatch) {
+      // Priority: If both match (same hours), prefer the tier with higher rate
+      if (exactMinMatch && exactMaxMatch) {
+        // Both match - select the one with higher rate
+        matchedTier = exactMinMatch.rate > exactMaxMatch.rate ? exactMinMatch : exactMaxMatch;
+      } else if (exactMinMatch) {
+        // Only min_hours matches
         matchedTier = exactMinMatch;
       } else if (exactMaxMatch) {
+        // Only max_hours matches
         matchedTier = exactMaxMatch;
       } else {
         // Step 3: Check if hours is between min_hours and max_hours (exclusive)
