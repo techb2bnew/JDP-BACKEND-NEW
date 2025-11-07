@@ -99,9 +99,10 @@ export class AuthService {
         throw new Error("Invalid login method");
       }
 
-      // Optimize: Start fetching permissions and lead_labor/labor details BEFORE token generation
+      // Optimize: Start all async operations in parallel BEFORE token generation
       // Token generation is synchronous and fast, so we do it after async operations start
       const fetchPromises = [
+        // Permissions are cached (5 min TTL) - very fast if cached
         RolePermission.getPermissionsByRoleName(user.role).catch(err => {
           console.error('Error fetching permissions:', err);
           return [];
@@ -128,7 +129,7 @@ export class AuthService {
         }
       }
 
-      // Generate token (synchronous, fast) while async operations are running
+      // Generate token (synchronous, fast - happens while async operations run)
       const token = generateToken({
         id: user.id,
         email: user.email,
@@ -146,37 +147,58 @@ export class AuthService {
       const leadLaborDetails = login_by === 'app' && user.management_type === 'lead_labor' ? results[1] : null;
       const laborDetails = login_by === 'app' && user.management_type === 'labor' ? results[1] : null;
 
-      // Save token in background (non-blocking) - don't wait for it
+      // Save token in background immediately (non-blocking) - don't wait for it
       // Token is already generated and will be returned in response
-      UserToken.create({
-        user_id: user.id,
-        token: token,
-        token_type: 'access',
-        expires_at: tokenExpiry.toISOString(),
-        is_active: true
-      }).catch(err => {
-        console.error('Error saving token (non-critical):', err);
-        // Token is already generated, so this error won't affect login
+      setImmediate(() => {
+        UserToken.create({
+          user_id: user.id,
+          token: token,
+          token_type: 'access',
+          expires_at: tokenExpiry.toISOString(),
+          is_active: true
+        }).catch(err => {
+          console.error('Error saving token (non-critical):', err);
+          // Token is already generated, so this error won't affect login
+        });
       });
 
-      const { password: userPassword, ...userWithoutPassword } = user;
+      // Remove password from user object
+      const { 
+        password: userPassword, 
+        ...userWithoutPassword 
+      } = user;
 
-      // Build response object
+      // Build clean user object with only essential fields (optimize response size)
+      const cleanUser = {
+        id: userWithoutPassword.id,
+        full_name: userWithoutPassword.full_name,
+        email: userWithoutPassword.email,
+        phone: userWithoutPassword.phone,
+        role: userWithoutPassword.role,
+        status: userWithoutPassword.status,
+        photo_url: userWithoutPassword.photo_url,
+        created_at: userWithoutPassword.created_at,
+        is_temporary_password: userWithoutPassword.is_temporary_password,
+        password_changed_at: userWithoutPassword.password_changed_at,
+        management_type: userWithoutPassword.management_type
+      };
+
+      // Add lead_labor or labor details INSIDE user object
+      if (leadLaborDetails) {
+        cleanUser.lead_labor = leadLaborDetails;
+      }
+      if (laborDetails) {
+        cleanUser.labor = laborDetails;
+      }
+
+      // Build response object - lead_labor/labor is now INSIDE user object
       const responseData = {
-        user: userWithoutPassword,
+        user: cleanUser,
         token,
         permissions,
         management_type: user.management_type,
         login_by: login_by
       };
-
-      // Add lead_labor or labor details as arrays (even if single object, wrap in array)
-      if (leadLaborDetails) {
-        responseData.lead_labor = [leadLaborDetails];
-      }
-      if (laborDetails) {
-        responseData.labor = [laborDetails];
-      }
 
       return successResponse(
         responseData,

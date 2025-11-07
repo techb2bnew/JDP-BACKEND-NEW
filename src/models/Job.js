@@ -973,6 +973,51 @@ export class Job {
         }
       });
 
+      // Optimize: Validate foreign keys BEFORE update (in parallel for performance)
+      const validationPromises = [];
+      
+      if (cleanedUpdateData.customer_id !== undefined && cleanedUpdateData.customer_id !== null) {
+        // Only validate if customer_id is not null (null is allowed for ON DELETE SET NULL)
+        validationPromises.push(
+          supabase
+            .from('customers')
+            .select('id')
+            .eq('id', cleanedUpdateData.customer_id)
+            .single()
+            .then(({ data, error }) => {
+              if (error || !data) {
+                throw new Error(`Customer with ID ${cleanedUpdateData.customer_id} not found`);
+              }
+            })
+        );
+      }
+
+      if (cleanedUpdateData.contractor_id !== undefined && cleanedUpdateData.contractor_id !== null) {
+        // Only validate if contractor_id is not null (null is allowed for ON DELETE SET NULL)
+        validationPromises.push(
+          supabase
+            .from('contractors')
+            .select('id')
+            .eq('id', cleanedUpdateData.contractor_id)
+            .single()
+            .then(({ data, error }) => {
+              if (error || !data) {
+                throw new Error(`Contractor with ID ${cleanedUpdateData.contractor_id} not found`);
+              }
+            })
+        );
+      }
+
+      // Wait for all validations to complete (if any)
+      if (validationPromises.length > 0) {
+        try {
+          await Promise.all(validationPromises);
+        } catch (validationError) {
+          // Validation error - customer/contractor not found
+          throw validationError;
+        }
+      }
+
       const { data, error } = await supabase
         .from("jobs")
         .update({
@@ -1013,6 +1058,13 @@ export class Job {
           throw new Error(`Database constraint violation: ${error.message}`);
         }
         if (error.code === '23503') {
+          // Better error message for foreign key violations
+          if (error.message.includes('customer_id')) {
+            throw new Error(`Customer with the provided ID does not exist`);
+          }
+          if (error.message.includes('contractor_id')) {
+            throw new Error(`Contractor with the provided ID does not exist`);
+          }
           throw new Error(`Foreign key constraint violation: ${error.message}`);
         }
         throw new Error(`Database error: ${error.message}`);
@@ -1028,7 +1080,10 @@ export class Job {
       return data;
     } catch (error) {
       // Re-throw with more context if it's not already a known error
-      if (error.message.includes("not found") || error.message.includes("Database error")) {
+      if (error.message.includes("not found") || 
+          error.message.includes("Database error") ||
+          error.message.includes("does not exist") ||
+          error.message.includes("constraint violation")) {
         throw error;
       }
       throw new Error(`Failed to update job: ${error.message}`);
