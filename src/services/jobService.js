@@ -6,8 +6,11 @@ import { supabase } from "../config/database.js";
 export class JobService {
   static async createJob(jobData, createdByUserId) {
     try {
+      const status = jobData.status ?? 'pending';
+
       const jobWithCreator = {
         ...jobData,
+        status,
         created_by: createdByUserId
       };
 
