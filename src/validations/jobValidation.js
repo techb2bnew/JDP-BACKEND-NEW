@@ -46,15 +46,17 @@ export const createJobSchema = {
         description: 'City and ZIP code'
       },
       phone: {
-        type: 'string',
-        pattern: '^\\+?[\\d\\s\\-\\(\\)]+$',
-        maxLength: 20,
+        anyOf: [
+          { type: 'string', pattern: '^\\+?[\\d\\s\\-\\(\\)]+$', maxLength: 20 },
+          { type: 'null' }
+        ],
         description: 'Phone number'
       },
       email: {
-        type: 'string',
-        format: 'email',
-        maxLength: 150,
+        anyOf: [
+          { type: 'string', format: 'email', maxLength: 150 },
+          { type: 'null' }
+        ],
         description: 'Email address'
       },
       bill_to_address: {
@@ -69,15 +71,17 @@ export const createJobSchema = {
         description: 'Billing city and ZIP'
       },
       bill_to_phone: {
-        type: 'string',
-        pattern: '^\\+?[\\d\\s\\-\\(\\)]+$',
-        maxLength: 20,
+        anyOf: [
+          { type: 'string', pattern: '^\\+?[\\d\\s\\-\\(\\)]+$', maxLength: 20 },
+          { type: 'null' }
+        ],
         description: 'Billing phone number'
       },
       bill_to_email: {
-        type: 'string',
-        format: 'email',
-        maxLength: 150,
+        anyOf: [
+          { type: 'string', format: 'email', maxLength: 150 },
+          { type: 'null' }
+        ],
         description: 'Billing email address'
       },
       same_as_address: {
