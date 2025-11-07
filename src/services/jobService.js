@@ -149,8 +149,6 @@ export class JobService {
 
   static async updateJob(jobId, updateData) {
     try {
-      // Optimize: No need for separate existence check - update will fail if job doesn't exist
-      // This saves one database query and makes update faster
       const updatedJob = await Job.update(jobId, updateData);
 
       if (!updatedJob) {
@@ -162,13 +160,25 @@ export class JobService {
         "Job updated successfully"
       );
     } catch (error) {
-      // Improve error handling - provide more specific error messages
-      if (error.message.includes("not found") || error.message.includes("PGRST116")) {
+      // Pass through validation errors (customer/contractor not found) directly
+      if (error.message.includes("Customer with ID") || 
+          error.message.includes("Contractor with ID") ||
+          error.message.includes("does not exist") ||
+          error.message.includes("constraint violation")) {
+        throw error; // Re-throw validation/constraint errors as-is
+      }
+      
+      // Handle job not found errors
+      if (error.message.includes("Job not found") || error.message.includes("PGRST116")) {
         throw new Error("Job not found");
       }
+      
+      // Handle database errors
       if (error.message.includes("Database error")) {
         throw new Error(`Database error: ${error.message}`);
       }
+      
+      // Re-throw any other errors
       throw error;
     }
   }
