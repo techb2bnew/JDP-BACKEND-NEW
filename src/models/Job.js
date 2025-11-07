@@ -1389,8 +1389,22 @@ export class Job {
       const jobsArray = potentialJobs || [];
       let activeJobs = 0;
       let completedJobs = 0;
+      let thisWeekJobs = 0;
       const startIdx = offset;
       const endIdx = offset + limit;
+      
+      // Calculate this week's start (Monday 00:00:00) and end (Sunday 23:59:59)
+      const now = new Date();
+      const dayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+      const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // Days to get to Monday
+      
+      const startOfWeek = new Date(now);
+      startOfWeek.setDate(now.getDate() + daysToMonday);
+      startOfWeek.setHours(0, 0, 0, 0);
+      
+      const endOfWeek = new Date(startOfWeek);
+      endOfWeek.setDate(startOfWeek.getDate() + 6); // Sunday
+      endOfWeek.setHours(23, 59, 59, 999);
       
       // Single pass: filter jobs, calculate summary, and build paginated array
       for (let i = 0; i < jobsArray.length; i++) {
@@ -1415,6 +1429,14 @@ export class Job {
             }
             if (COMPLETED_JOB_STATUSES.has(status)) {
               completedJobs += 1;
+            }
+            
+            // Check if job was created this week
+            if (job.created_at) {
+              const jobCreatedAt = new Date(job.created_at);
+              if (jobCreatedAt >= startOfWeek && jobCreatedAt <= endOfWeek) {
+                thisWeekJobs += 1;
+              }
             }
           }
         } catch (e) {
@@ -1452,7 +1474,8 @@ export class Job {
         summary: {
           total_jobs: totalJobs,
           active_jobs: activeJobs,
-          completed_jobs: completedJobs
+          completed_jobs: completedJobs,
+          this_week_jobs: thisWeekJobs
         }
       };
     } catch (error) {
