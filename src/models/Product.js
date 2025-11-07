@@ -314,6 +314,70 @@ export class Product {
     }
   }
 
+  static async checkProductRelationships(productId) {
+    try {
+      if (!productId) {
+        throw new Error('Product ID is required');
+      }
+
+      const relationships = [];
+
+      // Optimize: Check all relationships in parallel
+      const [bluesheetResult, orderItemsResult, estimateProductsResult] = await Promise.all([
+        // Check if product is used in bluesheets
+        supabase
+          .from('job_bluesheet_material')
+          .select('id')
+          .eq('product_id', productId)
+          .limit(1),
+        // Check if product is used in order items
+        supabase
+          .from('order_items')
+          .select('id')
+          .eq('product_id', productId)
+          .limit(1),
+        // Check if product is used in estimates
+        supabase
+          .from('estimate_products')
+          .select('id')
+          .eq('product_id', productId)
+          .limit(1)
+      ]);
+
+      if (!bluesheetResult.error && bluesheetResult.data && bluesheetResult.data.length > 0) {
+        relationships.push({
+          table: 'job_bluesheet_material',
+          count: bluesheetResult.data.length,
+          message: 'This product is used in bluesheets'
+        });
+      }
+
+      if (!orderItemsResult.error && orderItemsResult.data && orderItemsResult.data.length > 0) {
+        relationships.push({
+          table: 'order_items',
+          count: orderItemsResult.data.length,
+          message: 'This product is used in orders'
+        });
+      }
+
+      if (!estimateProductsResult.error && estimateProductsResult.data && estimateProductsResult.data.length > 0) {
+        relationships.push({
+          table: 'estimate_products',
+          count: estimateProductsResult.data.length,
+          message: 'This product is used in estimates'
+        });
+      }
+
+      return {
+        hasRelationships: relationships.length > 0,
+        relationships: relationships,
+        canDelete: relationships.length === 0
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+
   static async delete(productId) {
     try {
       // Optimize: Fetch only required fields for delete response (not full product details)

@@ -117,29 +117,26 @@ export class JobService {
         throw new Error("Job not found");
       }
 
-      // Add derived computed fields for labor entries without mutating DB
-      const jobWithComputed = { ...job };
-      if (Array.isArray(jobWithComputed.bluesheets)) {
-        jobWithComputed.bluesheets = await Promise.all(
-          jobWithComputed.bluesheets.map(async (bluesheet) => {
-            const sheet = { ...bluesheet };
-            if (Array.isArray(sheet.labor_entries)) {
-              sheet.labor_entries = await Promise.all(
-                sheet.labor_entries.map(async (entry) => {
-                  const e = { ...entry };
-                  e.computed_total_cost = e.total_cost ?? null;
-                  e.computed_hourly_rate = e.hourly_rate ?? null;
-                  return e;
-                })
-              );
-            }
-            return sheet;
-          })
-        );
+      // Optimize: Add computed fields without async processing (just copy existing values)
+      // These are already present in the data, so no need for Promise.all or async mapping
+      if (Array.isArray(job.bluesheets)) {
+        job.bluesheets = job.bluesheets.map((bluesheet) => {
+          const sheet = { ...bluesheet };
+          if (Array.isArray(sheet.labor_entries)) {
+            sheet.labor_entries = sheet.labor_entries.map((entry) => {
+              return {
+                ...entry,
+                computed_total_cost: entry.total_cost ?? null,
+                computed_hourly_rate: entry.hourly_rate ?? null
+              };
+            });
+          }
+          return sheet;
+        });
       }
 
       return successResponse(
-        jobWithComputed,
+        job,
         "Job retrieved successfully"
       );
     } catch (error) {

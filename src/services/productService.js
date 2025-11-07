@@ -189,6 +189,14 @@ export class ProductService {
 
   static async deleteProduct(productId) {
     try {
+      // Check if product has relationships with other tables
+      const relationshipCheck = await Product.checkProductRelationships(productId);
+      
+      if (!relationshipCheck.canDelete) {
+        const relationshipMessages = relationshipCheck.relationships.map(rel => rel.message).join(', ');
+        throw new Error(`Cannot delete this product because it has related data: ${relationshipMessages}. Please remove all related data first.`);
+      }
+
       const result = await Product.delete(productId);
       return result;
     } catch (error) {

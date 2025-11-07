@@ -399,6 +399,7 @@ export class Job {
         return [];
       }
 
+      // Optimize: Fetch orders first (includes order IDs we need for items query)
       const { data: ordersData, error } = await supabase
         .from("orders")
         .select(`
@@ -453,44 +454,62 @@ export class Job {
         return [];
       }
 
-      // Fetch order items for each order
-      const ordersWithItems = await Promise.all(
-        (ordersData || []).map(async (order) => {
-          const { data: items, error: itemsError } = await supabase
-            .from("order_items")
-            .select(`
-              id,
-              product_id,
-              quantity,
-              total_price,
-              created_at,
-              updated_at,
-              product:products!order_items_product_id_fkey(
-                id,
-                product_name,
-                jdp_sku,
-                supplier_sku,
-                jdp_price,
-                estimated_price,
-                supplier_cost_price,
-                markup_percentage,
-                stock_quantity,
-                unit,
-                category,
-                description
-              )
-            `)
-            .eq("order_id", order.id)
-            .order("created_at", { ascending: true });
+      if (!ordersData || ordersData.length === 0) {
+        return [];
+      }
 
-          if (itemsError) {
-            console.error("Error fetching order items:", itemsError);
-            return { ...order, items: [] };
+      // Optimize: Fetch all order items in one query for all orders (eliminates N+1 problem)
+      const orderIds = ordersData.map(o => o.id);
+      const { data: allOrderItems, error: itemsError } = await supabase
+        .from("order_items")
+        .select(`
+          id,
+          order_id,
+          product_id,
+          quantity,
+          total_price,
+          created_at,
+          updated_at,
+          product:products!order_items_product_id_fkey(
+            id,
+            product_name,
+            jdp_sku,
+            supplier_sku,
+            jdp_price,
+            estimated_price,
+            supplier_cost_price,
+            markup_percentage,
+            stock_quantity,
+            unit,
+            category,
+            description
+          )
+        `)
+        .in("order_id", orderIds)
+        .order("created_at", { ascending: true });
+
+      if (itemsError) {
+        console.error("Error fetching order items:", itemsError);
+        // Return orders without items if items fetch fails
+        return ordersData.map(order => ({ ...order, items: [] }));
+      }
+
+      // Optimize: Build a Map for O(1) lookup of items by order_id
+      const itemsByOrderId = new Map();
+      if (allOrderItems && allOrderItems.length > 0) {
+        allOrderItems.forEach(item => {
+          if (!itemsByOrderId.has(item.order_id)) {
+            itemsByOrderId.set(item.order_id, []);
           }
+          itemsByOrderId.get(item.order_id).push(item);
+        });
+      }
 
-          return { ...order, items: items || [] };
-        })
-      );
+      // Map items to orders efficiently
+      const ordersWithItems = ordersData.map(order => ({
+        ...order,
+        items: itemsByOrderId.get(order.id) || []
+      }));
 
       return ordersWithItems;
     } catch (error) {
