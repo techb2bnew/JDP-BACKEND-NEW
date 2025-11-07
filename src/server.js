@@ -106,9 +106,7 @@ await fastify.register(jobBluesheetRoutes, { prefix: '/api/bluesheet' });
 await fastify.register(jobDocumentRoutes, { prefix: '/api/job-documents' });
 await fastify.register(dashboardRoutes, { prefix: '/api/dashboard' });
 await fastify.register(analyticsRoutes, { prefix: '/api/analytics' });
-await fastify.register(notificationRoutes, { prefix: '/api' });
-
-
+await fastify.register(notificationRoutes, { prefix: '/api/notifications' });
 fastify.get('/health', async (request, reply) => {
   return { status: 'OK', timestamp: new Date().toISOString() };
 });

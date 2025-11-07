@@ -1483,6 +1483,118 @@ export class Job {
     }
   }
 
+  static async getTodayJobsByLeadLabor(leadLaborId, page = 1, limit = 10) {
+    try {
+      if (!leadLaborId) {
+        throw new Error('leadLaborId is required');
+      }
+
+      const targetId = parseInt(leadLaborId);
+      const offset = (page - 1) * limit;
+
+      // Calculate today's start and end (00:00:00 to 23:59:59)
+      const now = new Date();
+      const startOfDay = new Date(now);
+      startOfDay.setHours(0, 0, 0, 0);
+
+      const endOfDay = new Date(startOfDay);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      // Fetch jobs created today that potentially include this lead labor ID
+      const { data: potentialJobs, error: jobsError } = await supabase
+        .from('jobs')
+        .select(`
+          *,
+          customer:customers!jobs_customer_id_fkey(
+            id,
+            customer_name,
+            company_name,
+            email,
+            phone
+          ),
+          contractor:contractors!jobs_contractor_id_fkey(
+            id,
+            contractor_name,
+            company_name,
+            email,
+            phone
+          ),
+          created_by_user:users!jobs_created_by_fkey(
+            id,
+            full_name,
+            email
+          )
+        `)
+        .ilike('assigned_lead_labor_ids', `%${leadLaborId}%`)
+        .gte('created_at', startOfDay.toISOString())
+        .lte('created_at', endOfDay.toISOString())
+        .order('created_at', { ascending: false });
+
+      if (jobsError) {
+        throw new Error(`Database error: ${jobsError.message}`);
+      }
+
+      const filteredJobs = [];
+      const jobsArray = potentialJobs || [];
+      let activeJobs = 0;
+      let completedJobs = 0;
+
+      for (let i = 0; i < jobsArray.length; i++) {
+        const job = jobsArray[i];
+        try {
+          let leadLaborIds = [];
+          if (typeof job.assigned_lead_labor_ids === 'string') {
+            leadLaborIds = safeJsonParse(job.assigned_lead_labor_ids, []);
+          } else if (Array.isArray(job.assigned_lead_labor_ids)) {
+            leadLaborIds = job.assigned_lead_labor_ids;
+          }
+
+          const hasMatch = leadLaborIds.some((id) => parseInt(id) === targetId);
+          if (hasMatch) {
+            filteredJobs.push(job);
+
+            const status = (job.status || '').toLowerCase();
+            if (ACTIVE_JOB_STATUSES.has(status)) {
+              activeJobs += 1;
+            }
+            if (COMPLETED_JOB_STATUSES.has(status)) {
+              completedJobs += 1;
+            }
+          }
+        } catch (e) {
+          console.error('Error parsing lead labor IDs:', e);
+        }
+      }
+
+      const totalJobs = filteredJobs.length;
+      const paginatedJobs = filteredJobs.slice(offset, offset + limit);
+      const totalPages = Math.ceil(totalJobs / limit);
+
+      return {
+        jobs: paginatedJobs,
+        total: totalJobs,
+        page,
+        limit,
+        totalPages,
+        pagination: {
+          currentPage: page,
+          totalPages,
+          totalItems: totalJobs,
+          itemsPerPage: limit,
+          hasNextPage: page < totalPages,
+          hasPrevPage: page > 1
+        },
+        summary: {
+          total_jobs: totalJobs,
+          active_jobs: activeJobs,
+          completed_jobs: completedJobs
+        }
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+
   static async getStats() {
     try {
       const { data: totalJobs, error: totalError } = await supabase

@@ -113,7 +113,7 @@ export const createJobSchema = {
       },
       status: {
         type: 'string',
-        enum: ['draft', 'active', 'in_progress', 'completed', 'cancelled', 'on_hold'],
+        enum: ['draft', 'active', 'in_progress', 'completed', 'cancelled', 'on_hold', 'pending'],
         default: 'draft',
         description: 'Job status'
       },
@@ -283,7 +283,7 @@ export const updateJobSchema = {
       },
       status: {
         type: 'string',
-        enum: ['draft', 'active', 'in_progress', 'completed', 'cancelled', 'on_hold'],
+        enum: ['draft', 'active', 'in_progress', 'completed', 'cancelled', 'on_hold', 'pending'],
         description: 'Job status'
       },
       system_ip: {
@@ -396,7 +396,7 @@ export const updateWorkDataSchema = {
       },
       status: {
         type: 'string',
-        enum: ['draft', 'active', 'in_progress', 'completed', 'cancelled', 'on_hold'],
+        enum: ['draft', 'active', 'in_progress', 'completed', 'cancelled', 'on_hold', 'pending'],
         description: 'Job status (draft, active, in_progress, completed, cancelled, on_hold)'
       },
       labor_timesheet: {
@@ -689,7 +689,7 @@ export const getJobsSchema = {
       },
       status: {
         type: 'string',
-        enum: ['draft', 'active', 'in_progress', 'completed', 'cancelled', 'on_hold'],
+        enum: ['draft', 'active', 'in_progress', 'completed', 'cancelled', 'on_hold', 'pending'],
         description: 'Filter by job status'
       },
       priority: {

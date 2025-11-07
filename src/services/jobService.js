@@ -284,4 +284,16 @@ export class JobService {
       throw error;
     }
   }
+
+  static async getTodayJobsByLeadLabor(leadLaborId, page = 1, limit = 10) {
+    try {
+      const result = await Job.getTodayJobsByLeadLabor(leadLaborId, page, limit);
+      return successResponse(
+        result,
+        "Today's jobs by lead labor retrieved successfully"
+      );
+    } catch (error) {
+      throw error;
+    }
+  }
 }

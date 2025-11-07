@@ -320,6 +320,36 @@ export class JobController {
     }
   }
 
+  static async getTodayJobsByLeadLabor(request, reply) {
+    try {
+      const {
+        leadLaborId,
+        page = 1,
+        limit = 10
+      } = request.query;
+
+      if (!leadLaborId) {
+        return reply.code(400).send(errorResponse('leadLaborId is required', 400));
+      }
+
+      const result = await JobService.getTodayJobsByLeadLabor(
+        parseInt(leadLaborId),
+        parseInt(page),
+        parseInt(limit)
+      );
+
+      return reply.code(200).send(result);
+    } catch (error) {
+      if (error.message.includes('not found')) {
+        return reply.code(404).send(errorResponse(error.message, 404));
+      }
+      if (error.message.includes('Database error')) {
+        return reply.code(500).send(errorResponse('Database error occurred', 500));
+      }
+      return reply.code(500).send(errorResponse(error.message));
+    }
+  }
+
   static async updateWorkActivity(request, reply) {
     try {
       const { id } = request.params;

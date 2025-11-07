@@ -1,236 +1,91 @@
 import { NotificationService } from '../services/notificationService.js';
-import { errorResponse, successResponse } from '../helpers/responseHelper.js';
+import { responseHelper } from '../helpers/responseHelper.js';
+
+const parseOptionalInt = (value) => {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+  const parsed = parseInt(value, 10);
+  return Number.isNaN(parsed) ? null : parsed;
+};
 
 export class NotificationController {
-  
-  static async getNotifications(request, reply) {
+  static async sendNotification(request, reply) {
     try {
-      const userId = request.user.id;
-      const { page = 1, limit = 20, is_read, type, orderBy = 'created_at', order = 'desc' } = request.query;
+      const {
+        notification_title,
+        message,
+        custom_link,
+        image_url,
+        send_to_all = false,
+        recipient_roles = [],
+        order_id,
+        job_id,
+        product_id,
+        customer_id,
+        contractor_id,
+        bluesheet_id,
+        staff_id,
+        lead_labor_id,
+        labor_id,
+        supplier_id
+      } = request.body;
 
-      
-      const pageNum = parseInt(page);
-      const limitNum = parseInt(limit);
-
-      if (isNaN(pageNum) || pageNum < 1) {
-        return reply.code(400).send(errorResponse('Page must be a positive number', 400));
+      if (!notification_title || !notification_title.trim()) {
+        return responseHelper.validationError(reply, {
+          notification_title: 'Notification title is required'
+        });
       }
 
-      if (isNaN(limitNum) || limitNum < 1 || limitNum > 100) {
-        return reply.code(400).send(errorResponse('Limit must be between 1 and 100', 400));
+      if (!message || !message.trim()) {
+        return responseHelper.validationError(reply, {
+          message: 'Notification message is required'
+        });
       }
 
-      const options = {
-        page: pageNum,
-        limit: limitNum,
-        is_read: is_read !== undefined ? is_read === 'true' : undefined,
-        type: type || undefined,
-        orderBy,
-        order
+      const sendToAll = Boolean(send_to_all);
+      let rolesArray = [];
+
+      if (!sendToAll) {
+        if (!Array.isArray(recipient_roles) || recipient_roles.length === 0) {
+          return responseHelper.validationError(reply, {
+            recipient_roles: 'At least one role must be selected when send_to_all is false'
+          });
+        }
+        rolesArray = recipient_roles
+          .map((role) => role.toString().trim().toLowerCase())
+          .filter(Boolean);
+        if (rolesArray.length === 0) {
+          return responseHelper.validationError(reply, {
+            recipient_roles: 'At least one valid role must be provided'
+          });
+        }
+      }
+
+      const payload = {
+        notification_title: notification_title.trim(),
+        message: message.trim(),
+        custom_link: custom_link ? custom_link.trim() : null,
+        image_url: image_url ? image_url.trim() : null,
+        send_to_all: sendToAll,
+        recipient_roles: sendToAll ? [] : rolesArray,
+        order_id: parseOptionalInt(order_id),
+        job_id: parseOptionalInt(job_id),
+        product_id: parseOptionalInt(product_id),
+        customer_id: parseOptionalInt(customer_id),
+        contractor_id: parseOptionalInt(contractor_id),
+        bluesheet_id: parseOptionalInt(bluesheet_id),
+        staff_id: parseOptionalInt(staff_id),
+        lead_labor_id: parseOptionalInt(lead_labor_id),
+        labor_id: parseOptionalInt(labor_id),
+        supplier_id: parseOptionalInt(supplier_id)
       };
 
-      const result = await NotificationService.getNotifications(userId, options);
-      return reply.code(200).send(result);
+      const result = await NotificationService.sendNotification(payload);
+
+      return responseHelper.success(reply, result.data, result.message);
     } catch (error) {
-      return reply.code(500).send(errorResponse(`Failed to retrieve notifications: ${error.message}`, 500));
-    }
-  }
-
- 
-  static async getUnreadCount(request, reply) {
-    try {
-      const userId = request.user.id;
-      const result = await NotificationService.getUnreadCount(userId);
-      return reply.code(200).send(result);
-    } catch (error) {
-      return reply.code(500).send(errorResponse(`Failed to get unread count: ${error.message}`, 500));
-    }
-  }
-
-
-  static async markAsRead(request, reply) {
-    try {
-      const { id } = request.params;
-      const userId = request.user.id;
-
-   
-      const notification = await NotificationService.getNotifications(userId, { page: 1, limit: 1 });
-      const userNotifications = notification.data?.notifications || [];
-      const notificationExists = userNotifications.some(n => n.id === parseInt(id));
-
-      if (!notificationExists) {
-       
-        const { Notification } = await import('../models/Notification.js');
-        const notif = await Notification.findById(id);
-        if (!notif) {
-          return reply.code(404).send(errorResponse('Notification not found', 404));
-        }
-        if (notif.user_id !== userId) {
-          return reply.code(403).send(errorResponse('You do not have permission to mark this notification as read', 403));
-        }
-      }
-
-      const result = await NotificationService.markAsRead(id);
-      return reply.code(200).send(result);
-    } catch (error) {
-      return reply.code(500).send(errorResponse(`Failed to mark notification as read: ${error.message}`, 500));
-    }
-  }
-
-  
-  static async markAllAsRead(request, reply) {
-    try {
-      const userId = request.user.id;
-      const result = await NotificationService.markAllAsRead(userId);
-      return reply.code(200).send(result);
-    } catch (error) {
-      return reply.code(500).send(errorResponse(`Failed to mark all notifications as read: ${error.message}`, 500));
-    }
-  }
-
-  
-  static async deleteNotification(request, reply) {
-    try {
-      const { id } = request.params;
-      const userId = request.user.id;
-
-  
-      const { Notification } = await import('../models/Notification.js');
-      const notification = await Notification.findById(id);
-
-      if (!notification) {
-        return reply.code(404).send(errorResponse('Notification not found', 404));
-      }
-
-      if (notification.user_id !== userId) {
-        return reply.code(403).send(errorResponse('You do not have permission to delete this notification', 403));
-      }
-
-      const result = await NotificationService.deleteNotification(id);
-      return reply.code(200).send(result);
-    } catch (error) {
-      return reply.code(500).send(errorResponse(`Failed to delete notification: ${error.message}`, 500));
-    }
-  }
-
-
-  static async deleteAllNotifications(request, reply) {
-    try {
-      const userId = request.user.id;
-      const result = await NotificationService.deleteAllNotifications(userId);
-      return reply.code(200).send(result);
-    } catch (error) {
-      return reply.code(500).send(errorResponse(`Failed to delete all notifications: ${error.message}`, 500));
-    }
-  }
-
-  
-  static async createJobCompletedNotification(request, reply) {
-    try {
-      const { job_id, milestone, user_ids } = request.body;
-
-      if (!job_id) {
-        return reply.code(400).send(errorResponse('job_id is required', 400));
-      }
-
-      if (!user_ids || !Array.isArray(user_ids) || user_ids.length === 0) {
-        return reply.code(400).send(errorResponse('user_ids array is required', 400));
-      }
-
-      const result = await NotificationService.createJobCompletedNotification(job_id, milestone, user_ids);
-      return reply.code(201).send(result);
-    } catch (error) {
-      return reply.code(500).send(errorResponse(`Failed to create notification: ${error.message}`, 500));
-    }
-  }
-
-  
-  static async createJobAssignedNotification(request, reply) {
-    try {
-      const { job_id, user_ids } = request.body;
-
-      if (!job_id) {
-        return reply.code(400).send(errorResponse('job_id is required', 400));
-      }
-
-      if (!user_ids || !Array.isArray(user_ids) || user_ids.length === 0) {
-        return reply.code(400).send(errorResponse('user_ids array is required', 400));
-      }
-
-      const result = await NotificationService.createJobAssignedNotification(job_id, user_ids);
-      return reply.code(201).send(result);
-    } catch (error) {
-      return reply.code(500).send(errorResponse(`Failed to create notification: ${error.message}`, 500));
-    }
-  }
-
-  static async createJobStatusUpdatedNotification(request, reply) {
-    try {
-      const { job_id, old_status, new_status, updated_by_user_id, user_ids } = request.body;
-
-      if (!job_id || !old_status || !new_status || !updated_by_user_id) {
-        return reply.code(400).send(errorResponse('job_id, old_status, new_status, and updated_by_user_id are required', 400));
-      }
-
-      if (!user_ids || !Array.isArray(user_ids) || user_ids.length === 0) {
-        return reply.code(400).send(errorResponse('user_ids array is required', 400));
-      }
-
-      const result = await NotificationService.createJobStatusUpdatedNotification(
-        job_id,
-        old_status,
-        new_status,
-        updated_by_user_id,
-        user_ids
-      );
-      return reply.code(201).send(result);
-    } catch (error) {
-      return reply.code(500).send(errorResponse(`Failed to create notification: ${error.message}`, 500));
-    }
-  }
-
-  static async createJobDeletedNotification(request, reply) {
-    try {
-      const { job_id, job_number, job_title, deleted_by_user_id, user_ids } = request.body;
-
-      if (!job_id || !job_number || !job_title || !deleted_by_user_id) {
-        return reply.code(400).send(errorResponse('job_id, job_number, job_title, and deleted_by_user_id are required', 400));
-      }
-
-      if (!user_ids || !Array.isArray(user_ids) || user_ids.length === 0) {
-        return reply.code(400).send(errorResponse('user_ids array is required', 400));
-      }
-
-      const result = await NotificationService.createJobDeletedNotification(
-        job_id,
-        job_number,
-        job_title,
-        deleted_by_user_id,
-        user_ids
-      );
-      return reply.code(201).send(result);
-    } catch (error) {
-      return reply.code(500).send(errorResponse(`Failed to create notification: ${error.message}`, 500));
-    }
-  }
-
- 
-  static async createJobCreatedNotification(request, reply) {
-    try {
-      const { job_id, created_by_user_id, user_ids } = request.body;
-
-      if (!job_id || !created_by_user_id) {
-        return reply.code(400).send(errorResponse('job_id and created_by_user_id are required', 400));
-      }
-
-      if (!user_ids || !Array.isArray(user_ids) || user_ids.length === 0) {
-        return reply.code(400).send(errorResponse('user_ids array is required', 400));
-      }
-
-      const result = await NotificationService.createJobCreatedNotification(job_id, created_by_user_id, user_ids);
-      return reply.code(201).send(result);
-    } catch (error) {
-      return reply.code(500).send(errorResponse(`Failed to create notification: ${error.message}`, 500));
+      return responseHelper.error(reply, error.message, 500);
     }
   }
 }
