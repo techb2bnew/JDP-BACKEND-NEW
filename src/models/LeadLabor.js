@@ -163,6 +163,73 @@ export class LeadLabor {
     }
   }
 
+  static async getLeadLaborByUserId(userId) {
+    try {
+      const { data, error } = await supabase
+        .from('lead_labor')
+        .select(`
+          *,
+          users (
+            id,
+            full_name,
+            email,
+            phone,
+            role,
+            status,
+            photo_url,
+            created_at
+          )
+        `)
+        .eq('user_id', userId)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      return data || null;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Optimized method for login - only essential fields, no nested user (already have user data)
+  static async getLeadLaborByUserIdForLogin(userId) {
+    try {
+      const { data, error } = await supabase
+        .from('lead_labor')
+        .select(`
+          id,
+          labor_code,
+          dob,
+          address,
+          notes,
+          department,
+          date_of_joining,
+          specialization,
+          trade,
+          experience,
+          id_proof_url,
+          photo_url,
+          resume_url,
+          agreed_terms,
+          management_type,
+          system_ip,
+          created_at
+        `)
+        .eq('user_id', userId)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      return data || null;
+    } catch (error) {
+      throw error;
+    }
+  }
+
   static async update(leadLaborId, updateData) {
     try {
       const { data, error } = await supabase

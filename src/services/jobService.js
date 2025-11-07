@@ -149,26 +149,26 @@ export class JobService {
 
   static async updateJob(jobId, updateData) {
     try {
-      // Optimize: Use simple existence check instead of full findById
-      // This avoids fetching all job details just to check if job exists
-      const { data: existingJob, error: checkError } = await supabase
-        .from("jobs")
-        .select("id")
-        .eq("id", jobId)
-        .single();
+      // Optimize: No need for separate existence check - update will fail if job doesn't exist
+      // This saves one database query and makes update faster
+      const updatedJob = await Job.update(jobId, updateData);
 
-      if (checkError || !existingJob) {
+      if (!updatedJob) {
         throw new Error("Job not found");
       }
-
-      // Now update the job (this will fetch full details with addDetailsToJob)
-      const updatedJob = await Job.update(jobId, updateData);
 
       return successResponse(
         updatedJob,
         "Job updated successfully"
       );
     } catch (error) {
+      // Improve error handling - provide more specific error messages
+      if (error.message.includes("not found") || error.message.includes("PGRST116")) {
+        throw new Error("Job not found");
+      }
+      if (error.message.includes("Database error")) {
+        throw new Error(`Database error: ${error.message}`);
+      }
       throw error;
     }
   }

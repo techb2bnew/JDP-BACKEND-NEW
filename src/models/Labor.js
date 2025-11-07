@@ -450,6 +450,62 @@ export class Labor {
     }
   }
 
+  // Optimized method for login - only essential fields, no nested user/supervisor (already have user data)
+  static async getLaborByUserIdForLogin(userId) {
+    try {
+      const { data, error } = await supabase
+        .from('labor')
+        .select(`
+          id,
+          labor_code,
+          dob,
+          address,
+          notes,
+          date_of_joining,
+          trade,
+          experience,
+          hourly_rate,
+          hours_worked,
+          total_cost,
+          supervisor_id,
+          availability,
+          certifications,
+          skills,
+          management_type,
+          is_custom,
+          job_id,
+          created_at
+        `)
+        .eq('user_id', userId)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      // Parse JSON fields if needed
+      const parsedData = { ...data };
+      if (parsedData.certifications && typeof parsedData.certifications === 'string') {
+        try {
+          parsedData.certifications = JSON.parse(parsedData.certifications);
+        } catch (e) {
+          // Keep as string if parse fails
+        }
+      }
+      if (parsedData.skills && typeof parsedData.skills === 'string') {
+        try {
+          parsedData.skills = JSON.parse(parsedData.skills);
+        } catch (e) {
+          // Keep as string if parse fails
+        }
+      }
+
+      return parsedData || null;
+    } catch (error) {
+      throw error;
+    }
+  }
+
   static async findByLaborCode(laborCode) {
     try {
       const { data, error } = await supabase

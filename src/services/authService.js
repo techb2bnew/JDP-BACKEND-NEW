@@ -1,5 +1,7 @@
 import { User } from "../models/User.js";
 import { UserToken } from "../models/UserToken.js";
+import { LeadLabor } from "../models/LeadLabor.js";
+import { Labor } from "../models/Labor.js";
 import {
   hashPassword,
   comparePassword,
@@ -97,7 +99,36 @@ export class AuthService {
         throw new Error("Invalid login method");
       }
 
-      // Generate token first (synchronous operation)
+      // Optimize: Start fetching permissions and lead_labor/labor details BEFORE token generation
+      // Token generation is synchronous and fast, so we do it after async operations start
+      const fetchPromises = [
+        RolePermission.getPermissionsByRoleName(user.role).catch(err => {
+          console.error('Error fetching permissions:', err);
+          return [];
+        })
+      ];
+
+      // For app login, fetch lead_labor or labor details in parallel with permissions
+      // Use lightweight methods that don't fetch nested user data (we already have user)
+      if (login_by === 'app') {
+        if (user.management_type === 'lead_labor') {
+          fetchPromises.push(
+            LeadLabor.getLeadLaborByUserIdForLogin(user.id).catch(err => {
+              console.error('Error fetching lead labor details:', err);
+              return null;
+            })
+          );
+        } else if (user.management_type === 'labor') {
+          fetchPromises.push(
+            Labor.getLaborByUserIdForLogin(user.id).catch(err => {
+              console.error('Error fetching labor details:', err);
+              return null;
+            })
+          );
+        }
+      }
+
+      // Generate token (synchronous, fast) while async operations are running
       const token = generateToken({
         id: user.id,
         email: user.email,
@@ -109,13 +140,11 @@ export class AuthService {
       const tokenExpiry = new Date();
       tokenExpiry.setHours(tokenExpiry.getHours() + 24);
 
-      // Fetch permissions (critical for response)
-      let permissions = [];
-      try {
-        permissions = await RolePermission.getPermissionsByRoleName(user.role);
-      } catch (permError) {
-        console.error('Error fetching permissions:', permError);
-      }
+      // Wait for all parallel fetches to complete
+      const results = await Promise.all(fetchPromises);
+      const permissions = results[0] || [];
+      const leadLaborDetails = login_by === 'app' && user.management_type === 'lead_labor' ? results[1] : null;
+      const laborDetails = login_by === 'app' && user.management_type === 'labor' ? results[1] : null;
 
       // Save token in background (non-blocking) - don't wait for it
       // Token is already generated and will be returned in response
@@ -132,14 +161,25 @@ export class AuthService {
 
       const { password: userPassword, ...userWithoutPassword } = user;
 
+      // Build response object
+      const responseData = {
+        user: userWithoutPassword,
+        token,
+        permissions,
+        management_type: user.management_type,
+        login_by: login_by
+      };
+
+      // Add lead_labor or labor details as arrays (even if single object, wrap in array)
+      if (leadLaborDetails) {
+        responseData.lead_labor = [leadLaborDetails];
+      }
+      if (laborDetails) {
+        responseData.labor = [laborDetails];
+      }
+
       return successResponse(
-        {
-          user: userWithoutPassword,
-          token,
-          permissions,
-          management_type: user.management_type,
-          login_by: login_by
-        },
+        responseData,
         "Login successful"
       );
     } catch (error) {

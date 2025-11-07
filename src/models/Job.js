@@ -952,10 +952,31 @@ export class Job {
 
   static async update(jobId, updateData) {
     try {
+      // Clean updateData - remove undefined/null values and handle JSON fields
+      const cleanedUpdateData = { ...updateData };
+      
+      // Ensure JSON array fields are properly stringified if they're arrays
+      if (cleanedUpdateData.assigned_lead_labor_ids && Array.isArray(cleanedUpdateData.assigned_lead_labor_ids)) {
+        cleanedUpdateData.assigned_lead_labor_ids = JSON.stringify(cleanedUpdateData.assigned_lead_labor_ids);
+      }
+      if (cleanedUpdateData.assigned_labor_ids && Array.isArray(cleanedUpdateData.assigned_labor_ids)) {
+        cleanedUpdateData.assigned_labor_ids = JSON.stringify(cleanedUpdateData.assigned_labor_ids);
+      }
+      if (cleanedUpdateData.assigned_material_ids && Array.isArray(cleanedUpdateData.assigned_material_ids)) {
+        cleanedUpdateData.assigned_material_ids = JSON.stringify(cleanedUpdateData.assigned_material_ids);
+      }
+
+      // Remove undefined values to avoid unnecessary updates
+      Object.keys(cleanedUpdateData).forEach(key => {
+        if (cleanedUpdateData[key] === undefined) {
+          delete cleanedUpdateData[key];
+        }
+      });
+
       const { data, error } = await supabase
         .from("jobs")
         .update({
-          ...updateData,
+          ...cleanedUpdateData,
           updated_at: new Date().toISOString()
         })
         .eq("id", jobId)
@@ -984,12 +1005,42 @@ export class Job {
         .single();
 
       if (error) {
+        // Handle specific Supabase errors
+        if (error.code === 'PGRST116') {
+          throw new Error("Job not found");
+        }
+        if (error.code === '23505') {
+          throw new Error(`Database constraint violation: ${error.message}`);
+        }
+        if (error.code === '23503') {
+          throw new Error(`Foreign key constraint violation: ${error.message}`);
+        }
         throw new Error(`Database error: ${error.message}`);
       }
 
-      if (!data) return null;
+      if (!data) {
+        throw new Error("Job not found");
+      }
 
-      return await Job.addDetailsToJob(data);
+      // Optimize: Don't call addDetailsToJob for update - it's slow and can cause errors
+      // Return updated job with basic info only (customer, contractor, created_by_user)
+      // If full details are needed, client can call getJobById separately
+      return data;
+    } catch (error) {
+      // Re-throw with more context if it's not already a known error
+      if (error.message.includes("not found") || error.message.includes("Database error")) {
+        throw error;
+      }
+      throw new Error(`Failed to update job: ${error.message}`);
+    }
+  }
+
+  // Method to update with full details (if needed in future)
+  static async updateWithDetails(jobId, updateData) {
+    try {
+      const updatedJob = await Job.update(jobId, updateData);
+      if (!updatedJob) return null;
+      return await Job.addDetailsToJob(updatedJob);
     } catch (error) {
       throw error;
     }
