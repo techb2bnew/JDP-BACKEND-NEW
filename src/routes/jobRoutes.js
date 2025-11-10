@@ -74,6 +74,10 @@ export async function jobRoutes(fastify, options) {
     handler: JobController.getJobBluesheets
   });
 
+  fastify.get('/getJobActivity/:jobId', {
+    handler: JobController.getJobActivity
+  });
+
   fastify.get('/getJobDashboardDetails/:id', {
     schema: getJobByIdSchema,
     handler: JobController.getJobDashboardDetails

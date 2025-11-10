@@ -67,7 +67,7 @@ export class AuthService {
     }
   }
 
-  static async login(email, password, login_by = 'admin') {
+  static async login(email, password, login_by = 'admin', push_token = null, push_platform = null) {
     try {
       // For login, we don't need staff/labor/leadLabor data - fetch only user data for faster response
       const user = await User.findByEmail(email, false);
@@ -126,6 +126,25 @@ export class AuthService {
               return null;
             })
           );
+        }
+      }
+
+      // Register push token if provided
+      if (push_token && typeof push_token === 'string' && push_token.trim()) {
+        const tokenToSave = push_token.trim();
+        const platformToSave = push_platform ? push_platform.toString().trim().toLowerCase() : null;
+
+        if (tokenToSave) {
+          setImmediate(async () => {
+            try {
+              await User.update(user.id, {
+                push_token: tokenToSave,
+                push_platform: platformToSave
+              });
+            } catch (pushError) {
+              console.error('Error saving push token:', pushError);
+            }
+          });
         }
       }
 

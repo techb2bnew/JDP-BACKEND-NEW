@@ -143,8 +143,29 @@ export class JobService {
 
   static async getJobById(jobId) {
     try {
-      const job = await Job.findById(jobId);
-      if (!job) {
+      const { data: jobData, error: jobError } = await supabase
+        .from('jobs')
+        .select(`
+          id,
+          job_title,
+          job_type,
+          description,
+          status,
+          priority,
+          customer_id,
+          contractor_id,
+          estimated_cost,
+          created_at,
+          updated_at
+        `)
+        .eq('id', jobId)
+        .maybeSingle();
+
+      if (jobError) {
+        throw new Error(`Database error: ${jobError.message}`);
+      }
+
+      if (!jobData) {
         throw new Error("Job not found");
       }
 
@@ -322,6 +343,149 @@ export class JobService {
       return successResponse(
         result,
         "Today's jobs by lead labor retrieved successfully"
+      );
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static parseDurationToSeconds(duration) {
+    if (!duration || typeof duration !== 'string') {
+      return 0;
+    }
+
+    if (duration.includes(':')) {
+      const parts = duration.split(':').map((part) => parseInt(part, 10) || 0);
+      const [hours = 0, minutes = 0, seconds = 0] = parts;
+      return (hours * 3600) + (minutes * 60) + seconds;
+    }
+
+    let totalSeconds = 0;
+    const hourMatch = duration.match(/(\d+)\s*h/);
+    const minuteMatch = duration.match(/(\d+)\s*m/);
+    const secondMatch = duration.match(/(\d+)\s*s/);
+
+    if (hourMatch) totalSeconds += parseInt(hourMatch[1], 10) * 3600;
+    if (minuteMatch) totalSeconds += parseInt(minuteMatch[1], 10) * 60;
+    if (secondMatch) totalSeconds += parseInt(secondMatch[1], 10);
+
+    return totalSeconds;
+  }
+
+  static formatSeconds(totalSeconds) {
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    return `${hours.toString().padStart(2, '0')}:${minutes
+      .toString()
+      .padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  }
+
+  static async getJobActivity(jobId) {
+    try {
+      const { data: jobData, error: jobError } = await supabase
+        .from('jobs')
+        .select(`
+          id,
+          job_title,
+          job_type,
+          description,
+          status,
+          priority,
+          customer_id,
+          contractor_id,
+          estimated_cost,
+          due_date,
+          created_at,
+          updated_at,
+          created_by_user:users!jobs_created_by_fkey (
+            id,
+            full_name,
+            email,
+            role
+          )
+        `)
+        .eq('id', jobId)
+        .maybeSingle();
+
+      if (jobError) {
+        throw new Error(`Database error: ${jobError.message}`);
+      }
+
+      if (!jobData) {
+        throw new Error("Job not found");
+      }
+
+      const ordersQuery = await supabase
+        .from('orders')
+        .select('id', { count: 'exact', head: true })
+        .eq('job_id', jobId);
+
+      if (ordersQuery.error) {
+        throw new Error(`Database error: ${ordersQuery.error.message}`);
+      }
+      const totalOrders = ordersQuery.count || 0;
+
+      const { data: bluesheets, error: bluesheetsError } = await supabase
+        .from('job_bluesheet')
+        .select('id')
+        .eq('job_id', jobId);
+
+      if (bluesheetsError) {
+        throw new Error(`Database error: ${bluesheetsError.message}`);
+      }
+
+      let totalRegularSeconds = 0;
+
+      if (bluesheets && bluesheets.length > 0) {
+        const bluesheetIds = bluesheets.map((sheet) => sheet.id);
+
+      const { data: laborEntries, error: laborError } = await supabase
+          .from('job_bluesheet_labor')
+          .select('regular_hours')
+          .in('job_bluesheet_id', bluesheetIds);
+
+        if (laborError) {
+          throw new Error(`Database error: ${laborError.message}`);
+        }
+
+        (laborEntries || []).forEach((entry) => {
+          totalRegularSeconds += JobService.parseDurationToSeconds(entry.regular_hours);
+        });
+      }
+
+      return successResponse(
+        {
+          job: {
+            id: jobData.id,
+            job_title: jobData.job_title,
+            job_type: jobData.job_type,
+            description: jobData.description,
+            status: jobData.status,
+            priority: jobData.priority,
+            customer_id: jobData.customer_id,
+            contractor_id: jobData.contractor_id,
+            estimated_cost: jobData.estimated_cost,
+            due_date: jobData.due_date,
+            created_at: jobData.created_at,
+            updated_at: jobData.updated_at,
+            created_by_user: jobData.created_by_user
+              ? {
+                  id: jobData.created_by_user.id,
+                  full_name: jobData.created_by_user.full_name,
+                  email: jobData.created_by_user.email,
+                  role: jobData.created_by_user.role
+                }
+              : null
+          },
+          total_orders: totalOrders,
+          regular_hours: {
+            total_seconds: totalRegularSeconds,
+            formatted: JobService.formatSeconds(totalRegularSeconds)
+          }
+        },
+        "Job activity retrieved successfully"
       );
     } catch (error) {
       throw error;

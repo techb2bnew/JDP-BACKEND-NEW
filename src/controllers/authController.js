@@ -16,8 +16,21 @@ export class AuthController {
 
   static async login(request, reply) {
     try {
-      const { email, password, login_by = 'admin' } = request.body;
-      const result = await AuthService.login(email, password, login_by);
+      const {
+        email,
+        password,
+        login_by = 'admin',
+        push_token = null,
+        push_platform = null
+      } = request.body;
+
+      const result = await AuthService.login(
+        email,
+        password,
+        login_by,
+        push_token,
+        push_platform
+      );
       return reply.code(200).send(result);
     } catch (error) {     
       if (error.message.includes('Invalid email or password') || 
