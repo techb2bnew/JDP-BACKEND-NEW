@@ -1,5 +1,5 @@
 import { Job } from "../models/Job.js";
-import { JobBluesheetLabor } from "../models/JobBluesheetLabor.js";
+import { LaborTimesheet } from "../models/LaborTimesheet.js";
 import { successResponse } from "../helpers/responseHelper.js";
 import { supabase } from "../config/database.js";
 
@@ -119,13 +119,20 @@ export class JobService {
         throw new Error("Job ID is required");
       }
 
-      const bluesheets = await Job.fetchBluesheetsDetails(jobId);
+      console.time('Labor timesheet query time');
+      const timesheets = await LaborTimesheet.findByJobId(jobId);
+      console.timeEnd('Labor timesheet query time');
+
+      console.time('Orders query time');
+      const orders = await Job.fetchOrdersDetails(jobId);
+      console.timeEnd('Orders query time');
 
       return {
         success: true,
-        message: "Job bluesheets retrieved successfully",
+        message: "Job labor timesheets and orders retrieved successfully",
         data: {
-          bluesheets: bluesheets ?? []
+          labor_timesheets: timesheets ?? [],
+          orders: orders ?? []
         },
         statusCode: 200
       };

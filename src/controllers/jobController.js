@@ -298,7 +298,9 @@ export class JobController {
         return reply.code(400).send(errorResponse('Valid job ID is required', 400));
       }
 
+      console.time('Response send time');
       const result = await JobService.getJobBluesheets(parseInt(jobId));
+      console.timeEnd('Response send time');
 
       return reply.code(200).send(result);
     } catch (error) {
