@@ -143,48 +143,9 @@ export class JobService {
 
   static async getJobById(jobId) {
     try {
-      const { data: jobData, error: jobError } = await supabase
-        .from('jobs')
-        .select(`
-          id,
-          job_title,
-          job_type,
-          description,
-          status,
-          priority,
-          customer_id,
-          contractor_id,
-          estimated_cost,
-          created_at,
-          updated_at
-        `)
-        .eq('id', jobId)
-        .maybeSingle();
-
-      if (jobError) {
-        throw new Error(`Database error: ${jobError.message}`);
-      }
-
-      if (!jobData) {
+      const job = await Job.findById(jobId);
+      if (!job) {
         throw new Error("Job not found");
-      }
-
-      // Optimize: Add computed fields without async processing (just copy existing values)
-      // These are already present in the data, so no need for Promise.all or async mapping
-      if (Array.isArray(job.bluesheets)) {
-        job.bluesheets = job.bluesheets.map((bluesheet) => {
-          const sheet = { ...bluesheet };
-          if (Array.isArray(sheet.labor_entries)) {
-            sheet.labor_entries = sheet.labor_entries.map((entry) => {
-              return {
-                ...entry,
-                computed_total_cost: entry.total_cost ?? null,
-                computed_hourly_rate: entry.hourly_rate ?? null
-              };
-            });
-          }
-          return sheet;
-        });
       }
 
       return successResponse(
