@@ -290,6 +290,28 @@ export class JobController {
     }
   }
 
+  static async getJobBluesheets(request, reply) {
+    try {
+      const { jobId } = request.params;
+
+      if (!jobId || isNaN(jobId)) {
+        return reply.code(400).send(errorResponse('Valid job ID is required', 400));
+      }
+
+      const result = await JobService.getJobBluesheets(parseInt(jobId));
+
+      return reply.code(200).send(result);
+    } catch (error) {
+      if (error.message.includes('not found')) {
+        return reply.code(404).send(errorResponse(error.message, 404));
+      }
+      if (error.message.includes('Database error')) {
+        return reply.code(500).send(errorResponse('Database error occurred', 500));
+      }
+      return reply.code(500).send(errorResponse(error.message));
+    }
+  }
+
   static async getJobsByLeadLabor(request, reply) {
     try {
       const {

@@ -113,6 +113,27 @@ export class JobService {
     }
   }
 
+  static async getJobBluesheets(jobId) {
+    try {
+      if (!jobId) {
+        throw new Error("Job ID is required");
+      }
+
+      const bluesheets = await Job.fetchBluesheetsDetails(jobId);
+
+      return {
+        success: true,
+        message: "Job bluesheets retrieved successfully",
+        data: {
+          bluesheets: bluesheets ?? []
+        },
+        statusCode: 200
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+
   static async getJobById(jobId) {
     try {
       const job = await Job.findById(jobId);

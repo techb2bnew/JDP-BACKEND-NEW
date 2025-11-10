@@ -66,15 +66,15 @@ export class SuppliersService {
 
             // Optimize: Make email sending non-blocking
             setImmediate(async () => {
-                try {
-                    await sendSupplierWelcomeEmail(
-                        user.email,
-                        user.full_name,
-                        suppliersData.company_name
-                    );
-                } catch (emailError) {
+            try {
+                await sendSupplierWelcomeEmail(
+                    user.email,
+                    user.full_name,
+                    suppliersData.company_name
+                );
+            } catch (emailError) {
                     console.error('Email sending failed:', emailError);
-                }
+            }
             });
 
             return {
@@ -186,7 +186,7 @@ export class SuppliersService {
                     .select('users!suppliers_user_id_fkey(email)')
                     .eq('id', supplierId)
                     .single();
-                
+
                 const currentEmail = currentSupplier?.users?.email;
                 if (updateData.email !== currentEmail) {
                     const existingUser = await User.findByEmail(updateData.email, false);
