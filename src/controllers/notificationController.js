@@ -88,5 +88,42 @@ export class NotificationController {
       return responseHelper.error(reply, error.message, 500);
     }
   }
+
+  static async getNotificationsForUser(request, reply) {
+    try {
+      const userId = parseOptionalInt(request.params.userId);
+
+      if (!userId) {
+        return responseHelper.validationError(reply, {
+          user_id: 'Valid user_id parameter is required'
+        });
+      }
+
+      const { status, page, limit } = request.query;
+      const allowedStatuses = new Set(['unread', 'read', 'delivered', 'failed']);
+
+      const normalizedStatus = status ? status.toString().trim().toLowerCase() : null;
+
+      if (normalizedStatus && !allowedStatuses.has(normalizedStatus)) {
+        return responseHelper.validationError(reply, {
+          status: 'Status must be one of unread, read, delivered, or failed'
+        });
+      }
+
+      const pageNumber = Math.max(parseOptionalInt(page) || 1, 1);
+      const limitNumber = Math.max(parseOptionalInt(limit) || 20, 1);
+
+      const result = await NotificationService.getNotificationsForUser({
+        userId,
+        status: normalizedStatus,
+        page: pageNumber,
+        limit: limitNumber
+      });
+
+      return responseHelper.success(reply, result.data, result.message);
+    } catch (error) {
+      return responseHelper.error(reply, error.message, 500);
+    }
+  }
 }
 

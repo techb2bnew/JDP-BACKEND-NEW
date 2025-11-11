@@ -413,7 +413,7 @@ export class JobBluesheetLabor {
     return Array.from(ids);
   }
 
-    static normalizeRates(rates) {
+  static normalizeRates(rates) {
     if (!Array.isArray(rates) || rates.length === 0) {
       throw new Error('Hourly rate configuration is missing or empty');
     }
@@ -421,7 +421,7 @@ export class JobBluesheetLabor {
     const normalizedRates = rates
       .map((rate) => {
         const numericRate = Number(rate.rate);
-        const hasMax = rate.max_hours !== undefined && rate.max_hours !== null; 
+        const hasMax = rate.max_hours !== undefined && rate.max_hours !== null;
         const hasMin = rate.min_hours !== undefined && rate.min_hours !== null;
         const numericMax = hasMax ? Number(rate.max_hours) : null;
         const numericMin = hasMin ? Number(rate.min_hours) : null;
@@ -451,7 +451,7 @@ export class JobBluesheetLabor {
         const maxB = b.max_hours === null ? Number.POSITIVE_INFINITY : b.max_hours;
         
         if (maxA !== maxB) {
-          return maxA - maxB;
+        return maxA - maxB;
         }
         
         // If max_hours are equal, sort by min_hours
@@ -467,8 +467,8 @@ export class JobBluesheetLabor {
     return normalizedRates;
   }
 
-    static calculateBillingFromNormalizedRates(regularHoursDecimal, overtimeHoursDecimal, normalizedRates) {                                                      
-    if (!Array.isArray(normalizedRates) || normalizedRates.length === 0) {      
+  static calculateBillingFromNormalizedRates(regularHoursDecimal, overtimeHoursDecimal, normalizedRates) {
+    if (!Array.isArray(normalizedRates) || normalizedRates.length === 0) {
       throw new Error('Hourly rate configuration is missing or empty');
     }
 
@@ -612,7 +612,7 @@ export class JobBluesheetLabor {
 
     if (regularHours > 0) {
       // Calculate total cost based on regular hours
-      totalCost = fullRegularHours * tierForRegular.rate;
+        totalCost = fullRegularHours * tierForRegular.rate;
     }
 
     if (overtimeHours > 0) {
