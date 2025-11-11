@@ -695,7 +695,7 @@ export class JobService {
       if (bluesheets && bluesheets.length > 0) {
         const bluesheetIds = bluesheets.map((sheet) => sheet.id);
 
-      const { data: laborEntries, error: laborError } = await supabase
+        const { data: laborEntries, error: laborError } = await supabase
           .from('job_bluesheet_labor')
           .select('regular_hours')
           .in('job_bluesheet_id', bluesheetIds);
@@ -708,6 +708,26 @@ export class JobService {
           totalRegularSeconds += JobService.parseDurationToSeconds(entry.regular_hours);
         });
       }
+
+      const { data: timesheetEntries, error: timesheetError } = await supabase
+        .from('labor_timesheets')
+        .select('work_activity, start_time, end_time')
+        .eq('job_id', jobId);
+
+      if (timesheetError) {
+        throw new Error(`Database error: ${timesheetError.message}`);
+      }
+
+      (timesheetEntries || []).forEach((entry) => {
+        if (entry.work_activity) {
+          totalRegularSeconds += JobService.parseDurationToSeconds(entry.work_activity);
+        } else if (entry.start_time && entry.end_time) {
+          const start = new Date(`2000-01-01T${entry.start_time}`);
+          const end = new Date(`2000-01-01T${entry.end_time}`);
+          const diffSeconds = Math.max(0, Math.floor((end - start) / 1000));
+          totalRegularSeconds += diffSeconds;
+        }
+      });
 
       return successResponse(
         {
