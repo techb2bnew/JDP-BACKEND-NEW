@@ -1236,6 +1236,11 @@ export class Job {
           // Verify the ID is actually in the array (not just a substring match)
           const hasMatch = laborIds.some(id => parseInt(id) === targetId);
           if (hasMatch) {
+            job.assigned_labor_ids = laborIds;
+            const leadLaborIdsForJob = Array.isArray(job.assigned_lead_labor_ids)
+              ? job.assigned_lead_labor_ids
+              : safeJsonParse(job.assigned_lead_labor_ids, []);
+            job.assigned_lead_labor_ids = leadLaborIdsForJob;
             filteredJobs.push(job);
             
             // Calculate summary while filtering
@@ -1256,6 +1261,145 @@ export class Job {
       // Paginate filtered jobs
       const totalJobs = filteredJobs.length;
       const paginatedJobs = filteredJobs.slice(startIdx, endIdx);
+
+      const normalizeIdArray = (value) => {
+        if (!value) {
+          return [];
+        }
+        let ids = Array.isArray(value) ? value : safeJsonParse(value, []);
+        if (!Array.isArray(ids)) {
+          return [];
+        }
+        const normalized = [];
+        for (const rawId of ids) {
+          const parsed = parseInt(rawId, 10);
+          if (!Number.isNaN(parsed)) {
+            normalized.push(parsed);
+          }
+        }
+        return normalized;
+      };
+
+      const leadIdsNeeded = new Set();
+      const laborIdsNeeded = new Set();
+
+      paginatedJobs.forEach((job) => {
+        const normalizedLeadIds = normalizeIdArray(job.assigned_lead_labor_ids);
+        const normalizedLaborIds = normalizeIdArray(job.assigned_labor_ids);
+
+        job.assigned_lead_labor_ids = normalizedLeadIds;
+        job.assigned_labor_ids = normalizedLaborIds;
+
+        normalizedLeadIds.forEach((id) => leadIdsNeeded.add(id));
+        normalizedLaborIds.forEach((id) => laborIdsNeeded.add(id));
+      });
+
+      let leadLaborMap = new Map();
+      if (leadIdsNeeded.size > 0) {
+        const { data: leadLaborDetails, error: leadLaborError } = await supabase
+          .from('lead_labor')
+          .select(`
+            id,
+            labor_code,
+            department,
+            specialization,
+            trade,
+            experience,
+            user_id
+          `)
+          .in('id', Array.from(leadIdsNeeded));
+
+        if (leadLaborError) {
+          throw new Error(`Database error: ${leadLaborError.message}`);
+        }
+
+        const leadUserIds = new Set();
+        (leadLaborDetails || []).forEach((item) => {
+          if (item.user_id) {
+            leadUserIds.add(item.user_id);
+          }
+        });
+
+        let leadUserMap = new Map();
+        if (leadUserIds.size > 0) {
+          const { data: leadUsers, error: leadUsersError } = await supabase
+            .from('users')
+            .select('id, full_name, email, phone')
+            .in('id', Array.from(leadUserIds));
+
+          if (leadUsersError) {
+            throw new Error(`Database error: ${leadUsersError.message}`);
+          }
+
+          leadUserMap = new Map((leadUsers || []).map((user) => [user.id, user]));
+        }
+
+        const enrichedLeadLabor = (leadLaborDetails || []).map((item) => ({
+          ...item,
+          user: item.user_id ? leadUserMap.get(item.user_id) || null : null
+        }));
+
+        leadLaborMap = new Map(enrichedLeadLabor.map((item) => [item.id, item]));
+      }
+
+      let laborMap = new Map();
+      if (laborIdsNeeded.size > 0) {
+        const { data: laborDetails, error: laborError } = await supabase
+          .from('labor')
+          .select(`
+            id,
+            labor_code,
+            trade,
+            experience,
+            hourly_rate,
+            hours_worked,
+            total_cost,
+            availability,
+            user_id
+          `)
+          .in('id', Array.from(laborIdsNeeded));
+
+        if (laborError) {
+          throw new Error(`Database error: ${laborError.message}`);
+        }
+
+        const laborUserIds = new Set();
+        (laborDetails || []).forEach((item) => {
+          if (item.user_id) {
+            laborUserIds.add(item.user_id);
+          }
+        });
+
+        let laborUserMap = new Map();
+        if (laborUserIds.size > 0) {
+          const { data: laborUsers, error: laborUsersError } = await supabase
+            .from('users')
+            .select('id, full_name, email, phone')
+            .in('id', Array.from(laborUserIds));
+
+          if (laborUsersError) {
+            throw new Error(`Database error: ${laborUsersError.message}`);
+          }
+
+          laborUserMap = new Map((laborUsers || []).map((user) => [user.id, user]));
+        }
+
+        const enrichedLabor = (laborDetails || []).map((item) => ({
+          ...item,
+          user: item.user_id ? laborUserMap.get(item.user_id) || null : null
+        }));
+
+        laborMap = new Map(enrichedLabor.map((item) => [item.id, item]));
+      }
+
+      paginatedJobs.forEach((job) => {
+        job.assigned_lead_labor = (job.assigned_lead_labor_ids || []).map((id) =>
+          leadLaborMap.get(id)
+        ).filter(Boolean);
+        job.assigned_labor = (job.assigned_labor_ids || []).map((id) => laborMap.get(id)).filter(
+          Boolean
+        );
+      });
       const totalPages = Math.ceil(totalJobs / limit);
 
       // Optimize: Don't call addDetailsToJob for list view - it's too slow
@@ -1420,6 +1564,7 @@ export class Job {
           // Verify the ID is actually in the array (not just a substring match)
           const hasMatch = leadLaborIds.some(id => parseInt(id) === targetId);
           if (hasMatch) {
+            job.assigned_lead_labor_ids = leadLaborIds;
             filteredJobs.push(job);
             
             // Calculate summary while filtering
@@ -1448,6 +1593,145 @@ export class Job {
       // Paginate filtered jobs
       const totalJobs = filteredJobs.length;
       const paginatedJobs = filteredJobs.slice(startIdx, endIdx);
+
+      const normalizeIdArray = (value) => {
+        if (!value) {
+          return [];
+        }
+        let ids = Array.isArray(value) ? value : safeJsonParse(value, []);
+        if (!Array.isArray(ids)) {
+          return [];
+        }
+        const normalized = [];
+        for (const rawId of ids) {
+          const parsed = parseInt(rawId, 10);
+          if (!Number.isNaN(parsed)) {
+            normalized.push(parsed);
+          }
+        }
+        return normalized;
+      };
+
+      const leadIdsNeeded = new Set();
+      const laborIdsNeeded = new Set();
+
+      paginatedJobs.forEach((job) => {
+        const normalizedLaborIds = normalizeIdArray(job.assigned_labor_ids);
+        const normalizedLeadIds = normalizeIdArray(job.assigned_lead_labor_ids);
+
+        job.assigned_labor_ids = normalizedLaborIds;
+        job.assigned_lead_labor_ids = normalizedLeadIds;
+
+        normalizedLaborIds.forEach((id) => laborIdsNeeded.add(id));
+        normalizedLeadIds.forEach((id) => leadIdsNeeded.add(id));
+      });
+
+      let laborMap = new Map();
+      if (laborIdsNeeded.size > 0) {
+        const { data: laborDetails, error: laborError } = await supabase
+          .from('labor')
+          .select(`
+            id,
+            labor_code,
+            trade,
+            experience,
+            hourly_rate,
+            hours_worked,
+            total_cost,
+            availability,
+            user_id
+          `)
+          .in('id', Array.from(laborIdsNeeded));
+
+        if (laborError) {
+          throw new Error(`Database error: ${laborError.message}`);
+        }
+
+        const laborUserIds = new Set();
+        (laborDetails || []).forEach((item) => {
+          if (item.user_id) {
+            laborUserIds.add(item.user_id);
+          }
+        });
+
+        let laborUserMap = new Map();
+        if (laborUserIds.size > 0) {
+          const { data: laborUsers, error: laborUsersError } = await supabase
+            .from('users')
+            .select('id, full_name, email, phone')
+            .in('id', Array.from(laborUserIds));
+
+          if (laborUsersError) {
+            throw new Error(`Database error: ${laborUsersError.message}`);
+          }
+
+          laborUserMap = new Map((laborUsers || []).map((user) => [user.id, user]));
+        }
+
+        const enrichedLabor = (laborDetails || []).map((item) => ({
+          ...item,
+          user: item.user_id ? laborUserMap.get(item.user_id) || null : null
+        }));
+
+        laborMap = new Map(enrichedLabor.map((item) => [item.id, item]));
+      }
+
+      let leadLaborMap = new Map();
+      if (leadIdsNeeded.size > 0) {
+        const { data: leadLaborDetails, error: leadLaborError } = await supabase
+          .from('lead_labor')
+          .select(`
+            id,
+            labor_code,
+            department,
+            specialization,
+            trade,
+            experience,
+            user_id
+          `)
+          .in('id', Array.from(leadIdsNeeded));
+
+        if (leadLaborError) {
+          throw new Error(`Database error: ${leadLaborError.message}`);
+        }
+
+        const leadUserIds = new Set();
+        (leadLaborDetails || []).forEach((item) => {
+          if (item.user_id) {
+            leadUserIds.add(item.user_id);
+          }
+        });
+
+        let leadUserMap = new Map();
+        if (leadUserIds.size > 0) {
+          const { data: leadUsers, error: leadUsersError } = await supabase
+            .from('users')
+            .select('id, full_name, email, phone')
+            .in('id', Array.from(leadUserIds));
+
+          if (leadUsersError) {
+            throw new Error(`Database error: ${leadUsersError.message}`);
+          }
+
+          leadUserMap = new Map((leadUsers || []).map((user) => [user.id, user]));
+        }
+
+        const enrichedLeadLabor = (leadLaborDetails || []).map((item) => ({
+          ...item,
+          user: item.user_id ? leadUserMap.get(item.user_id) || null : null
+        }));
+
+        leadLaborMap = new Map(enrichedLeadLabor.map((item) => [item.id, item]));
+      }
+
+      paginatedJobs.forEach((job) => {
+        job.assigned_labor = (job.assigned_labor_ids || []).map((id) => laborMap.get(id)).filter(
+          Boolean
+        );
+        job.assigned_lead_labor = (job.assigned_lead_labor_ids || []).map((id) =>
+          leadLaborMap.get(id)
+        ).filter(Boolean);
+      });
 
       // Optimize: Don't call addDetailsToJob for list view - it's too slow
       // Jobs already have customer, contractor, created_by_user from initial query
@@ -1551,6 +1835,7 @@ export class Job {
 
           const hasMatch = leadLaborIds.some((id) => parseInt(id) === targetId);
           if (hasMatch) {
+            job.assigned_lead_labor_ids = leadLaborIds;
             filteredJobs.push(job);
 
             const status = (job.status || '').toLowerCase();
