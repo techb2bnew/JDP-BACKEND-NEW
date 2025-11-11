@@ -69,6 +69,26 @@ const sendPushNotifications = async (tokens, title, body, data = {}) => {
 export class NotificationService {
   static async sendNotification(notificationPayload) {
     try {
+      const rawTargetUserIds = Array.isArray(notificationPayload.recipient_user_ids)
+        ? notificationPayload.recipient_user_ids
+        : [];
+
+      const targetUserIds = new Set(
+        rawTargetUserIds
+          .map((value) => {
+            if (typeof value === 'number' && Number.isFinite(value)) {
+              return value;
+            }
+            if (typeof value === 'string') {
+              const parsed = parseInt(value, 10);
+              return Number.isNaN(parsed) ? null : parsed;
+            }
+            return null;
+          })
+          .filter((value) => value !== null)
+      );
+      const hasTargetUsers = targetUserIds.size > 0;
+
       const notificationData = {
         notification_title: notificationPayload.notification_title,
         message: notificationPayload.message,
@@ -109,8 +129,9 @@ export class NotificationService {
               .map((role) => normalizeRoleValue(role))
               .filter(Boolean)
           );
+      const hasRoleTargets = normalizedRoleTargets && normalizedRoleTargets.size > 0;
 
-      if (!notificationData.send_to_all && (!normalizedRoleTargets || normalizedRoleTargets.size === 0)) {
+      if (!notificationData.send_to_all && !hasRoleTargets && !hasTargetUsers) {
         return successResponse(
           {
             notification,
@@ -129,14 +150,16 @@ export class NotificationService {
         const managementNormalized = normalizeRoleValue(user.management_type);
         const effectiveRole = managementNormalized || roleNormalized;
 
-        const isTargeted =
+        const roleMatched =
           notificationData.send_to_all ||
-          (normalizedRoleTargets &&
-            (normalizedRoleTargets.has(effectiveRole) ||
-              normalizedRoleTargets.has(roleNormalized) ||
-              normalizedRoleTargets.has(managementNormalized)));
+          !hasRoleTargets ||
+          normalizedRoleTargets.has(effectiveRole) ||
+          normalizedRoleTargets.has(roleNormalized) ||
+          normalizedRoleTargets.has(managementNormalized);
 
-        if (!isTargeted) {
+        const userMatched = notificationData.send_to_all || !hasTargetUsers || targetUserIds.has(user.id);
+
+        if (!roleMatched || !userMatched) {
           continue;
         }
 

@@ -2,6 +2,7 @@ import { Job } from "../models/Job.js";
 import { LaborTimesheet } from "../models/LaborTimesheet.js";
 import { successResponse } from "../helpers/responseHelper.js";
 import { supabase } from "../config/database.js";
+import { NotificationService } from "./notificationService.js";
 
 export class JobService {
   static async createJob(jobData, createdByUserId) {
@@ -157,12 +158,304 @@ export class JobService {
     }
   }
 
-  static async updateJob(jobId, updateData) {
+  static async updateJob(jobId, updateData, options = {}) {
     try {
+      const performedByName = options.performedByName || null;
+
+      const leadProvided = Object.prototype.hasOwnProperty.call(
+        updateData,
+        "assigned_lead_labor_ids"
+      );
+      const laborProvided = Object.prototype.hasOwnProperty.call(updateData, "assigned_labor_ids");
+      const hasAssignmentUpdates = leadProvided || laborProvided;
+      const statusProvided = Object.prototype.hasOwnProperty.call(updateData, "status");
+      const normalizedStatus = statusProvided
+        ? String(updateData.status || "")
+            .trim()
+            .toLowerCase()
+        : null;
+      const statusChangedToCompleted = normalizedStatus === "completed";
+
+      const parseAssignedIds = (value) => {
+        if (!value) {
+          return [];
+        }
+
+        let arrValue = value;
+
+        if (typeof value === "string") {
+          const trimmed = value.trim();
+          if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
+            try {
+              arrValue = JSON.parse(trimmed);
+            } catch (parseErr) {
+              arrValue = trimmed
+                .replace(/[\[\]\s"]/g, "")
+                .split(",")
+                .filter(Boolean);
+            }
+          } else {
+            arrValue = trimmed
+              .replace(/[\[\]\s"]/g, "")
+              .split(",")
+              .filter(Boolean);
+          }
+        }
+
+        if (!Array.isArray(arrValue)) {
+          return [];
+        }
+
+        const numericValues = arrValue
+          .map((item) => {
+            if (typeof item === "number" && Number.isFinite(item)) {
+              return item;
+            }
+            if (typeof item === "string") {
+              const parsed = parseInt(item, 10);
+              return Number.isNaN(parsed) ? null : parsed;
+            }
+            return null;
+          })
+          .filter((val) => val !== null);
+
+        return Array.from(new Set(numericValues));
+      };
+
       const updatedJob = await Job.update(jobId, updateData);
 
       if (!updatedJob) {
         throw new Error("Job not found");
+      }
+
+      if (hasAssignmentUpdates || statusChangedToCompleted) {
+        const resolvedLeadIdsSource = leadProvided
+          ? updateData.assigned_lead_labor_ids ?? updatedJob.assigned_lead_labor_ids
+          : updatedJob.assigned_lead_labor_ids;
+        const resolvedLaborIdsSource = laborProvided
+          ? updateData.assigned_labor_ids ?? updatedJob.assigned_labor_ids
+          : updatedJob.assigned_labor_ids;
+
+        const updatedLeadLaborIds = parseAssignedIds(resolvedLeadIdsSource);
+        const updatedLaborIds = parseAssignedIds(resolvedLaborIdsSource);
+
+        const normalizationPayload = {};
+        if (leadProvided) {
+          const normalizedLeadJson = JSON.stringify(updatedLeadLaborIds);
+          if (normalizedLeadJson !== updatedJob.assigned_lead_labor_ids) {
+            normalizationPayload.assigned_lead_labor_ids = normalizedLeadJson;
+            updatedJob.assigned_lead_labor_ids = normalizedLeadJson;
+          }
+        }
+
+        if (laborProvided) {
+          const normalizedLaborJson = JSON.stringify(updatedLaborIds);
+          if (normalizedLaborJson !== updatedJob.assigned_labor_ids) {
+            normalizationPayload.assigned_labor_ids = normalizedLaborJson;
+            updatedJob.assigned_labor_ids = normalizedLaborJson;
+          }
+        }
+
+        if (hasAssignmentUpdates && Object.keys(normalizationPayload).length > 0) {
+          const { error: normalizationError } = await supabase
+            .from("jobs")
+            .update(normalizationPayload)
+            .eq("id", jobId);
+
+          if (normalizationError) {
+            console.error(
+              "Failed to normalize assigned labor fields after update:",
+              normalizationError.message
+            );
+          }
+        }
+
+        if (updatedLeadLaborIds.length > 0 || updatedLaborIds.length > 0) {
+          const [leadLaborResult, laborResult] = await Promise.all([
+            updatedLeadLaborIds.length > 0
+              ? supabase
+                  .from("lead_labor")
+                  .select("id, labor_code, user_id")
+                  .in("id", updatedLeadLaborIds)
+              : Promise.resolve({ data: [], error: null }),
+            updatedLaborIds.length > 0
+              ? supabase.from("labor").select("id, labor_code, user_id").in("id", updatedLaborIds)
+              : Promise.resolve({ data: [], error: null })
+          ]);
+
+          if (leadLaborResult.error) {
+            throw new Error(`Database error: ${leadLaborResult.error.message}`);
+          }
+
+          if (laborResult.error) {
+            throw new Error(`Database error: ${laborResult.error.message}`);
+          }
+
+          const userIdMeta = new Map();
+          const userIdsToFetch = new Set();
+
+          (leadLaborResult.data || []).forEach((leadLabor) => {
+            if (leadLabor.user_id) {
+              userIdMeta.set(leadLabor.user_id, {
+                role: "lead_labor",
+                fallback: leadLabor.labor_code || `Lead Labor ${leadLabor.id}`,
+                name: null
+              });
+              userIdsToFetch.add(leadLabor.user_id);
+            }
+          });
+
+          (laborResult.data || []).forEach((labor) => {
+            if (labor.user_id) {
+              userIdMeta.set(labor.user_id, {
+                role: "labor",
+                fallback: labor.labor_code || `Labor ${labor.id}`,
+                name: null
+              });
+              userIdsToFetch.add(labor.user_id);
+            }
+          });
+
+          if (userIdsToFetch.size > 0) {
+            const { data: userRows, error: usersFetchError } = await supabase
+              .from("users")
+              .select("id, full_name")
+              .in("id", Array.from(userIdsToFetch));
+
+            if (usersFetchError) {
+              throw new Error(`Database error: ${usersFetchError.message}`);
+            }
+
+            (userRows || []).forEach((userRow) => {
+              const meta = userIdMeta.get(userRow.id);
+              if (meta) {
+                meta.name = userRow.full_name || meta.fallback;
+              }
+            });
+          }
+
+          const recipientUserIds = [];
+          const leadLaborNames = new Set();
+          const laborNames = new Set();
+
+          userIdMeta.forEach((meta, userId) => {
+            recipientUserIds.push(userId);
+            const displayName = meta.name || meta.fallback;
+            if (meta.role === "lead_labor") {
+              leadLaborNames.add(displayName);
+            } else if (meta.role === "labor") {
+              laborNames.add(displayName);
+            }
+          });
+
+          if (recipientUserIds.length > 0) {
+            const formatDate = (value) => {
+              if (!value) {
+                return null;
+              }
+              const date = new Date(value);
+              if (Number.isNaN(date.getTime())) {
+                return null;
+              }
+              return date.toLocaleDateString("en-US", {
+                year: "numeric",
+                month: "long",
+                day: "numeric"
+              });
+            };
+
+            const jobYear = updatedJob.created_at
+              ? new Date(updatedJob.created_at).getFullYear()
+              : new Date().getFullYear();
+            const jobCode = `JOB-${jobYear}-${String(updatedJob.id).padStart(3, "0")}`;
+            const leadLaborSegment =
+              leadLaborNames.size > 0 ? ` Lead Labor: ${Array.from(leadLaborNames).join(", ")}.` : "";
+            const laborSegment =
+              laborNames.size > 0 ? ` Labor: ${Array.from(laborNames).join(", ")}.` : "";
+            const estimateDate = formatDate(updatedJob.due_date);
+            const dateSegment = estimateDate ? ` Estimated start date: ${estimateDate}.` : "";
+
+            let assignmentSegment = "";
+            if (updatedJob.contractor?.company_name || updatedJob.contractor?.contractor_name) {
+              const contractorName =
+                updatedJob.contractor.company_name || updatedJob.contractor.contractor_name;
+              assignmentSegment = ` contractor ${contractorName}`;
+            } else if (updatedJob.customer?.company_name || updatedJob.customer?.customer_name) {
+              const customerName =
+                updatedJob.customer.company_name || updatedJob.customer.customer_name;
+              assignmentSegment = ` customer ${customerName}`;
+            }
+
+            const recipientRoles = [];
+            const notificationTitle = statusChangedToCompleted
+              ? "Job Status Updated"
+              : "Job Assignment Confirmation";
+
+            if (leadLaborNames.size > 0) {
+              recipientRoles.push("lead_labor");
+            }
+            if (laborNames.size > 0) {
+              recipientRoles.push("labor");
+            }
+
+            if (recipientRoles.length > 0 && recipientUserIds.length > 0) {
+              const formatDateTime = (value) => {
+                if (!value) {
+                  return null;
+                }
+                const date = new Date(value);
+                if (Number.isNaN(date.getTime())) {
+                  return null;
+                }
+                return date.toLocaleString("en-US", {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit"
+                });
+              };
+
+              let notificationMessage;
+              if (statusChangedToCompleted) {
+                const statusLabel = (updateData.status || "completed")
+                  .toString()
+                  .replace(/_/g, " ")
+                  .trim();
+                const titleCaseStatus = statusLabel
+                  .split(" ")
+                  .filter(Boolean)
+                  .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                  .join(" ");
+                const performedSegment = performedByName ? ` by ${performedByName}` : "";
+                const completionSegment = ` Completed on: ${
+                  formatDateTime(updatedJob.updated_at) || "N/A"
+                }.`;
+                notificationMessage = `Job ${jobCode} ${updatedJob.job_title} status updated to ${titleCaseStatus}${performedSegment}.${completionSegment}`;
+              } else {
+                notificationMessage = `Job ${jobCode} ${updatedJob.job_title} assigned to${assignmentSegment}.${leadLaborSegment}${laborSegment}${dateSegment}`;
+              }
+
+              const notificationPayload = {
+                notification_title: notificationTitle,
+                message: notificationMessage,
+                custom_link: `/jobs/${updatedJob.id}`,
+                send_to_all: false,
+                recipient_roles: recipientRoles,
+                job_id: updatedJob.id,
+                contractor_id: updatedJob.contractor?.id || null,
+                customer_id: updatedJob.customer?.id || updatedJob.customer_id || null,
+                recipient_user_ids: recipientUserIds
+              };
+
+              setImmediate(() => {
+                NotificationService.sendNotification(notificationPayload).catch((notificationError) => {
+                  console.error("Failed to send job notification:", notificationError);
+                });
+              });
+            }
+          }
+        }
       }
 
       return successResponse(

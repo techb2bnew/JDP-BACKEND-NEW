@@ -154,7 +154,15 @@ export class JobController {
   static async updateJob(request, reply) {
     try {
       const { id } = request.params;
-      const result = await JobService.updateJob(parseInt(id), request.body);
+      const performerName =
+        request.user?.full_name ||
+        request.user?.name ||
+        request.user?.email ||
+        (request.user?.id ? `User ${request.user.id}` : null);
+
+      const result = await JobService.updateJob(parseInt(id), request.body, {
+        performedByName: performerName
+      });
       return reply.code(200).send(result);
     } catch (error) {
       if (error.message.includes('not found')) {
@@ -176,7 +184,15 @@ export class JobController {
       const { status } = request.body || {};
       const finalStatus = status || 'completed';
 
-      const result = await JobService.updateJob(parseInt(id), { status: finalStatus });
+      const performerName =
+        request.user?.full_name ||
+        request.user?.name ||
+        request.user?.email ||
+        (request.user?.id ? `User ${request.user.id}` : null);
+
+      const result = await JobService.updateJob(parseInt(id), { status: finalStatus }, {
+        performedByName: performerName
+      });
       return reply.code(200).send(result);
     } catch (error) {
       if (error.message.includes('not found')) {
