@@ -1282,6 +1282,7 @@ export class Job {
 
       const leadIdsNeeded = new Set();
       const laborIdsNeeded = new Set();
+      const jobIds = [];
 
       paginatedJobs.forEach((job) => {
         const normalizedLeadIds = normalizeIdArray(job.assigned_lead_labor_ids);
@@ -1292,6 +1293,7 @@ export class Job {
 
         normalizedLeadIds.forEach((id) => leadIdsNeeded.add(id));
         normalizedLaborIds.forEach((id) => laborIdsNeeded.add(id));
+        jobIds.push(job.id);
       });
 
       let leadLaborMap = new Map();
@@ -1392,6 +1394,47 @@ export class Job {
         laborMap = new Map(enrichedLabor.map((item) => [item.id, item]));
       }
 
+      let timesheetMap = new Map();
+      if (jobIds.length > 0) {
+        const { data: timesheetRows, error: timesheetError } = await supabase
+          .from('labor_timesheets')
+          .select(`
+            *,
+            labor:labor_id (
+              id,
+              labor_code,
+              users!labor_user_id_fkey(
+                id,
+                full_name,
+                email,
+                phone
+              )
+            ),
+            lead_labor:lead_labor_id (
+              id,
+              labor_code,
+              users!lead_labor_user_id_fkey(
+                id,
+                full_name,
+                email,
+                phone
+              )
+            )
+          `)
+          .in('job_id', jobIds)
+          .order('date', { ascending: false });
+
+        if (timesheetError) {
+          throw new Error(`Database error: ${timesheetError.message}`);
+        }
+
+        (timesheetRows || []).forEach((row) => {
+          const list = timesheetMap.get(row.job_id) || [];
+          list.push(row);
+          timesheetMap.set(row.job_id, list);
+        });
+      }
+
       paginatedJobs.forEach((job) => {
         job.assigned_lead_labor = (job.assigned_lead_labor_ids || []).map((id) =>
           leadLaborMap.get(id)
@@ -1399,6 +1442,7 @@ export class Job {
         job.assigned_labor = (job.assigned_labor_ids || []).map((id) => laborMap.get(id)).filter(
           Boolean
         );
+        job.labor_timesheets = timesheetMap.get(job.id) || [];
       });
       const totalPages = Math.ceil(totalJobs / limit);
 
@@ -1614,6 +1658,7 @@ export class Job {
 
       const leadIdsNeeded = new Set();
       const laborIdsNeeded = new Set();
+      const jobIds = [];
 
       paginatedJobs.forEach((job) => {
         const normalizedLaborIds = normalizeIdArray(job.assigned_labor_ids);
@@ -1624,6 +1669,7 @@ export class Job {
 
         normalizedLaborIds.forEach((id) => laborIdsNeeded.add(id));
         normalizedLeadIds.forEach((id) => leadIdsNeeded.add(id));
+        jobIds.push(job.id);
       });
 
       let laborMap = new Map();
@@ -1724,6 +1770,47 @@ export class Job {
         leadLaborMap = new Map(enrichedLeadLabor.map((item) => [item.id, item]));
       }
 
+      let timesheetMap = new Map();
+      if (jobIds.length > 0) {
+        const { data: timesheetRows, error: timesheetError } = await supabase
+          .from('labor_timesheets')
+          .select(`
+            *,
+            labor:labor_id (
+              id,
+              labor_code,
+              users!labor_user_id_fkey(
+                id,
+                full_name,
+                email,
+                phone
+              )
+            ),
+            lead_labor:lead_labor_id (
+              id,
+              labor_code,
+              users!lead_labor_user_id_fkey(
+                id,
+                full_name,
+                email,
+                phone
+              )
+            )
+          `)
+          .in('job_id', jobIds)
+          .order('date', { ascending: false });
+
+        if (timesheetError) {
+          throw new Error(`Database error: ${timesheetError.message}`);
+        }
+
+        (timesheetRows || []).forEach((row) => {
+          const list = timesheetMap.get(row.job_id) || [];
+          list.push(row);
+          timesheetMap.set(row.job_id, list);
+        });
+      }
+
       paginatedJobs.forEach((job) => {
         job.assigned_labor = (job.assigned_labor_ids || []).map((id) => laborMap.get(id)).filter(
           Boolean
@@ -1731,6 +1818,7 @@ export class Job {
         job.assigned_lead_labor = (job.assigned_lead_labor_ids || []).map((id) =>
           leadLaborMap.get(id)
         ).filter(Boolean);
+        job.labor_timesheets = timesheetMap.get(job.id) || [];
       });
 
       // Optimize: Don't call addDetailsToJob for list view - it's too slow
