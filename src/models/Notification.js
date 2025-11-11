@@ -102,5 +102,50 @@ export class Notification {
       throw error;
     }
   }
+
+  static async updateRecipientStatus({ recipientId, status }) {
+    try {
+      const payload = {
+        status
+      };
+
+      if (status === 'read') {
+        payload.read_at = new Date().toISOString();
+      }
+
+      const { data, error } = await supabase
+        .from('notification_recipients')
+        .update(payload)
+        .eq('id', recipientId)
+        .select('id, notification_id, user_id, status, read_at, delivered_at, created_at');
+
+      if (error) {
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      return Array.isArray(data) ? data[0] : data;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async deleteRecipient({ recipientId }) {
+    try {
+      const { data, error } = await supabase
+        .from('notification_recipients')
+        .delete()
+        .eq('id', recipientId)
+        .select('id')
+        .single();
+
+      if (error) {
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      return data;
+    } catch (error) {
+      throw error;
+    }
+  }
 }
 

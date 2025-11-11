@@ -224,5 +224,52 @@ export class NotificationService {
       throw error;
     }
   }
+
+  static async markNotificationAsRead({ recipientId }) {
+    try {
+      if (!recipientId) {
+        throw new Error('Recipient ID is required');
+      }
+
+      const updated = await Notification.updateRecipientStatus({
+        recipientId,
+        status: 'read'
+      });
+
+      return successResponse(
+        {
+          recipient_id: updated.id,
+          notification_id: updated.notification_id,
+          user_id: updated.user_id,
+          status: updated.status,
+          read_at: updated.read_at,
+          delivered_at: updated.delivered_at,
+          created_at: updated.created_at
+        },
+        'Notification marked as read successfully'
+      );
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async deleteNotificationRecipient({ recipientId }) {
+    try {
+      if (!recipientId) {
+        throw new Error('Recipient ID is required');
+      }
+
+      await Notification.deleteRecipient({ recipientId });
+
+      return successResponse(
+        {
+          recipient_id: recipientId
+        },
+        'Notification deleted successfully'
+      );
+    } catch (error) {
+      throw error;
+    }
+  }
 }
 

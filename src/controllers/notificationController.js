@@ -125,5 +125,41 @@ export class NotificationController {
       return responseHelper.error(reply, error.message, 500);
     }
   }
+
+  static async markNotificationAsRead(request, reply) {
+    try {
+      const recipientId = parseOptionalInt(request.params.recipientId);
+
+      if (!recipientId) {
+        return responseHelper.validationError(reply, {
+          recipient_id: 'Valid recipient_id parameter is required'
+        });
+      }
+
+      const result = await NotificationService.markNotificationAsRead({ recipientId });
+
+      return responseHelper.success(reply, result.data, result.message);
+    } catch (error) {
+      return responseHelper.error(reply, error.message, 500);
+    }
+  }
+
+  static async deleteNotificationRecipient(request, reply) {
+    try {
+      const recipientId = parseOptionalInt(request.params.recipientId);
+
+      if (!recipientId) {
+        return responseHelper.validationError(reply, {
+          recipient_id: 'Valid recipient_id parameter is required'
+        });
+      }
+
+      const result = await NotificationService.deleteNotificationRecipient({ recipientId });
+
+      return responseHelper.success(reply, result.data, result.message);
+    } catch (error) {
+      return responseHelper.error(reply, error.message, 500);
+    }
+  }
 }
 
