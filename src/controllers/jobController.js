@@ -161,7 +161,8 @@ export class JobController {
         (request.user?.id ? `User ${request.user.id}` : null);
 
       const result = await JobService.updateJob(parseInt(id), request.body, {
-        performedByName: performerName
+        performedByName: performerName,
+        assignedByUserId: request.user?.id || null
       });
       return reply.code(200).send(result);
     } catch (error) {

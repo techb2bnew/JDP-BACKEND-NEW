@@ -589,6 +589,17 @@ export class Job {
     jobWithDetails.orders = orders;
     jobWithDetails.labor_timesheets = laborTimesheets;
     jobWithDetails.bluesheets = bluesheets;
+    
+    // assigned_by_user is already included from the query, ensure it's properly formatted
+    if (job.assigned_by_user) {
+      jobWithDetails.assigned_by = {
+        id: job.assigned_by_user.id,
+        full_name: job.assigned_by_user.full_name,
+        email: job.assigned_by_user.email
+      };
+    } else {
+      jobWithDetails.assigned_by = null;
+    }
 
     return jobWithDetails;
   }
@@ -697,6 +708,11 @@ export class Job {
             id,
             full_name,
             email
+          ),
+          assigned_by_user:users!jobs_assigned_by_fkey(
+            id,
+            full_name,
+            email
           )
         `)
         .single();
@@ -736,6 +752,11 @@ export class Job {
             address
           ),
           created_by_user:users!jobs_created_by_fkey(
+            id,
+            full_name,
+            email
+          ),
+          assigned_by_user:users!jobs_assigned_by_fkey(
             id,
             full_name,
             email
@@ -779,6 +800,11 @@ export class Job {
             address
           ),
           created_by_user:users!jobs_created_by_fkey(
+            id,
+            full_name,
+            email
+          ),
+          assigned_by_user:users!jobs_assigned_by_fkey(
             id,
             full_name,
             email
@@ -863,6 +889,11 @@ export class Job {
             address
           ),
           created_by_user:users!jobs_created_by_fkey(
+            id,
+            full_name,
+            email
+          ),
+          assigned_by_user:users!jobs_assigned_by_fkey(
             id,
             full_name,
             email
@@ -1196,6 +1227,11 @@ export class Job {
             phone
           ),
           created_by_user:users!jobs_created_by_fkey(
+            id,
+            full_name,
+            email
+          ),
+          assigned_by_user:users!jobs_assigned_by_fkey(
             id,
             full_name,
             email
@@ -1553,6 +1589,11 @@ export class Job {
             id,
             full_name,
             email
+          ),
+          assigned_by_user:users!jobs_assigned_by_fkey(
+            id,
+            full_name,
+            email
           )
         `)
         .ilike('assigned_lead_labor_ids', `%${leadLaborId}%`) 
@@ -1882,6 +1923,11 @@ export class Job {
             id,
             full_name,
             email
+          ),
+          assigned_by_user:users!jobs_assigned_by_fkey(
+            id,
+            full_name,
+            email
           )
         `)
         .ilike('assigned_lead_labor_ids', `%${leadLaborId}%`)
@@ -2054,6 +2100,16 @@ export class Job {
             company_name,
             email,
             phone
+          ),
+          created_by_user:users!jobs_created_by_fkey(
+            id,
+            full_name,
+            email
+          ),
+          assigned_by_user:users!jobs_assigned_by_fkey(
+            id,
+            full_name,
+            email
           )
         `)
         .eq("customer_id", customerId)
@@ -2092,6 +2148,16 @@ export class Job {
             company_name,
             email,
             phone
+          ),
+          created_by_user:users!jobs_created_by_fkey(
+            id,
+            full_name,
+            email
+          ),
+          assigned_by_user:users!jobs_assigned_by_fkey(
+            id,
+            full_name,
+            email
           )
         `)
         .eq("contractor_id", contractorId)
@@ -4265,6 +4331,11 @@ export class Job {
             phone
           ),
           created_by_user:users!jobs_created_by_fkey(
+            id,
+            full_name,
+            email
+          ),
+          assigned_by_user:users!jobs_assigned_by_fkey(
             id,
             full_name,
             email

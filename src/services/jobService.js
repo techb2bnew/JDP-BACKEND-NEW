@@ -161,6 +161,7 @@ export class JobService {
   static async updateJob(jobId, updateData, options = {}) {
     try {
       const performedByName = options.performedByName || null;
+      const assignedByUserId = options.assignedByUserId || null;
 
       const leadProvided = Object.prototype.hasOwnProperty.call(
         updateData,
@@ -254,6 +255,11 @@ export class JobService {
             normalizationPayload.assigned_labor_ids = normalizedLaborJson;
             updatedJob.assigned_labor_ids = normalizedLaborJson;
           }
+        }
+
+        // Save assigned_by when assignment is updated
+        if (hasAssignmentUpdates && assignedByUserId) {
+          normalizationPayload.assigned_by = assignedByUserId;
         }
 
         if (hasAssignmentUpdates && Object.keys(normalizationPayload).length > 0) {
