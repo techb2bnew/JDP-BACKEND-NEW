@@ -38,12 +38,12 @@ export class User {
         return null; 
       }
 
-      // If includeRelated is false, return only user data (faster for login)
+    
       if (!includeRelated) {
         return user;
       }
 
-      // Run all related queries in parallel for better performance
+   
       const [staffResult, laborResult, leadLaborResult] = await Promise.all([
         supabase
           .from("staff")

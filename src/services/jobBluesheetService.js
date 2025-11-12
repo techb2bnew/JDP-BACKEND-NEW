@@ -7,7 +7,7 @@ import { Labor } from '../models/Labor.js';
 export class JobBluesheetService {
   static async createBluesheet(bluesheetData, createdByUserId) {
     try {
-      // Create main bluesheet entry
+
       const bluesheet = await JobBluesheet.create({
         ...bluesheetData,
         created_by: createdByUserId
@@ -23,20 +23,20 @@ export class JobBluesheetService {
     }
   }
 
-  // Create Complete Bluesheet with Labor and Material Entries
+
   static async createCompleteBluesheet(completeData, createdByUserId) {
     try {
-      const { 
-        job_id, 
-        date, 
-        notes, 
+      const {
+        job_id,
+        date,
+        notes,
         status,
         additional_charges = 0,
         labor_entries = [],
         material_entries = []
       } = completeData;
 
-      // Create main bluesheet entry
+
       const bluesheet = await JobBluesheet.create({
         job_id,
         date,
@@ -48,7 +48,7 @@ export class JobBluesheetService {
 
       const bluesheetId = bluesheet.id;
 
-      // Create labor entries
+
       const createdLaborEntries = [];
       if (labor_entries && labor_entries.length > 0) {
         for (const laborEntry of labor_entries) {
@@ -60,7 +60,7 @@ export class JobBluesheetService {
         }
       }
 
-      // Create material entries
+
       const createdMaterialEntries = [];
       if (material_entries && material_entries.length > 0) {
         for (const materialEntry of material_entries) {
@@ -72,12 +72,12 @@ export class JobBluesheetService {
         }
       }
 
-      // Calculate totals
+
       const laborTotalCost = await JobBluesheetLabor.calculateTotalCost(bluesheetId);
       const materialTotalCost = await JobBluesheetMaterial.calculateTotalCost(bluesheetId);
       const grandTotal = laborTotalCost + materialTotalCost + additional_charges;
 
-      // Update bluesheet with calculated total
+
       const updatedBluesheet = await JobBluesheet.update(bluesheetId, {
         total_cost: grandTotal
       });
@@ -105,7 +105,7 @@ export class JobBluesheetService {
   static async getBluesheetById(id) {
     try {
       const bluesheet = await JobBluesheet.findById(id);
-      
+
       if (!bluesheet) {
         throw new Error('Job bluesheet not found');
       }
@@ -176,7 +176,7 @@ export class JobBluesheetService {
     }
   }
 
-  // Labor Entry Methods
+
   static async getLaborEntryById(id) {
     try {
       const laborEntry = await JobBluesheetLabor.findById(id);
@@ -250,7 +250,7 @@ export class JobBluesheetService {
     }
   }
 
-  // Material Entry Methods
+
   static async getMaterialEntryById(id) {
     try {
       const materialEntry = await JobBluesheetMaterial.findById(id);
@@ -324,16 +324,16 @@ export class JobBluesheetService {
     }
   }
 
-  // Summary and Statistics
+
   static async getBluesheetSummary(bluesheetId) {
     try {
       const bluesheet = await JobBluesheet.findById(bluesheetId);
-      
+
       if (!bluesheet) {
         throw new Error('Job bluesheet not found');
       }
 
-      // Calculate totals
+
       const laborTotalCost = await JobBluesheetLabor.calculateTotalCost(bluesheetId);
       const materialTotalCost = await JobBluesheetMaterial.calculateTotalCost(bluesheetId);
       const grandTotal = laborTotalCost + materialTotalCost;
@@ -459,23 +459,23 @@ export class JobBluesheetService {
     }
   }
 
-  // Submit Bluesheet for Approval
+
   static async submitBluesheetForApproval(id) {
     try {
-      // Get current bluesheet
+
       const bluesheet = await JobBluesheet.findById(id);
-      
+
       if (!bluesheet) {
         throw new Error('Job bluesheet not found');
       }
 
-      // Calculate totals
+
       const laborTotalCost = await JobBluesheetLabor.calculateTotalCost(id);
       const materialTotalCost = await JobBluesheetMaterial.calculateTotalCost(id);
       const additionalCharges = bluesheet.additional_charges || 0;
       const grandTotal = laborTotalCost + materialTotalCost + additionalCharges;
 
-      // Update bluesheet with calculated totals and status
+
       const updatedBluesheet = await JobBluesheet.update(id, {
         total_cost: grandTotal,
         status: 'submitted'
@@ -499,7 +499,7 @@ export class JobBluesheetService {
     }
   }
 
-  // Update Additional Charges
+
   static async updateAdditionalCharges(id, additionalCharges) {
     try {
       const bluesheet = await JobBluesheet.update(id, {
@@ -516,22 +516,22 @@ export class JobBluesheetService {
     }
   }
 
-  // Calculate and Update Total Cost
+
   static async calculateAndUpdateTotalCost(id) {
     try {
       const bluesheet = await JobBluesheet.findById(id);
-      
+
       if (!bluesheet) {
         throw new Error('Job bluesheet not found');
       }
 
-      // Calculate totals
+
       const laborTotalCost = await JobBluesheetLabor.calculateTotalCost(id);
       const materialTotalCost = await JobBluesheetMaterial.calculateTotalCost(id);
       const additionalCharges = bluesheet.additional_charges || 0;
       const grandTotal = laborTotalCost + materialTotalCost + additionalCharges;
 
-      // Update total cost
+
       const updatedBluesheet = await JobBluesheet.update(id, {
         total_cost: grandTotal
       });
@@ -554,17 +554,17 @@ export class JobBluesheetService {
     }
   }
 
-  // Approve Bluesheet
+
   static async approveBluesheet(id, approvedByUserId) {
     try {
-      // Get current bluesheet
+
       const bluesheet = await JobBluesheet.findById(id);
-      
+
       if (!bluesheet) {
         throw new Error('Job bluesheet not found');
       }
 
-      // Update bluesheet with approved status and approved_by
+
       const updatedBluesheet = await JobBluesheet.update(id, {
         status: 'approved',
         approved_by: approvedByUserId

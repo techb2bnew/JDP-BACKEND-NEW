@@ -157,7 +157,7 @@ export class Customer {
 
   static async getStats() {
     try {
-      // Optimize: Run all count queries in parallel
+
       const [totalResult, activeResult, inactiveResult] = await Promise.all([
         supabase
           .from("customers")
@@ -206,7 +206,7 @@ export class Customer {
         throw new Error('Customer ID is required');
       }
 
-      // Optimize: Run both relationship checks in parallel
+ 
       const [jobsResult, ordersResult] = await Promise.all([
         supabase
           .from('jobs')

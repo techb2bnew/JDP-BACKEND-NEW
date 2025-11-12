@@ -36,7 +36,7 @@ export class LeadLabor {
     try {
       const offset = (page - 1) * limit;
 
-      // Optimize: Run count and data queries in parallel
+  
       const [countResult, dataResult, jobsResult] = await Promise.all([
         supabase
           .from('lead_labor')
@@ -57,7 +57,7 @@ export class LeadLabor {
           `)
           .order('id', { ascending: false })
           .range(offset, offset + limit - 1),
-        // Optimize: Fetch jobs in parallel (only required fields)
+   
         supabase
           .from('jobs')
           .select('id, assigned_lead_labor_ids')
@@ -74,10 +74,10 @@ export class LeadLabor {
       const count = countResult.count || 0;
       const data = dataResult.data || [];
 
-      // Optimize: Build leadLaborId -> assigned jobs count map efficiently
+     
       let leadLaborIdToJobCount = {};
       if (!jobsResult.error && jobsResult.data) {
-        // Use Map for O(1) lookups during counting
+
         const leadLaborIdsSet = new Set(data.map(l => l.id));
         
         for (const job of jobsResult.data) {
@@ -92,7 +92,7 @@ export class LeadLabor {
             ids = job.assigned_lead_labor_ids;
           }
 
-          // Only process IDs that are in the current page's lead labor
+    
           for (const id of ids) {
             const leadLaborIdNum = parseInt(id);
             if (!Number.isNaN(leadLaborIdNum) && leadLaborIdsSet.has(leadLaborIdNum)) {
@@ -104,7 +104,7 @@ export class LeadLabor {
 
       const totalPages = Math.ceil(count / limit);
 
-      // Optimize: Pre-allocate array for better performance
+   
       const resultData = new Array(data.length);
       for (let i = 0; i < data.length; i++) {
         resultData[i] = {
@@ -193,7 +193,7 @@ export class LeadLabor {
     }
   }
 
-  // Optimized method for login - only essential fields, no nested user (already have user data)
+
   static async getLeadLaborByUserIdForLogin(userId) {
     try {
       const { data, error } = await supabase
@@ -267,16 +267,13 @@ export class LeadLabor {
         throw new Error('Lead Labor ID is required');
       }
 
-      // Optimize: Run all relationship checks in parallel
-      // For jobs, we use text search to find potential matches (fast with index), then verify only those
-      // This is much faster than fetching all jobs - we only fetch jobs that might contain this ID
+     
       const [jobsResult, bluesheetResult, timesheetResult, ordersResult] = await Promise.all([
-        // Use text search to find jobs that might contain this lead labor ID
-        // This is fast because it uses database indexes, then we verify only the matches
+   
         supabase
           .from('jobs')
           .select('id, job_title, assigned_lead_labor_ids')
-          .ilike('assigned_lead_labor_ids', `%${leadLaborId}%`), // Fast text search - finds potential matches
+          .ilike('assigned_lead_labor_ids', `%${leadLaborId}%`), 
         supabase
           .from('job_bluesheet_labor')
           .select('id')
@@ -296,28 +293,27 @@ export class LeadLabor {
 
       const relationships = [];
 
-      // Check if lead labor is assigned to any jobs
-      // We verify the matches to ensure the ID is actually in the array (not just a substring)
+    
       if (!jobsResult.error && jobsResult.data) {
         const assignedJobs = jobsResult.data.filter(job => {
           if (!job.assigned_lead_labor_ids) return false;
           
           let leadLaborIds = [];
           try {
-            // Try to parse as JSON array
+      
             if (typeof job.assigned_lead_labor_ids === 'string') {
               leadLaborIds = JSON.parse(job.assigned_lead_labor_ids);
             } else if (Array.isArray(job.assigned_lead_labor_ids)) {
               leadLaborIds = job.assigned_lead_labor_ids;
             }
           } catch (e) {
-            // If parsing fails, try to handle as comma-separated string
+ 
             if (typeof job.assigned_lead_labor_ids === 'string') {
               leadLaborIds = job.assigned_lead_labor_ids.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
             }
           }
           
-          // Verify the ID is actually in the array (not just a substring match like "157" matching "57")
+     
           return leadLaborIds.some(id => parseInt(id) === parseInt(leadLaborId));
         });
 
@@ -330,7 +326,7 @@ export class LeadLabor {
         }
       }
 
-      // Check if lead labor is referenced in job_bluesheet_labor
+
       if (!bluesheetResult.error && bluesheetResult.data && bluesheetResult.data.length > 0) {
         relationships.push({
           table: 'job_bluesheet_labor',
@@ -339,7 +335,7 @@ export class LeadLabor {
         });
       }
 
-      // Check if lead labor is referenced in labor_timesheets
+
       if (!timesheetResult.error && timesheetResult.data && timesheetResult.data.length > 0) {
         relationships.push({
           table: 'labor_timesheets',
@@ -348,7 +344,7 @@ export class LeadLabor {
         });
       }
 
-      // Check if lead labor is referenced in orders
+     
       if (!ordersResult.error && ordersResult.data && ordersResult.data.length > 0) {
         relationships.push({
           table: 'orders',
@@ -369,7 +365,7 @@ export class LeadLabor {
 
   static async delete(leadLaborId) {
     try {
-      // Optimize: Fetch only required fields for delete response (not full lead labor details)
+      
       const { data: leadLabor, error: fetchError } = await supabase
         .from('lead_labor')
         .select(`
@@ -396,7 +392,6 @@ export class LeadLabor {
 
       const userId = leadLabor.user_id;
 
-      // Optimize: Run lead labor and user delete in parallel
       const [leadLaborDeleteResult, userDeleteResult] = await Promise.all([
         supabase
           .from('lead_labor')
@@ -513,7 +508,6 @@ export class LeadLabor {
     try {
       const q = (filters.q || '').toLowerCase().trim();
 
-      // Optimize: Run lead labor and jobs queries in parallel
       const [leadLaborResult, jobsResult] = await Promise.all([
         supabase
           .from("lead_labor")
@@ -545,7 +539,7 @@ export class LeadLabor {
       const inStr = (s) => (s || '').toString().toLowerCase().includes(q);
 
       const matches = (leadLabor) => {
-        // Text search across multiple fields
+     
         if (q) {
           const leadLaborMatch = inStr(leadLabor.users?.full_name) || 
                                 inStr(leadLabor.users?.email) || 
@@ -557,7 +551,7 @@ export class LeadLabor {
           if (!leadLaborMatch) return false;
         }
 
-        // Exact field filters
+  
         if (filters.name && !inStr(leadLabor.users?.full_name)) return false;
         if (filters.contact && !inStr(leadLabor.users?.phone) && !inStr(leadLabor.users?.email)) return false;
         if (filters.department && !inStr(leadLabor.department)) return false;
@@ -571,7 +565,7 @@ export class LeadLabor {
 
       let filtered = data.filter(matches);
 
-      // Build leadLaborId -> assigned jobs count map
+    
       let leadLaborIdToJobCount = {};
       
       if (jobs.length > 0) {
@@ -598,7 +592,7 @@ export class LeadLabor {
         }, {});
       }
 
-      // Sort by created_at (most recent first)
+ 
       filtered = filtered.sort((a, b) => {
         const dateA = new Date(a.created_at || 0);
         const dateB = new Date(b.created_at || 0);
@@ -627,7 +621,7 @@ export class LeadLabor {
 
   static async getStats() {
     try {
-      // Optimize: Run all queries in parallel
+     
       const [leadLaborResult, jobsResult] = await Promise.all([
         supabase
           .from('lead_labor')
@@ -654,12 +648,12 @@ export class LeadLabor {
       const allLeadLabor = leadLaborResult.data || [];
       const allJobs = jobsResult.data || [];
 
-      // Count active and inactive
+      
       const activeLeadLabor = allLeadLabor.filter(ll => ll.users?.status === 'active').length;
       const inactiveLeadLabor = allLeadLabor.filter(ll => ll.users?.status !== 'active').length;
       const totalLeadLabor = allLeadLabor.length;
 
-      // Count jobs that have at least one lead labor assigned
+      
       let totalJobs = 0;
       if (allJobs.length > 0) {
         totalJobs = allJobs.filter(job => {

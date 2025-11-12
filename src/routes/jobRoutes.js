@@ -207,7 +207,7 @@ export async function jobRoutes(fastify, options) {
     handler: JobController.approveWeekTimesheet
   });
 
-  // Get timesheet dashboard statistics
+  
   fastify.get('/getTimesheetDashboardStats', {
     preHandler: [authenticateToken],
     handler: JobController.getTimesheetDashboardStats

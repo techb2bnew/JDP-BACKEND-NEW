@@ -122,12 +122,12 @@ export class OrderService {
         throw new Error("Order not found");
       }
 
-      // Extract cartItems if provided
+     
       const { cartItems, ...orderDataToUpdate } = updateData;
 
-      // If cartItems are provided, update order items
+     
       if (cartItems && Array.isArray(cartItems) && cartItems.length > 0) {
-        // Step 1: Restore stock for old order items
+     
         if (existingOrder.items && existingOrder.items.length > 0) {
           for (const oldItem of existingOrder.items) {
             const { data: currentProduct } = await supabase
@@ -149,10 +149,9 @@ export class OrderService {
           }
         }
 
-        // Step 2: Delete old order items
         await OrderItem.deleteByOrderId(orderId);
 
-        // Step 3: Calculate new totals and create new order items
+       
         let subtotal = 0;
         const orderItemsToCreate = [];
 
@@ -184,7 +183,7 @@ export class OrderService {
           });
         }
 
-        // Step 4: Update order totals
+       
         const taxAmount = orderDataToUpdate.tax_amount !== undefined ? orderDataToUpdate.tax_amount : (existingOrder.tax_amount || 0);
         const discountAmount = orderDataToUpdate.discount_amount !== undefined ? orderDataToUpdate.discount_amount : (existingOrder.discount_amount || 0);
         const totalAmount = subtotal + taxAmount - discountAmount;
@@ -195,7 +194,7 @@ export class OrderService {
         orderDataToUpdate.discount_amount = discountAmount;
         orderDataToUpdate.total_amount = totalAmount;
 
-        // Step 5: Create new order items
+        
         const orderItemsWithOrderId = orderItemsToCreate.map(item => ({
           ...item,
           order_id: orderId
@@ -203,7 +202,7 @@ export class OrderService {
 
         await OrderItem.createBulk(orderItemsWithOrderId);
 
-        // Step 6: Deduct stock for new items
+        
         for (const item of cartItems) {
           const { data: currentProduct } = await supabase
             .from("products")
@@ -224,7 +223,7 @@ export class OrderService {
         }
       }
 
-      // Step 7: Update order data (excluding cartItems as it's already handled)
+     
       const updatedOrder = await Order.update(orderId, orderDataToUpdate);
       return updatedOrder;
     } catch (error) {
@@ -274,7 +273,7 @@ export class OrderService {
         throw new Error("Order not found");
       }
 
-      // Step 1: Restore stock for all order items
+     
       if (existingOrder.order_items && existingOrder.order_items.length > 0) {
         for (const item of existingOrder.order_items) {
           if (item.product_id) {
@@ -297,11 +296,11 @@ export class OrderService {
           }
         }
 
-        // Step 2: Delete all order items
+       
         await OrderItem.deleteByOrderId(orderId);
       }
 
-      // Step 3: Delete the order
+      
       await Order.delete(orderId);
       
       return { 

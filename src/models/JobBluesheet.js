@@ -396,7 +396,7 @@ export class JobBluesheet {
           )
         `);
 
-      // Apply filters
+ 
       if (filters.job_id) {
         query = query.eq('job_id', filters.job_id);
       }
@@ -410,15 +410,15 @@ export class JobBluesheet {
         query = query.eq('created_by', filters.created_by);
       }
 
-      // Date range filter
+     
       if (filters.start_date && filters.end_date) {
         query = query.gte('date', filters.start_date).lte('date', filters.end_date);
       }
 
-      // Apply pagination
+
       const { page = 1, limit = 10, offset = 0 } = pagination;
       
-      // First get total count for pagination info
+      
       const { count, error: countError } = await supabase
         .from('job_bluesheet')
         .select('*', { count: 'exact', head: true });
@@ -430,7 +430,7 @@ export class JobBluesheet {
       const totalRecords = count || 0;
       const totalPages = Math.ceil(totalRecords / limit);
 
-      // Apply pagination to main query
+      
       query = query.range(offset, offset + limit - 1);
 
       const { data, error } = await query.order('date', { ascending: false });

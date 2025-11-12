@@ -7,11 +7,11 @@ import { successResponse } from '../helpers/responseHelper.js';
 export class ProductService {
   static async createProduct(productData, createdByUserId) {
     try {
-      // Optimize: Run supplier check and configuration fetch in parallel if needed
+      
       const checks = [];
       
       if (productData.supplier_id) {
-        // Optimize: Simple existence check instead of full getSupplierById
+     
         checks.push(
           supabase
             .from('suppliers')
@@ -30,9 +30,9 @@ export class ProductService {
         );
       }
 
-      // Apply default markup from configuration if no markup_percentage is provided
+
       if (productData.supplier_cost_price && !productData.markup_percentage) {
-        // Fetch configuration in parallel with supplier check
+    
         checks.push(
           Configuration.getConfiguration()
             .then(config => {
@@ -48,7 +48,7 @@ export class ProductService {
         );
       }
 
-      // Wait for all checks to complete in parallel
+  
       if (checks.length > 0) {
         await Promise.all(checks);
       }
@@ -118,11 +118,11 @@ export class ProductService {
 
   static async updateProduct(productId, updateData) {
     try {
-      // Optimize: Run supplier check and product fetch in parallel if needed
+   
       const checks = [];
       
       if (updateData.supplier_id) {
-        // Optimize: Simple existence check instead of full getSupplierById
+     
         checks.push(
           supabase
             .from('suppliers')
@@ -141,9 +141,9 @@ export class ProductService {
         );
       }
 
-      // Optimize: Only fetch required fields if pricing calculation is needed
+    
       if (updateData.supplier_cost_price || updateData.markup_percentage) {
-        // Fetch only required fields for pricing calculation
+     
         const productCheck = supabase
           .from('products')
           .select('supplier_cost_price, markup_percentage')
@@ -153,11 +153,10 @@ export class ProductService {
         checks.push(productCheck);
       }
 
-      // Wait for all checks to complete in parallel
+     
       if (checks.length > 0) {
         const results = await Promise.all(checks);
-        
-        // If pricing calculation is needed, get product data from results
+      
         if (updateData.supplier_cost_price || updateData.markup_percentage) {
           const productResult = results[results.length - 1];
           
@@ -189,7 +188,7 @@ export class ProductService {
 
   static async deleteProduct(productId) {
     try {
-      // Check if product has relationships with other tables
+    
       const relationshipCheck = await Product.checkProductRelationships(productId);
       
       if (!relationshipCheck.canDelete) {
@@ -206,7 +205,7 @@ export class ProductService {
 
   static async getProductsBySupplier(supplierId, page = 1, limit = 10) {
     try {
-      // Optimize: Simple existence check instead of full getSupplierById
+
       const { data: supplier, error: checkError } = await supabase
         .from('suppliers')
         .select('id')

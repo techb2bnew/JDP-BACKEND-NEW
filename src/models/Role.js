@@ -95,14 +95,14 @@ export class Role {
 
   static async getRolePermissionsById(roleId) {
     try {
-      // Check cache first (using RolePermission cache)
+    
       const cacheKey = `role_permissions_${roleId}`;
       const cached = RolePermission.permissionCache?.get(cacheKey);
       if (cached && (Date.now() - cached.timestamp) < (RolePermission.CACHE_TTL || 5 * 60 * 1000)) {
         return cached.data;
       }
 
-      // Run both queries in parallel for better performance
+      
       const [roleResult, permissionsResult] = await Promise.all([
         supabase
           .from('roles')
@@ -139,7 +139,7 @@ export class Role {
       const role = roleResult.data;
       const rolePermissions = permissionsResult.data || [];
 
-      // Process permissions efficiently - single pass for formatting and counting
+      
       const formattedPermissions = new Array(rolePermissions.length);
       let allowedCount = 0;
       let deniedCount = 0;
@@ -153,7 +153,7 @@ export class Role {
           permission: rp.permissions
         };
         
-        // Count in same pass
+        
         if (rp.allowed) {
           allowedCount++;
         } else {
@@ -177,7 +177,7 @@ export class Role {
         denied_permissions: deniedCount
       };
 
-      // Cache the result
+     
       if (RolePermission.permissionCache) {
         RolePermission.permissionCache.set(cacheKey, {
           data: result,
@@ -197,7 +197,7 @@ export class Role {
         throw new Error('Role ID is required');
       }
 
-      // First, get the role to find its role_name
+     
       const { data: role, error: roleError } = await supabase
         .from('roles')
         .select('role_name')
@@ -210,12 +210,12 @@ export class Role {
 
       const relationships = [];
 
-      // Check if role is assigned to any users (users.role matches roles.role_name)
+     
       const { data: usersData, error: usersError } = await supabase
         .from('users')
         .select('id, full_name, email, role')
         .eq('role', role.role_name)
-        .limit(100); // Limit to avoid performance issues, but check if any exist
+        .limit(100); 
 
       if (!usersError && usersData && usersData.length > 0) {
         relationships.push({
@@ -225,7 +225,7 @@ export class Role {
         });
       }
 
-      // Check if role has associated role_permissions (already checked in delete, but good to show)
+     
       const { data: permissionsData, error: permissionsError } = await supabase
         .from('role_permissions')
         .select('id')

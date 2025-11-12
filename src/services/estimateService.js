@@ -168,17 +168,16 @@ export class EstimateService {
 
   static async deleteEstimate(estimateId) {
     try {
-      console.log(`Starting deleteEstimate for ID: ${estimateId}`);
+     
       
       
       let estimate;
       try {
         estimate = await Estimate.simpleFindById(estimateId);
         if (!estimate) {
-          console.log(`Estimate not found for ID: ${estimateId}`);
+          
           throw new Error('Estimate not found');
         }
-        console.log(`Found estimate: ${estimate.id}, title: ${estimate.estimate_title}`);
       } catch (findError) {
         console.error('Error finding estimate:', findError);
         throw new Error(`Failed to find estimate: ${findError.message}`);
@@ -196,13 +195,7 @@ export class EstimateService {
         relationshipCheck = { canDelete: true, relationships: [] };
       }
       
-      // if (!relationshipCheck.canDelete) {
-      //   const relationshipMessages = relationshipCheck.relationships.map(rel => rel.message).join(', ');
-      //   console.log(`Cannot delete estimate due to relationships: ${relationshipMessages}`);
-      //   throw new Error(`Cannot delete this estimate because it has related data: ${relationshipMessages}. Please remove all related data first.`);
-      // }
-
-      // Proceed with deletion
+      
       try {
         console.log('Proceeding with estimate deletion...');
         await Estimate.delete(estimateId);

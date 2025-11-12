@@ -463,25 +463,25 @@ export class JobService {
         "Job updated successfully"
       );
     } catch (error) {
-      // Pass through validation errors (customer/contractor not found) directly
+     
       if (error.message.includes("Customer with ID") || 
           error.message.includes("Contractor with ID") ||
           error.message.includes("does not exist") ||
           error.message.includes("constraint violation")) {
-        throw error; // Re-throw validation/constraint errors as-is
+        throw error; 
       }
       
-      // Handle job not found errors
+ 
       if (error.message.includes("Job not found") || error.message.includes("PGRST116")) {
         throw new Error("Job not found");
       }
       
-      // Handle database errors
+    
       if (error.message.includes("Database error")) {
         throw new Error(`Database error: ${error.message}`);
       }
       
-      // Re-throw any other errors
+  
       throw error;
     }
   }

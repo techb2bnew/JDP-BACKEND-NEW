@@ -156,7 +156,7 @@ export class JobDocument {
         query = query.ilike('document_title', `%${filters.document_title}%`);
       }
 
-      // Apply pagination and ordering
+    
       query = query
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1);

@@ -57,7 +57,7 @@ export class Suppliers {
           `)
           .order('id', { ascending: false })
           .range(offset, offset + limit - 1),
-        // Optimize: Fetch orders in parallel (only required fields)
+   
         supabase
           .from('orders')
           .select('id, supplier_id, status, total_amount')
@@ -74,11 +74,10 @@ export class Suppliers {
       const count = countResult.count || 0;
       const data = dataResult.data || [];
 
-      // Optimize: Build supplierId -> orders count map efficiently
-      // Only process orders for current page's supplier IDs
+    
       let supplierIdToOrderCount = {};
       if (!ordersResult.error && ordersResult.data) {
-        // Use Set for O(1) lookups during counting
+
         const supplierIdsSet = new Set(data.map(s => s.id));
         
         for (const order of ordersResult.data) {
@@ -185,7 +184,7 @@ export class Suppliers {
 
   static async delete(supplierId) {
     try {
-      // Optimize: Fetch only required fields for delete response
+
       const { data: supplier, error: supplierError } = await supabase
         .from('suppliers')
         .select(`
@@ -208,7 +207,7 @@ export class Suppliers {
 
       const userId = supplier.user_id;
       
-      // Optimize: Run supplier and user deletion in parallel
+
       const [supplierDeleteResult, userDeleteResult] = await Promise.all([
         supabase
           .from('suppliers')
@@ -367,7 +366,7 @@ export class Suppliers {
     try {
       const q = (filters.q || '').toLowerCase().trim();
 
-      // Optimize: Fetch suppliers and orders in parallel
+
       const [suppliersResult, ordersResult] = await Promise.all([
         supabase
           .from("suppliers")
@@ -384,7 +383,7 @@ export class Suppliers {
               created_at
             )
           `),
-        // Optimize: Fetch orders in parallel (only required fields)
+      
         supabase
           .from('orders')
           .select('id, supplier_id, status, total_amount')
@@ -399,7 +398,7 @@ export class Suppliers {
       const inStr = (s) => (s || '').toString().toLowerCase().includes(q);
 
       const matches = (supplier) => {
-        // Text search across multiple fields
+    
         if (q) {
           const supplierMatch = inStr(supplier.users?.full_name) || 
                                inStr(supplier.users?.email) || 
@@ -409,7 +408,7 @@ export class Suppliers {
           if (!supplierMatch) return false;
         }
 
-        // Exact field filters
+   
         if (filters.name && !inStr(supplier.users?.full_name)) return false;
         if (filters.email && !inStr(supplier.users?.email)) return false;
         if (filters.company && !inStr(supplier.company_name)) return false;
@@ -421,11 +420,10 @@ export class Suppliers {
 
       let filtered = data.filter(matches);
 
-      // Optimize: Build supplierId -> orders count map efficiently
-      // Only process orders for filtered supplier IDs
+   
       let supplierIdToOrderCount = {};
       if (!ordersResult.error && ordersResult.data) {
-        // Use Set for O(1) lookups during counting
+    
         const filteredSupplierIds = new Set(filtered.map(s => s.id));
         
         for (const order of ordersResult.data) {
@@ -443,7 +441,7 @@ export class Suppliers {
         }
       }
 
-      // Sort by created_at (most recent first)
+  
       filtered = filtered.sort((a, b) => {
         const dateA = new Date(a.created_at || 0);
         const dateB = new Date(b.created_at || 0);
@@ -473,7 +471,7 @@ export class Suppliers {
 
   static async getStats() {
     try {
-      // Optimize: Run all queries in parallel
+
       const [suppliersResult, ordersResult] = await Promise.all([
         supabase
           .from('suppliers')
@@ -499,7 +497,7 @@ export class Suppliers {
 
       const allSuppliers = suppliersResult.data || [];
       
-      // Count active and inactive in single pass
+     
       let activeSuppliers = 0;
       let inactiveSuppliers = 0;
       for (const supplier of allSuppliers) {

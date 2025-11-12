@@ -47,7 +47,7 @@ export class RolePermissionService {
 
   static async updateRolePermissionsById(roleId, permissions ,roleName) {
     try {
-      // Filter and prepare module-action pairs efficiently
+     
       const moduleActionPairs = [];
       const seenPairs = new Set();
       
@@ -61,16 +61,16 @@ export class RolePermissionService {
         }
       }
       
-      // Optimize: Single query to get existing permissions
+   
       const existingPermissions = await Permission.findByModuleActionPairs(moduleActionPairs);
       
-      // Use Map for O(1) lookups instead of find()
+    
       const existingPermissionsMap = new Map();
       existingPermissions.forEach(perm => {
         existingPermissionsMap.set(`${perm.module}:${perm.action}`, perm);
       });
       
-      // Find missing permissions efficiently
+   
       const missingPermissions = [];
       for (const pair of moduleActionPairs) {
         const pairKey = `${pair.module}:${pair.action}`;
@@ -81,20 +81,20 @@ export class RolePermissionService {
       
       let allPermissions = existingPermissions;
       
-      // Only create missing permissions if needed
+      
       if (missingPermissions.length > 0) {
         await Permission.batchCreate(missingPermissions);
-        // Get all permissions in one query after creation
+       
         allPermissions = await Permission.findByModuleActionPairs(moduleActionPairs);
       }
       
-      // Create permission mapping for faster lookup (rebuild map with all permissions)
+      
       const permissionMap = new Map();
       allPermissions.forEach(perm => {
         permissionMap.set(`${perm.module}:${perm.action}`, perm);
       });
       
-      // Build permissions with IDs efficiently
+   
       const permissionsWithIds = [];
       for (const perm of permissions) {
         if (perm.module && perm.action) {
@@ -220,7 +220,7 @@ export class RolePermissionService {
 
   static async deleteRole(roleId) {
     try {
-      // Check if role has relationships with other tables
+ 
       const relationshipCheck = await Role.checkRoleRelationships(roleId);
 
       if (!relationshipCheck.canDelete) {

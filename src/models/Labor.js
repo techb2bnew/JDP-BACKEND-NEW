@@ -26,7 +26,7 @@ export class Labor {
   }
   static async create(laborData) {
     try {
-      // Use frontend total_cost if provided, otherwise calculate
+     
       if (!laborData.total_cost || laborData.total_cost === 0) {
         if (laborData.hours_worked && laborData.hourly_rate) {
           laborData.total_cost = laborData.hours_worked * laborData.hourly_rate;
@@ -79,7 +79,7 @@ export class Labor {
     try {
       const offset = (page - 1) * limit;
 
-      // Optimize: Run count, data, and jobs queries in parallel
+      
       const [countResult, dataResult, jobsResult] = await Promise.all([
         supabase
           .from('labor')
@@ -111,7 +111,7 @@ export class Labor {
           `)
           .order('id', { ascending: false })
           .range(offset, offset + limit - 1),
-        // Optimize: Fetch jobs in parallel (only required fields)
+ 
         supabase
           .from('jobs')
           .select('id, assigned_labor_ids')
@@ -128,11 +128,10 @@ export class Labor {
       const count = countResult.count || 0;
       const data = dataResult.data || [];
 
-      // Optimize: Build laborId -> assigned jobs count map efficiently
-      // Only process jobs for current page's labor IDs
+
       let laborIdToJobCount = {};
       if (!jobsResult.error && jobsResult.data) {
-        // Use Set for O(1) lookups during counting
+
         const laborIdsSet = new Set(data.map(l => l.id));
         
         for (const job of jobsResult.data) {
@@ -147,7 +146,7 @@ export class Labor {
             ids = job.assigned_labor_ids;
           }
 
-          // Only process IDs that are in the current page's labor
+        
           for (const id of ids) {
             const laborIdNum = parseInt(id);
             if (!Number.isNaN(laborIdNum) && laborIdsSet.has(laborIdNum)) {
@@ -224,9 +223,9 @@ export class Labor {
 
   static async update(laborId, updateData) {
     try {
-      // Auto-calculate total_cost if not provided but hours_worked or hourly_rate is updated
+      
       if (!updateData.total_cost && (updateData.hours_worked || updateData.hourly_rate)) {
-        // Optimize: Only fetch required fields for calculation
+   
         const { data: currentLabor } = await supabase
           .from('labor')
           .select('hours_worked, hourly_rate')
@@ -285,16 +284,13 @@ export class Labor {
         throw new Error('Labor ID is required');
       }
 
-      // Optimize: Run all relationship checks in parallel
-      // For jobs, we use text search to find potential matches (fast with index), then verify only those
-      // This is much faster than fetching all jobs - we only fetch jobs that might contain this ID
+     
       const [jobsResult, bluesheetResult, timesheetResult] = await Promise.all([
-        // Use text search to find jobs that might contain this labor ID
-        // This is fast because it uses database indexes, then we verify only the matches
+
         supabase
           .from('jobs')
           .select('id, job_title, assigned_labor_ids')
-          .ilike('assigned_labor_ids', `%${laborId}%`), // Fast text search - finds potential matches
+          .ilike('assigned_labor_ids', `%${laborId}%`), 
         supabase
           .from('job_bluesheet_labor')
           .select('id')
@@ -309,28 +305,26 @@ export class Labor {
 
       const relationships = [];
 
-      // Check if labor is assigned to any jobs
-      // We verify the matches to ensure the ID is actually in the array (not just a substring)
       if (!jobsResult.error && jobsResult.data) {
         const assignedJobs = jobsResult.data.filter(job => {
           if (!job.assigned_labor_ids) return false;
           
           let laborIds = [];
           try {
-            // Try to parse as JSON array
+
             if (typeof job.assigned_labor_ids === 'string') {
               laborIds = JSON.parse(job.assigned_labor_ids);
             } else if (Array.isArray(job.assigned_labor_ids)) {
               laborIds = job.assigned_labor_ids;
             }
           } catch (e) {
-            // If parsing fails, try to handle as comma-separated string
+     
             if (typeof job.assigned_labor_ids === 'string') {
               laborIds = job.assigned_labor_ids.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
             }
           }
           
-          // Verify the ID is actually in the array (not just a substring match like "157" matching "57")
+   
           return laborIds.some(id => parseInt(id) === parseInt(laborId));
         });
 
@@ -343,7 +337,7 @@ export class Labor {
         }
       }
 
-      // Check if labor is referenced in job_bluesheet_labor
+
       if (!bluesheetResult.error && bluesheetResult.data && bluesheetResult.data.length > 0) {
         relationships.push({
           table: 'job_bluesheet_labor',
@@ -352,7 +346,7 @@ export class Labor {
         });
       }
 
-      // Check if labor is referenced in labor_timesheets
+    
       if (!timesheetResult.error && timesheetResult.data && timesheetResult.data.length > 0) {
         relationships.push({
           table: 'labor_timesheets',
@@ -450,7 +444,7 @@ export class Labor {
     }
   }
 
-  // Optimized method for login - only essential fields, no nested user/supervisor (already have user data)
+  
   static async getLaborByUserIdForLogin(userId) {
     try {
       const { data, error } = await supabase
@@ -483,20 +477,20 @@ export class Labor {
         throw new Error(`Database error: ${error.message}`);
       }
 
-      // Parse JSON fields if needed
+     
       const parsedData = { ...data };
       if (parsedData.certifications && typeof parsedData.certifications === 'string') {
         try {
           parsedData.certifications = JSON.parse(parsedData.certifications);
         } catch (e) {
-          // Keep as string if parse fails
+     
         }
       }
       if (parsedData.skills && typeof parsedData.skills === 'string') {
         try {
           parsedData.skills = JSON.parse(parsedData.skills);
         } catch (e) {
-          // Keep as string if parse fails
+     
         }
       }
 
@@ -660,7 +654,7 @@ export class Labor {
     try {
       const q = (filters.q || '').toLowerCase().trim();
 
-      // Optimize: Fetch labor and jobs in parallel
+      
       const [laborResult, jobsResult] = await Promise.all([
         supabase
           .from("labor")
@@ -687,7 +681,7 @@ export class Labor {
               created_at
             )
           `),
-        // Optimize: Fetch jobs in parallel (only required fields)
+    
         supabase
           .from('jobs')
           .select('id, assigned_labor_ids')
@@ -699,11 +693,10 @@ export class Labor {
 
       const data = laborResult.data || [];
 
-      // Build a map of laborId -> assigned jobs count
-      // Optimize: Only process jobs for filtered labor IDs
+      
       let laborIdToJobCount = {};
       if (!jobsResult.error && jobsResult.data) {
-        // First filter labor to get the IDs we need
+   
         const inStr = (s) => (s || '').toString().toLowerCase().includes(q);
         const matches = (labor) => {
           if (q) {
@@ -726,7 +719,7 @@ export class Labor {
         
         const filteredLaborIds = new Set(data.filter(matches).map(l => l.id));
         
-        // Only process jobs for filtered labor IDs
+        
         for (const job of jobsResult.data) {
           let ids = [];
           if (typeof job.assigned_labor_ids === 'string') {
@@ -748,11 +741,11 @@ export class Labor {
         }
       }
 
-      // Define inStr and matches functions (reuse from above if needed, but define here for clarity)
+     
       const inStr = (s) => (s || '').toString().toLowerCase().includes(q);
 
       const matches = (labor) => {
-        // Text search across multiple fields
+
         if (q) {
           const laborMatch = inStr(labor.users?.full_name) || 
                             inStr(labor.users?.email) || 
@@ -763,7 +756,7 @@ export class Labor {
           if (!laborMatch) return false;
         }
 
-        // Exact field filters
+       
         if (filters.name && !inStr(labor.users?.full_name)) return false;
         if (filters.contact && !inStr(labor.users?.phone) && !inStr(labor.users?.email)) return false;
         if (filters.trade && !inStr(labor.trade)) return false;
@@ -779,7 +772,7 @@ export class Labor {
         assigned_jobs_count: laborIdToJobCount[labor.id] || 0
       }));
 
-      // Sort by created_at (most recent first)
+
       filtered = filtered.sort((a, b) => {
         const dateA = new Date(a.created_at || 0);
         const dateB = new Date(b.created_at || 0);
@@ -805,7 +798,7 @@ export class Labor {
 
   static async getStats() {
     try {
-      // Get all labor with user relationships to check status
+     
       const { data: allLabor, error: laborError } = await supabase
         .from('labor')
         .select(`
@@ -820,12 +813,12 @@ export class Labor {
         throw new Error(`Database error: ${laborError.message}`);
       }
 
-      // Count active and inactive
+    
       const activeLabor = (allLabor || []).filter(l => l.users?.status === 'active').length;
       const inactiveLabor = (allLabor || []).filter(l => l.users?.status !== 'active').length;
       const totalLabor = allLabor?.length || 0;
 
-      // Count total jobs assigned to any labor
+      
       const { data: allJobs, error: jobsError } = await supabase
         .from('jobs')
         .select('id, assigned_labor_ids');
@@ -834,7 +827,7 @@ export class Labor {
         throw new Error(`Database error: ${jobsError.message}`);
       }
 
-      // Count jobs that have at least one labor assigned
+ 
       let totalJobs = 0;
       if (allJobs && allJobs.length > 0) {
         totalJobs = allJobs.filter(job => {

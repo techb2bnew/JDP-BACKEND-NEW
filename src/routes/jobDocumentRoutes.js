@@ -4,7 +4,7 @@ import { authenticateToken } from '../middleware/authMiddleware.js';
 export async function jobDocumentRoutes(fastify, options) {
   fastify.addHook('preHandler', authenticateToken);
 
-  // Create document with file upload
+
   fastify.post('/document', async (request, reply) => {
     if (request.isMultipart()) {
       const body = {};
@@ -13,7 +13,7 @@ export async function jobDocumentRoutes(fastify, options) {
       const parts = request.parts();
       for await (const part of parts) {
         if (part.type === 'file') {
-          const maxSize = 50 * 1024 * 1024; // 50MB
+          const maxSize = 50 * 1024 * 1024;
           if (part.file && part.file.bytesRead > maxSize) {
             return reply.status(400).send({
               success: false,
@@ -43,7 +43,7 @@ export async function jobDocumentRoutes(fastify, options) {
               mimetype: part.mimetype
             }];
 
-            // Set document_file to the S3 URL
+
             if (part.fieldname === 'document_file') {
               body.document_file = result.Location;
             }
@@ -67,16 +67,16 @@ export async function jobDocumentRoutes(fastify, options) {
     return JobDocumentController.createDocument(request, reply);
   });
 
-  // Get all documents with filters and pagination
+
   fastify.get('/documents', JobDocumentController.getAllDocuments);
 
-  // Get document by ID
+
   fastify.get('/document/:id', JobDocumentController.getDocumentById);
 
-  // Get documents by job ID
+
   fastify.get('/job/:jobId/documents', JobDocumentController.getDocumentsByJobId);
 
-  // Update document (with optional file upload)
+
   fastify.put('/document/:id', async (request, reply) => {
     if (request.isMultipart()) {
       const body = {};
@@ -85,7 +85,7 @@ export async function jobDocumentRoutes(fastify, options) {
       const parts = request.parts();
       for await (const part of parts) {
         if (part.type === 'file') {
-          const maxSize = 50 * 1024 * 1024; // 50MB
+          const maxSize = 50 * 1024 * 1024;
           if (part.file && part.file.bytesRead > maxSize) {
             return reply.status(400).send({
               success: false,
@@ -115,7 +115,7 @@ export async function jobDocumentRoutes(fastify, options) {
               mimetype: part.mimetype
             }];
 
-            // Set document_file to the S3 URL
+
             if (part.fieldname === 'document_file') {
               body.document_file = result.Location;
             }
@@ -139,7 +139,7 @@ export async function jobDocumentRoutes(fastify, options) {
     return JobDocumentController.updateDocument(request, reply);
   });
 
-  // Delete document
+
   fastify.delete('/document/:id', JobDocumentController.deleteDocument);
 }
 

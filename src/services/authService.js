@@ -69,7 +69,7 @@ export class AuthService {
 
   static async login(email, password, login_by = 'admin', push_token = null, push_platform = null) {
     try {
-      // For login, we don't need staff/labor/leadLabor data - fetch only user data for faster response
+  
       const user = await User.findByEmail(email, false);
       if (!user) {
         throw new Error("Invalid email or password");
@@ -99,18 +99,16 @@ export class AuthService {
         throw new Error("Invalid login method");
       }
 
-      // Optimize: Start all async operations in parallel BEFORE token generation
-      // Token generation is synchronous and fast, so we do it after async operations start
+    
       const fetchPromises = [
-        // Permissions are cached (5 min TTL) - very fast if cached
+      
         RolePermission.getPermissionsByRoleName(user.role).catch(err => {
           console.error('Error fetching permissions:', err);
           return [];
         })
       ];
 
-      // For app login, fetch lead_labor or labor details in parallel with permissions
-      // Use lightweight methods that don't fetch nested user data (we already have user)
+      
       if (login_by === 'app') {
         if (user.management_type === 'lead_labor') {
           fetchPromises.push(
@@ -129,7 +127,7 @@ export class AuthService {
         }
       }
 
-      // Register push token if provided
+     
       if (push_token && typeof push_token === 'string' && push_token.trim()) {
         const tokenToSave = push_token.trim();
         const platformToSave = push_platform ? push_platform.toString().trim().toLowerCase() : null;
@@ -148,7 +146,7 @@ export class AuthService {
         }
       }
 
-      // Generate token (synchronous, fast - happens while async operations run)
+    
       const token = generateToken({
         id: user.id,
         email: user.email,
@@ -160,14 +158,13 @@ export class AuthService {
       const tokenExpiry = new Date();
       tokenExpiry.setHours(tokenExpiry.getHours() + 24);
 
-      // Wait for all parallel fetches to complete
+   
       const results = await Promise.all(fetchPromises);
       const permissions = results[0] || [];
       const leadLaborDetails = login_by === 'app' && user.management_type === 'lead_labor' ? results[1] : null;
       const laborDetails = login_by === 'app' && user.management_type === 'labor' ? results[1] : null;
 
-      // Save token in background immediately (non-blocking) - don't wait for it
-      // Token is already generated and will be returned in response
+     
       setImmediate(() => {
         UserToken.create({
           user_id: user.id,
@@ -177,17 +174,17 @@ export class AuthService {
           is_active: true
         }).catch(err => {
           console.error('Error saving token (non-critical):', err);
-          // Token is already generated, so this error won't affect login
+          
         });
       });
 
-      // Remove password from user object
+    
       const { 
         password: userPassword, 
         ...userWithoutPassword 
       } = user;
 
-      // Build clean user object with only essential fields (optimize response size)
+     
       const cleanUser = {
         id: userWithoutPassword.id,
         full_name: userWithoutPassword.full_name,
@@ -202,7 +199,7 @@ export class AuthService {
         management_type: userWithoutPassword.management_type
       };
 
-      // Add lead_labor or labor details INSIDE user object
+     
       if (leadLaborDetails) {
         cleanUser.lead_labor = leadLaborDetails;
       }
@@ -210,7 +207,7 @@ export class AuthService {
         cleanUser.labor = laborDetails;
       }
 
-      // Build response object - lead_labor/labor is now INSIDE user object
+     
       const responseData = {
         user: cleanUser,
         token,

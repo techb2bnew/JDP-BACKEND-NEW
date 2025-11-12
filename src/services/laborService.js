@@ -131,17 +131,16 @@ export class LaborService {
 
       const roleName = labor?.users?.role || labor?.user?.role || null;
 
-      // Optimize: Fetch bluesheet IDs first, then include bluesheets fetch in parallel
+     
       const bluesheetIdsPromise = JobBluesheetLabor.findBluesheetIdsByLaborId(laborId).catch((error) => {
         console.error(`Failed to load bluesheet ids for labor ${laborId}:`, error.message);
         return [];
       });
 
-      // Fetch bluesheet IDs first (needed for bluesheets fetch)
+     
       const bluesheetIds = await bluesheetIdsPromise;
 
-      // Optimize: Run all remaining queries in parallel, including bluesheets fetch
-      // Note: getJobsByLabor now includes summary, so we don't need getJobStatusSummaryByLabor
+      
       const [jobsResult, permissionsResult, bluesheets] = await Promise.all([
         Job.getJobsByLabor(laborId, page, limit).catch((error) => {
           console.error(`Failed to load jobs for labor ${laborId}:`, error.message);
@@ -154,7 +153,7 @@ export class LaborService {
                 return [];
               })
           : [],
-        // Include bluesheets fetch in parallel
+  
         Array.isArray(bluesheetIds) && bluesheetIds.length > 0
           ? JobBluesheet.findByIds(bluesheetIds).catch((error) => {
               console.error(`Failed to load bluesheets for labor ${laborId}:`, error.message);
@@ -163,7 +162,7 @@ export class LaborService {
           : []
       ]);
 
-      // Use summary from jobsResult (now included in getJobsByLabor response)
+     
       const jobSummary = jobsResult?.summary || {
         total_jobs: jobsResult?.total ?? 0,
         active_jobs: 0,
@@ -195,7 +194,7 @@ export class LaborService {
 
   static async updateLabor(laborId, updateData) {
     try {
-      // Optimize: Perform lightweight existence check
+    
       const { data: laborCheck } = await supabase
         .from('labor')
         .select('user_id, labor_code')
@@ -211,7 +210,7 @@ export class LaborService {
       const userData = {};
       const laborData = {};
 
-      // Optimize: Only fetch email if email is being updated
+   
       let currentEmail = null;
       if (updateData.email !== undefined) {
         const { data: currentLabor } = await supabase
@@ -254,7 +253,7 @@ export class LaborService {
       if (updateData.hours_worked !== undefined) laborData.hours_worked = updateData.hours_worked;
       if (updateData.supervisor_id !== undefined) {
         if (updateData.supervisor_id) {
-          // Optimize: Run supervisor checks in parallel
+          
           const [supervisorCheck, leadLaborCheck] = await Promise.all([
             supabase
               .from('users')
@@ -280,7 +279,7 @@ export class LaborService {
       if (updateData.is_custom !== undefined) laborData.is_custom = updateData.is_custom;
       if (updateData.job_id !== undefined) laborData.job_id = updateData.job_id;
 
-      // Optimize: Run user and labor updates in parallel
+    
       const updatePromises = [];
       if (Object.keys(userData).length > 0) {
         updatePromises.push(User.update(userId, userData));
@@ -300,7 +299,7 @@ export class LaborService {
 
   static async deleteLabor(laborId) {
     try {
-      // Check if labor has relationships with other tables
+      
       const relationshipCheck = await Labor.checkLaborRelationships(laborId);
 
       if (!relationshipCheck.canDelete) {
@@ -356,7 +355,7 @@ export class LaborService {
 
   static async updateProfile(laborId, updateData, files = null) {
     try {
-      // Optimize: Perform lightweight existence check
+      
       const { data: laborCheck } = await supabase
         .from('labor')
         .select('user_id')
@@ -369,7 +368,7 @@ export class LaborService {
 
       const userId = laborCheck.user_id;
 
-      // Optimize: Only fetch email if email is being updated
+     
       if (updateData.email) {
         const { data: currentLabor } = await supabase
           .from('labor')

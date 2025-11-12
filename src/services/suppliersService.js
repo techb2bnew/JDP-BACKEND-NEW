@@ -23,7 +23,7 @@ export class SuppliersService {
             }
 
             const [existingUser, supplierCode] = await Promise.all([
-                User.findByEmail(suppliersData.email, false), // Optimize: Don't fetch related data
+                User.findByEmail(suppliersData.email, false),
                 suppliersData.supplier_code ?
                     (async () => {
                         const existingSupplier = await Suppliers.findBySupplierCode(suppliersData.supplier_code);
@@ -64,7 +64,7 @@ export class SuppliersService {
 
             const suppliers = await Suppliers.create(suppliersRecordData);
 
-            // Optimize: Make email sending non-blocking
+           
             setImmediate(async () => {
             try {
                 await sendSupplierWelcomeEmail(
@@ -163,7 +163,7 @@ export class SuppliersService {
 
     static async updateSupplier(supplierId, updateData) {
         try {
-            // Optimize: Perform lightweight existence check
+            
             const { data: supplierCheck } = await supabase
                 .from('suppliers')
                 .select('user_id, supplier_code')
@@ -179,7 +179,7 @@ export class SuppliersService {
             const userData = {};
             const suppliersData = {};
 
-            // Optimize: Only fetch email if email is being updated
+         
             if (updateData.email !== undefined) {
                 const { data: currentSupplier } = await supabase
                     .from('suppliers')
@@ -223,7 +223,7 @@ export class SuppliersService {
             }
             if (updateData.notes !== undefined) suppliersData.notes = updateData.notes;
 
-            // Optimize: Run user and supplier updates in parallel
+          
             const updatePromises = [];
             if (Object.keys(userData).length > 0) {
                 updatePromises.push(User.update(userId, userData));
@@ -243,7 +243,7 @@ export class SuppliersService {
 
     static async deleteSupplier(supplierId) {
         try {
-            // Check if supplier has relationships with other tables
+          
             const relationshipCheck = await Suppliers.checkSupplierRelationships(supplierId);
             
             if (!relationshipCheck.canDelete) {

@@ -1,14 +1,14 @@
 import { supabase } from '../config/database.js';
 
 const permissionCache = new Map();
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL = 5 * 60 * 1000; 
 
-// Cache for getAllRolesWithAllPermissions
+
 const rolesWithPermissionsCache = new Map();
-const ROLES_CACHE_TTL = 2 * 60 * 1000; // 2 minutes 
+const ROLES_CACHE_TTL = 2 * 60 * 1000; 
 
 export class RolePermission {
-  // Export cache for use in other models
+  
   static get permissionCache() {
     return permissionCache;
   }
@@ -73,7 +73,7 @@ export class RolePermission {
 
   static async bulkUpdateRolePermissions(roleId, permissions, roleName) {
     try {
-      // Prepare permissions to insert efficiently
+    
       const permissionsToInsert = [];
       const permissionIdsSet = new Set();
 
@@ -89,7 +89,7 @@ export class RolePermission {
         }
       }
 
-      // Run role update and delete in parallel for better performance
+     
       const operations = [];
       
       if (roleName) {
@@ -108,23 +108,23 @@ export class RolePermission {
           .eq('role_id', roleId)
       );
 
-      // Execute delete and role update in parallel
+    
       const results = await Promise.all(operations);
       
-      // Check for errors
+   
       for (const result of results) {
         if (result.error) {
           throw new Error(`Database error: ${result.error.message}`);
         }
       }
 
-      // If no permissions to insert, clear cache and return
+      
       if (permissionsToInsert.length === 0) {
         this.clearRolePermissionCache(roleId);
         return [];
       }
 
-      // Insert new permissions
+    
       const { data: insertedData, error: insertError } = await supabase
         .from('role_permissions')
         .insert(permissionsToInsert)
@@ -134,14 +134,14 @@ export class RolePermission {
         throw new Error(`Database error: ${insertError.message}`);
       }
 
-      // Fetch permissions details in parallel with cache clear
+      
       const permissionIds = Array.from(permissionIdsSet);
       const [permissionsResult] = await Promise.all([
         supabase
           .from('permissions')
           .select('id, module, action, display_name, description')
           .in('id', permissionIds),
-        // Clear cache in background (non-blocking)
+       
         Promise.resolve().then(() => this.clearRolePermissionCache(roleId))
       ]);
 
@@ -151,13 +151,13 @@ export class RolePermission {
 
       const allPermissions = permissionsResult.data || [];
 
-      // Use Map for O(1) lookups instead of find() for better performance
+      
       const permissionMap = new Map();
       allPermissions.forEach(perm => {
         permissionMap.set(perm.id, perm);
       });
 
-      // Build response efficiently
+   
       const permissionsWithDetails = new Array(insertedData.length);
       for (let i = 0; i < insertedData.length; i++) {
         const rp = insertedData[i];
@@ -183,11 +183,10 @@ export class RolePermission {
   }
 
   static clearRolePermissionCache(roleId) {
-    // Clear all permission caches
+
     permissionCache.clear();
-    rolesWithPermissionsCache.clear(); // Also clear roles with permissions cache
+    rolesWithPermissionsCache.clear(); 
     
-    // Clear specific role cache if roleId provided
     if (roleId) {
       const roleCacheKey = `role_permissions_${roleId}`;
       permissionCache.delete(roleCacheKey);
@@ -196,7 +195,7 @@ export class RolePermission {
 
   static async getAllRolesWithAllPermissions(page = 1, limit = 50) {
     try {
-      // Check cache first
+
       const cacheKey = `roles_permissions_${page}_${limit}`;
       const cached = rolesWithPermissionsCache.get(cacheKey);
       if (cached && (Date.now() - cached.timestamp) < ROLES_CACHE_TTL) {
@@ -205,7 +204,7 @@ export class RolePermission {
 
       const offset = (page - 1) * limit;
 
-      // Fetch roles with pagination
+
       const { data: roles, error: rolesError, count } = await supabase
         .from('roles')
         .select('*', { count: 'exact' })
@@ -220,10 +219,10 @@ export class RolePermission {
         return [];
       }
 
-      // Get role IDs for efficient querying
+  
       const roleIds = roles.map(r => r.id);
 
-      // Fetch all role_permissions for these roles in a single optimized query
+  
       const { data: allRolePermissions, error: allRpError } = await supabase
         .from('role_permissions')
         .select(`
@@ -244,13 +243,13 @@ export class RolePermission {
         throw new Error(`Database error: ${allRpError.message}`);
       }
 
-      // Use Map for O(1) lookups - pre-initialize for all roles
+      
       const permissionsByRole = new Map();
       roles.forEach(role => {
         permissionsByRole.set(role.id, []);
       });
 
-      // Process permissions in single pass - calculate counts during processing
+      
       if (allRolePermissions && allRolePermissions.length > 0) {
         for (const rp of allRolePermissions) {
           if (rp.permissions && rp.role_id) {
@@ -265,13 +264,13 @@ export class RolePermission {
         }
       }
 
-      // Build response efficiently - pre-calculate counts to avoid double iteration
+      
       const rolesWithPermissions = new Array(roles.length);
       for (let i = 0; i < roles.length; i++) {
         const role = roles[i];
         const permissions = permissionsByRole.get(role.id) || [];
         
-        // Calculate counts in single pass
+        
         let allowedCount = 0;
         let deniedCount = 0;
         for (let j = 0; j < permissions.length; j++) {
@@ -291,7 +290,6 @@ export class RolePermission {
         };
       }
 
-      // Cache the result
       rolesWithPermissionsCache.set(cacheKey, {
         data: rolesWithPermissions,
         timestamp: Date.now()

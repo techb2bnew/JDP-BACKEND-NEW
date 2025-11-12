@@ -67,9 +67,9 @@ export class CustomerService {
 
   static async updateCustomer(customerId, updateData) {
     try {
-      // Optimize: Lightweight existence check (only fetch email if needed for comparison)
+     
       if (updateData.email) {
-        // If email is being updated, fetch current customer email for comparison
+        
         const { data: currentCustomer, error: fetchError } = await supabase
           .from('customers')
           .select('id, email')
@@ -84,7 +84,7 @@ export class CustomerService {
           throw new Error("Customer not found");
         }
 
-        // Check if new email already exists (only if different from current)
+      
         if (updateData.email !== currentCustomer.email) {
           const customerWithEmail = await Customer.findByEmail(updateData.email);
           if (customerWithEmail) {
@@ -92,7 +92,7 @@ export class CustomerService {
           }
         }
       } else {
-        // If email is not being updated, just check if customer exists (lightweight)
+        
         const { data: customer, error: fetchError } = await supabase
           .from('customers')
           .select('id')
@@ -121,7 +121,7 @@ export class CustomerService {
 
   static async deleteCustomer(customerId) {
     try {
-      // Optimize: Run existence check and relationship check in parallel
+      
       const [existenceCheck, relationshipCheck] = await Promise.all([
         supabase
           .from('customers')

@@ -32,7 +32,7 @@ export const getFirebaseAdmin = () => {
     return admin;
   } catch (error) {
     console.error('Failed to initialize Firebase admin SDK:', error);
-    return null;
+    return null; 
   }
 };
 

@@ -123,13 +123,13 @@ export class LeadLaborService {
 
       const roleName = leadLabor?.users?.role || leadLabor?.user?.role || null;
 
-      // Fetch all jobs to get complete list for statistics
+     
       const allJobsResult = await Job.getJobsByLeadLabor(leadLaborId, 1, 99999).catch((error) => {
         console.error(`Failed to load jobs for lead labor ${leadLaborId}:`, error.message);
         return null;
       });
 
-      // Fetch paginated jobs for display
+      
       const jobsResult = await Job.getJobsByLeadLabor(leadLaborId, page, limit).catch((error) => {
         console.error(`Failed to load paginated jobs for lead labor ${leadLaborId}:`, error.message);
         return null;
@@ -157,7 +157,7 @@ export class LeadLaborService {
         }
       }
 
-      // Calculate job statistics from all jobs
+    
       const activeJobStatuses = new Set(['active', 'in_progress']);
       const completedJobStatuses = new Set(['completed', 'done', 'closed']);
       
@@ -203,12 +203,12 @@ export class LeadLaborService {
 
   static async updateLeadLabor(leadLaborId, updateData, files = null) {
     try {
-      // Optimize: Lightweight existence check (only fetch user_id and email if needed)
+    
       let currentLeadLaborEmail = null;
       let userId = null;
 
       if (updateData.email) {
-        // If email is being updated, fetch current lead labor email for comparison
+     
         const { data: currentLeadLabor, error: fetchError } = await supabase
           .from('lead_labor')
           .select(`
@@ -233,7 +233,7 @@ export class LeadLaborService {
         userId = currentLeadLabor.user_id;
         currentLeadLaborEmail = currentLeadLabor.users.email;
 
-        // Check if new email already exists (only if different from current)
+       
         if (updateData.email !== currentLeadLaborEmail) {
           const existingUser = await User.findByEmail(updateData.email);
           if (existingUser) {
@@ -241,7 +241,7 @@ export class LeadLaborService {
           }
         }
       } else {
-        // If email is not being updated, just check if lead labor exists (lightweight)
+       
         const { data: currentLeadLabor, error: fetchError } = await supabase
           .from('lead_labor')
           .select('id, user_id')
@@ -291,7 +291,7 @@ export class LeadLaborService {
       if (fileUrls.photo_url) leadLaborData.photo_url = fileUrls.photo_url;
       if (fileUrls.resume_url) leadLaborData.resume_url = fileUrls.resume_url;
 
-      // Optimize: Run user and lead labor updates in parallel
+     
       const updatePromises = [];
       
       if (Object.keys(userData).length > 0) {
@@ -302,7 +302,7 @@ export class LeadLaborService {
         updatePromises.push(LeadLabor.update(leadLaborId, leadLaborData));
       }
 
-      // Wait for all updates to complete
+      
       if (updatePromises.length > 0) {
         await Promise.all(updatePromises);
       }
@@ -316,7 +316,7 @@ export class LeadLaborService {
 
   static async deleteLeadLabor(leadLaborId) {
     try {
-      // Check if lead labor has relationships with other tables
+      
       const relationshipCheck = await LeadLabor.checkLeadLaborRelationships(leadLaborId);
 
       if (!relationshipCheck.canDelete) {
@@ -355,12 +355,12 @@ export class LeadLaborService {
 
   static async updateProfile(leadLaborId, updateData, files = null) {
     try {
-      // Optimize: Lightweight existence check (only fetch user_id and email if needed)
+      
       let currentLeadLaborEmail = null;
       let userId = null;
 
       if (updateData.email) {
-        // If email is being updated, fetch current lead labor email for comparison
+       
         const { data: currentLeadLabor, error: fetchError } = await supabase
           .from('lead_labor')
           .select(`
@@ -385,7 +385,7 @@ export class LeadLaborService {
         userId = currentLeadLabor.user_id;
         currentLeadLaborEmail = currentLeadLabor.users.email;
 
-        // Check if new email already exists (only if different from current)
+      
         if (updateData.email !== currentLeadLaborEmail) {
           const existingUser = await User.findByEmail(updateData.email);
           if (existingUser) {
@@ -393,7 +393,7 @@ export class LeadLaborService {
           }
         }
       } else {
-        // If email is not being updated, just check if lead labor exists (lightweight)
+
         const { data: currentLeadLabor, error: fetchError } = await supabase
           .from('lead_labor')
           .select('id, user_id')

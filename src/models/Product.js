@@ -3,7 +3,7 @@ import { supabase } from '../config/database.js';
 export class Product {
   static async create(productData) {
     try {
-      // Auto-calculate total_cost if not provided
+    
       if (!productData.total_cost && (productData.jdp_price || productData.supplier_cost_price)) {
         productData.total_cost = productData.jdp_price || productData.supplier_cost_price || 0;
       }
@@ -63,7 +63,7 @@ export class Product {
     try {
       const offset = (page - 1) * limit;
 
-      // Helper function to build query with filters (DRY principle)
+
       const buildQuery = (includeSelect = true) => {
         let query = includeSelect
           ? supabase
@@ -131,7 +131,6 @@ export class Product {
         return query;
       };
 
-      // Optimize: Run count and data queries in parallel
       const [countResult, dataResult] = await Promise.all([
         buildQuery(false),
         buildQuery(true)
@@ -151,7 +150,7 @@ export class Product {
       const data = dataResult.data || [];
       const totalPages = Math.ceil(count / limit);
 
-      // Optimize: Calculate total cost efficiently (single pass)
+
       let totalCost = 0;
       for (let i = 0; i < data.length; i++) {
         const product = data[i];
@@ -240,7 +239,7 @@ export class Product {
     try {
       updateData.updated_at = new Date().toISOString();
       
-      // Auto-calculate total_cost if not provided but jdp_price or supplier_cost_price is updated
+      
       if (!updateData.total_cost && (updateData.jdp_price || updateData.supplier_cost_price)) {
         updateData.total_cost = updateData.jdp_price || updateData.supplier_cost_price || 0;
       }
@@ -322,21 +321,21 @@ export class Product {
 
       const relationships = [];
 
-      // Optimize: Check all relationships in parallel
+      
       const [bluesheetResult, orderItemsResult, estimateProductsResult] = await Promise.all([
-        // Check if product is used in bluesheets
+    
         supabase
           .from('job_bluesheet_material')
           .select('id')
           .eq('product_id', productId)
           .limit(1),
-        // Check if product is used in order items
+       
         supabase
           .from('order_items')
           .select('id')
           .eq('product_id', productId)
           .limit(1),
-        // Check if product is used in estimates
+    
         supabase
           .from('estimate_products')
           .select('id')
@@ -380,7 +379,7 @@ export class Product {
 
   static async delete(productId) {
     try {
-      // Optimize: Fetch only required fields for delete response (not full product details)
+    
       const { data: product, error: fetchError } = await supabase
         .from('products')
         .select('id, product_name, jdp_sku, category')
@@ -395,7 +394,7 @@ export class Product {
         throw new Error('Product not found');
       }
       
-      // Optimize: Run delete in parallel with product fetch (already done above)
+      
       const { error } = await supabase
         .from('products')
         .delete()
@@ -424,7 +423,7 @@ export class Product {
     try {
       const offset = (page - 1) * limit;
 
-      // Optimize: Run count and data queries in parallel
+
       const [countResult, dataResult] = await Promise.all([
         supabase
           .from('products')
@@ -643,7 +642,7 @@ export class Product {
     try {
       const offset = (page - 1) * limit;
 
-      // Optimize: Run count and data queries in parallel
+ 
       const [countResult, dataResult] = await Promise.all([
         supabase
           .from('products')
@@ -700,7 +699,7 @@ export class Product {
       const data = dataResult.data || [];
       const totalPages = Math.ceil(count / limit);
 
-      // Optimize: Calculate total cost efficiently (single pass)
+    
       let totalCost = 0;
       for (let i = 0; i < data.length; i++) {
         const product = data[i];
@@ -731,7 +730,7 @@ export class Product {
     try {
       const offset = (page - 1) * limit;
 
-      // Helper function to build query with filters
+ 
       const buildQuery = (includeSelect = true) => {
         let query = includeSelect
           ? supabase
@@ -781,7 +780,7 @@ export class Product {
         return query;
       };
 
-      // Optimize: Run count and data queries in parallel
+      
       const [countResult, dataResult] = await Promise.all([
         buildQuery(false),
         buildQuery(true)
@@ -801,7 +800,7 @@ export class Product {
       const data = dataResult.data || [];
       const totalPages = Math.ceil(count / limit);
 
-      // Optimize: Calculate total cost efficiently (single pass)
+
       let totalCost = 0;
       for (let i = 0; i < data.length; i++) {
         totalCost += (parseFloat(data[i].unit_cost) || 0);
@@ -826,7 +825,7 @@ export class Product {
 
   static async getStats() {
     try {
-      // Optimize: Run all count queries in parallel
+   
       const [totalResult, activeResult, inactiveResult, draftResult, lowStockResult, inventoryResult] = await Promise.all([
         supabase
           .from('products')
@@ -862,7 +861,7 @@ export class Product {
       const draft = draftResult.count || 0;
       const lowStock = lowStockResult.count || 0;
 
-      // Optimize: Calculate total inventory value efficiently (single pass)
+    
       let totalInventoryValue = 0;
       if (!inventoryResult.error && inventoryResult.data) {
         for (let i = 0; i < inventoryResult.data.length; i++) {
@@ -894,7 +893,7 @@ export class Product {
     try {
       const q = (filters.q || '').toLowerCase().trim();
 
-      // Fetch all products with relationships
+  
       const { data, error } = await supabase
         .from("products")
         .select(`
@@ -943,7 +942,7 @@ export class Product {
       const inStr = (s) => (s || '').toString().toLowerCase().includes(q);
 
       const matches = (product) => {
-        // Text search across multiple fields
+    
         if (q) {
           const productMatch = inStr(product.product_name) || 
                               inStr(product.description) || 
@@ -955,7 +954,7 @@ export class Product {
           if (!productMatch) return false;
         }
 
-        // Exact field filters
+        
         if (filters.product_name && !inStr(product.product_name)) return false;
         if (filters.supplier_sku && !inStr(product.supplier_sku)) return false;
         if (filters.jdp_sku && !inStr(product.jdp_sku)) return false;
@@ -963,7 +962,7 @@ export class Product {
         if (filters.category && product.category !== filters.category) return false;
         if (filters.supplier_id && product.supplier_id !== filters.supplier_id) return false;
 
-        // Range filters
+       
         if (filters.supplier_cost_price_min && product.supplier_cost_price < filters.supplier_cost_price_min) return false;
         if (filters.supplier_cost_price_max && product.supplier_cost_price > filters.supplier_cost_price_max) return false;
         if (filters.markup_percentage_min && product.markup_percentage < filters.markup_percentage_min) return false;

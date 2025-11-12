@@ -87,14 +87,14 @@ export class Configuration {
 
   static async upsertConfiguration(settings, markupPercentage, userId) {
     try {
-      // First check if configuration exists
+     
       const existingConfig = await this.getConfiguration();
       
       if (existingConfig) {
-        // Update existing configuration
+       
         return await this.updateConfiguration(settings, markupPercentage, userId);
       } else {
-        // Create new configuration
+
         return await this.createConfiguration(settings, markupPercentage, userId);
       }
     } catch (error) {

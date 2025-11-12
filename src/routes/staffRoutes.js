@@ -94,7 +94,7 @@ export default async function staffRoutes(fastify, options) {
       const parts = request.parts();
       for await (const part of parts) {
         if (part.type === 'file') {
-          const maxSize = 50 * 1024 * 1024; // 50MB max size
+          const maxSize = 50 * 1024 * 1024; 
           if (part.file && part.file.bytesRead > maxSize) {
             console.error(`File ${part.filename} is too large. Maximum size allowed is 50MB`);
             return reply.status(400).send({

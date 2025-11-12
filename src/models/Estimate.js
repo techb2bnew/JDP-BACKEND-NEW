@@ -194,7 +194,7 @@ export class Estimate {
 
   static async deleteProductFromEstimate(estimateProductId) {
     try {
-      // First check if the estimate_product entry exists
+    
       const { data: existingEntry, error: checkError } = await supabase
         .from('estimate_products')
         .select('id, estimate_id, product_id')
@@ -208,7 +208,7 @@ export class Estimate {
         throw new Error(`Database error: ${checkError.message}`);
       }
 
-      // Delete the entry from estimate_products table
+     
       const { error: deleteError } = await supabase
         .from('estimate_products')
         .delete()
@@ -307,20 +307,19 @@ export class Estimate {
         }
       }
 
-      // Custom products handling - use junction table approach
+      
       if (customProducts && Array.isArray(customProducts) && customProducts.length > 0) {
         for (const productItem of customProducts) {
           try {
             console.log('Processing product:', { id: productItem.id, product_id: productItem.product_id, name: productItem.product_name });
             
             let productId;
-            
-            // Check if product already exists
+          
             if (productItem.id || productItem.product_id) {
               productId = productItem.id || productItem.product_id;
               console.log('Updating existing product with ID:', productId);
               
-              // Update existing product
+            
               const updateData = {
                 product_name: productItem.product_name,
                 supplier_sku: productItem.supplier_sku || '',
@@ -334,7 +333,7 @@ export class Estimate {
                 description: productItem.description,
               };
 
-              // Only update jdp_sku if provided
+             
               if (productItem.jdp_sku) {
                 updateData.jdp_sku = productItem.jdp_sku;
               }
@@ -351,7 +350,7 @@ export class Estimate {
                 console.log(`Product ${productId} updated successfully`);
               }
             } else {
-              // Create new product first
+      
               console.log('Creating new product:', productItem.product_name);
               let jdpSku = productItem.jdp_sku;
               if (!jdpSku) {
@@ -391,7 +390,7 @@ export class Estimate {
               console.log('New product created with ID:', productId);
             }
 
-            // Now add the relationship in junction table
+     
             const junctionData = {
               estimate_id: data.id,
               product_id: productId,
@@ -399,7 +398,6 @@ export class Estimate {
               system_ip: estimateData.system_ip || null
             };
 
-            // Use upsert to handle both insert and update cases
             const { error: junctionError } = await supabase
               .from('estimate_products')
               .upsert(junctionData, { 
@@ -455,10 +453,10 @@ export class Estimate {
         throw new Error(`Database error: ${fetchError.message}`);
       }
 
-      // Get additional costs
+  
       const additionalCosts = await Estimate.getAdditionalCosts(data.id);
 
-      // Get products if job exists
+
       let products = [];
       if (completeEstimate.job && completeEstimate.job.id) {
         const { data: jobProducts } = await supabase
@@ -486,7 +484,7 @@ export class Estimate {
         }
       }
 
-      // Calculate total amount from products and additional costs
+  
       const productsTotalCost = products.reduce((sum, product) => {
         return sum + (parseFloat(product.total_cost) || 0);
       }, 0);
@@ -581,10 +579,10 @@ export class Estimate {
         throw new Error(`Database error: ${error.message}`);
       }
 
-      // Fetch products and calculate totals for each estimate
+      
       const estimatesWithDetails = await Promise.all(
         (data || []).map(async (estimate) => {
-          // Fetch products from junction table
+        
           let products = [];
           const { data: estimateProducts, error: productsError } = await supabase
             .from("estimate_products")
@@ -611,7 +609,7 @@ export class Estimate {
             .eq("estimate_id", estimate.id);
 
           if (!productsError && estimateProducts) {
-            // Transform the data to match the expected format
+           
             products = estimateProducts.map(ep => ({
               id: ep.product.id,
               product_name: ep.product.product_name,
@@ -628,7 +626,7 @@ export class Estimate {
               description: ep.product.description,
               supplier_id: ep.product.supplier_id,
               is_custom: ep.product.is_custom,
-              // Additional fields from junction table
+             
               estimate_product_id: ep.id
             }));
             console.log(`Found ${products.length} products for estimate_id ${estimate.id}:`, products.map(p => ({ id: p.id, name: p.product_name, jdp_price: p.jdp_price, total_cost: p.total_cost })));
@@ -636,7 +634,7 @@ export class Estimate {
             console.log(`No products found for estimate_id ${estimate.id}. Error:`, productsError);
           }
 
-          // Fetch additional costs
+       
           const { data: additionalCosts, error: additionalCostsError } = await supabase
             .from("estimate_additional_costs")
             .select(`
@@ -650,7 +648,7 @@ export class Estimate {
 
           const additionalCostsData = additionalCostsError ? [] : (additionalCosts || []);
 
-          // Calculate total amount from products and additional costs
+     
           const productsTotalCost = products.reduce((sum, product) => {
             return sum + (parseFloat(product.total_cost) || 0);
           }, 0);
@@ -736,10 +734,10 @@ export class Estimate {
         return null;
       }
 
-      // Get additional costs
+      
       const additionalCosts = await Estimate.getAdditionalCosts(estimateId);
 
-      // Get products from junction table
+   
       let products = [];
       const { data: estimateProducts, error: productsError } = await supabase
         .from("estimate_products")
@@ -766,7 +764,7 @@ export class Estimate {
         .eq("estimate_id", data.id);
 
       if (!productsError && estimateProducts) {
-        // Transform the data to match the expected format
+        
         products = estimateProducts.map(ep => ({
           id: ep.product.id,
           product_name: ep.product.product_name,
@@ -783,12 +781,12 @@ export class Estimate {
           description: ep.product.description,
           supplier_id: ep.product.supplier_id,
           is_custom: ep.product.is_custom,
-          // Additional fields from junction table
+      
           estimate_product_id: ep.id
         }));
       }
 
-      // Calculate total amount from products and additional costs
+    
       const productsTotalCost = products.reduce((sum, product) => {
         return sum + (parseFloat(product.total_cost) || 0);
       }, 0);
@@ -845,11 +843,7 @@ export class Estimate {
 
   static async update(estimateId, updateData) {
     try {
-      console.log('UPDATE - Received updateData:', {
-        description: updateData.description,
-        notes: updateData.notes,
-        estimate_title: updateData.estimate_title
-      });
+      
 
       const additionalCost = updateData.additional_cost;
       const customLabor = updateData.custom_labor;
@@ -859,12 +853,7 @@ export class Estimate {
       delete updateData.custom_labor;
       delete updateData.custom_products;
 
-      console.log('UPDATE - Data being updated:', {
-        description: updateData.description,
-        notes: updateData.notes,
-        estimate_title: updateData.estimate_title
-      });
-
+    
 
       const { data, error } = await supabase
         .from("estimates")
@@ -936,7 +925,7 @@ export class Estimate {
         }
       }
 
-      // Custom products handling - use junction table approach
+      
       if (customProducts && Array.isArray(customProducts) && customProducts.length > 0) {
         for (const productItem of customProducts) {
           try {
@@ -944,12 +933,12 @@ export class Estimate {
             
             let productId;
             
-            // Check if product already exists
+        
             if (productItem.id || productItem.product_id) {
               productId = productItem.id || productItem.product_id;
               console.log('Updating existing product with ID:', productId);
               
-              // Update existing product
+            
               const updateProductData = {
                 product_name: productItem.product_name,
                 supplier_sku: productItem.supplier_sku || '',
@@ -963,7 +952,7 @@ export class Estimate {
                 description: productItem.description,
               };
 
-              // Only update jdp_sku if provided
+              
               if (productItem.jdp_sku) {
                 updateProductData.jdp_sku = productItem.jdp_sku;
               }
@@ -980,7 +969,7 @@ export class Estimate {
                 console.log(`Product ${productId} updated successfully`);
               }
             } else {
-              // Create new product first
+              
               console.log('Creating new product:', productItem.product_name);
               let jdpSku = productItem.jdp_sku;
               if (!jdpSku) {
@@ -1020,7 +1009,7 @@ export class Estimate {
               console.log('New product created with ID:', productId);
             }
 
-            // Now add/update the relationship in junction table
+           
             const junctionData = {
               estimate_id: estimateId,
               product_id: productId,
@@ -1028,7 +1017,7 @@ export class Estimate {
               system_ip: updateData.system_ip || null
             };
 
-            // Use upsert to handle both insert and update cases
+      
             const { error: junctionError } = await supabase
               .from('estimate_products')
               .upsert(junctionData, { 
@@ -1085,10 +1074,10 @@ export class Estimate {
         throw new Error(`Database error: ${fetchError.message}`);
       }
 
-      // Get additional costs
+    
       const additionalCosts = await Estimate.getAdditionalCosts(estimateId);
 
-      // Get products if job exists
+    
       let products = [];
       if (completeEstimate.job && completeEstimate.job.id) {
         const { data: jobProducts } = await supabase
@@ -1116,7 +1105,7 @@ export class Estimate {
         }
       }
 
-      // Calculate total amount from products and additional costs
+      
       const productsTotalCost = products.reduce((sum, product) => {
         return sum + (parseFloat(product.total_cost) || 0);
       }, 0);
@@ -1330,7 +1319,7 @@ export class Estimate {
             try {
               const additionalCosts = await Estimate.getAdditionalCosts(estimate.id);
 
-              // Calculate products total cost
+              
               const productsTotalCost = estimate.products ? estimate.products.reduce((sum, product) => {
                 return sum + (parseFloat(product.total_cost) || 0);
               }, 0) : 0;
@@ -1341,7 +1330,7 @@ export class Estimate {
                 return sum + (parseFloat(cost.amount) || 0);
               }, 0);
 
-              // Use products total cost in calculation
+             
               const subtotal = productsTotalCost + materialsCost + laborCost + additionalCostsTotal;
               const taxAmount = (subtotal * (parseFloat(estimate.tax_percentage) || 0)) / 100;
               const totalAmount = subtotal + taxAmount;
@@ -1358,7 +1347,7 @@ export class Estimate {
               };
             } catch (error) {
               console.error(`Error processing estimate ${estimate.id}:`, error);
-              // Fallback calculation with products total cost
+            
               const productsTotalCost = estimate.products ? estimate.products.reduce((sum, product) => {
                 return sum + (parseFloat(product.total_cost) || 0);
               }, 0) : 0;
@@ -1473,14 +1462,14 @@ export class Estimate {
         throw new Error('Estimate not found');
       }
 
-      // Get additional costs from estimate_additional_costs table
+    
       const additionalCosts = await Estimate.getAdditionalCosts(estimateId);
 
       const additionalCostsTotal = additionalCosts.reduce((sum, cost) => {
         return sum + (parseFloat(cost.amount) || 0);
       }, 0);
 
-      // Update total amount with additional costs
+
       await Estimate.update(estimateId, {
         total_amount: additionalCostsTotal
       });

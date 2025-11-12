@@ -71,7 +71,7 @@ export class Contractor {
 
   static async getContractorStatistics(contractorId) {
     try {
-      // Get total jobs count
+     
       const { count: totalJobs, error: jobsError } = await supabase
         .from("jobs")
         .select("*", { count: "exact", head: true })
@@ -81,7 +81,7 @@ export class Contractor {
         console.error("Error fetching jobs count:", jobsError);
       }
 
-      // Get total cost from jobs
+      
       const { data: jobsData, error: jobsDataError } = await supabase
         .from("jobs")
         .select("estimated_cost")
@@ -91,7 +91,7 @@ export class Contractor {
         console.error("Error fetching jobs data:", jobsDataError);
       }
 
-      // Calculate total cost (only estimated_cost)
+     
       let totalCost = 0;
       let totalEstimatedCost = 0;
       
@@ -105,7 +105,7 @@ export class Contractor {
         }, 0);
       }
 
-      // Get total estimates count
+      
       const { count: totalEstimates, error: estimatesError } = await supabase
         .from("estimates")
         .select("*", { count: "exact", head: true })
@@ -115,7 +115,7 @@ export class Contractor {
         console.error("Error fetching estimates count:", estimatesError);
       }
 
-      // Get total estimate amount
+
       const { data: estimatesData, error: estimatesDataError } = await supabase
         .from("estimates")
         .select("total_amount")
@@ -132,7 +132,7 @@ export class Contractor {
         }, 0);
       }
 
-      // Get jobs by status
+
       const { data: jobsByStatus, error: statusError } = await supabase
         .from("jobs")
         .select("status")
@@ -338,7 +338,7 @@ export class Contractor {
 
       const relationships = [];
 
-      // Check if contractor has associated jobs
+   
       const { data: jobsData, error: jobsError } = await supabase
         .from('jobs')
         .select('id, job_title')
@@ -353,7 +353,7 @@ export class Contractor {
         });
       }
 
-      // Check if contractor has associated orders
+   
       const { data: ordersData, error: ordersError } = await supabase
         .from('orders')
         .select('id')
@@ -368,7 +368,7 @@ export class Contractor {
         });
       }
 
-      // Check if contractor has associated estimates
+     
       const { data: estimatesData, error: estimatesError } = await supabase
         .from('estimates')
         .select('id, estimate_title')
@@ -458,7 +458,6 @@ export class Contractor {
               };
             }
 
-            // Group jobs by address (same address = sub-jobs)
             const jobsByAddress = {};
             const groupedJobs = [];
 
@@ -466,9 +465,9 @@ export class Contractor {
               const addressKey = job.address || 'No Address';
               
               if (!jobsByAddress[addressKey]) {
-                // First job becomes the main job - keep same structure as sub-jobs
+             
                 jobsByAddress[addressKey] = {
-                  ...job, // Main job with all its fields
+                  ...job, 
                   isMainJob: true,
                   isSubJob: false,
                   parentJobId: null,
@@ -477,26 +476,26 @@ export class Contractor {
                 };
                 groupedJobs.push(jobsByAddress[addressKey]);
               } else {
-                // Subsequent jobs with same address become sub-jobs - same structure as main job
+               
                 jobsByAddress[addressKey].subJobs.push({
-                  ...job, // This includes ALL job fields
+                  ...job, 
                   isMainJob: false,
                   isSubJob: true,
                   parentJobId: jobsByAddress[addressKey].id,
                   parentAddress: addressKey,
-                  subJobs: [] // Keep same structure
+                  subJobs: [] 
                 });
               }
             });
 
-            // Calculate progress and add additional info for each main job with sub-jobs
+            
             const jobsWithProgress = groupedJobs.map(mainJob => {
-              const totalJobs = 1 + mainJob.subJobs.length; // Main job + sub jobs
+              const totalJobs = 1 + mainJob.subJobs.length; 
               const completedJobs = (mainJob.status === 'completed' ? 1 : 0) + 
                                    mainJob.subJobs.filter(job => job.status === 'completed').length;
               const progress = totalJobs > 0 ? Math.round((completedJobs / totalJobs) * 100) : 0;
               
-              // Calculate totals including main job
+              
               const mainJobCost = parseFloat(mainJob.estimated_cost) || 0;
               const subJobsCost = mainJob.subJobs.reduce((sum, job) => sum + (parseFloat(job.estimated_cost) || 0), 0);
               const totalEstimatedCost = mainJobCost + subJobsCost;

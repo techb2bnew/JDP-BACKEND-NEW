@@ -89,7 +89,7 @@ export class StaffService {
 
   static async updateStaff(staffId, updateData) {
     try {
-      // Optimize: Lightweight existence check (only fetch user_id if needed)
+      
       const { data: currentStaff, error: fetchError } = await supabase
         .from('staff')
         .select('id, user_id')
@@ -121,7 +121,7 @@ export class StaffService {
       if (updateData.address !== undefined) staffData.address = updateData.address;
       if (updateData.dob !== undefined) staffData.dob = updateData.dob;
 
-      // Optimize: Run user and staff updates in parallel
+ 
       const updatePromises = [];
       
       if (Object.keys(userData).length > 0) {
@@ -132,12 +132,11 @@ export class StaffService {
         updatePromises.push(Staff.update(staffId, staffData));
       }
 
-      // Wait for all updates to complete
+   
       if (updatePromises.length > 0) {
         await Promise.all(updatePromises);
       }
 
-      // Fetch updated staff (only if updates were made)
       const updatedStaff = await Staff.getStaffById(staffId);
       return updatedStaff;
     } catch (error) {
@@ -156,12 +155,12 @@ export class StaffService {
 
   static async updateProfile(staffId, updateData, files = null) {
     try {
-      // Optimize: Lightweight existence check (only fetch user_id and email if needed)
+    
       let currentStaffEmail = null;
       let userId = null;
 
       if (updateData.email) {
-        // If email is being updated, fetch current staff email for comparison
+   
         const { data: currentStaff, error: fetchError } = await supabase
           .from('staff')
           .select(`
@@ -186,7 +185,7 @@ export class StaffService {
         userId = currentStaff.user_id;
         currentStaffEmail = currentStaff.users.email;
 
-        // Check if new email already exists (only if different from current)
+      
         if (updateData.email !== currentStaffEmail) {
           const existingUser = await User.findByEmail(updateData.email);
           if (existingUser) {
@@ -194,7 +193,7 @@ export class StaffService {
           }
         }
       } else {
-        // If email is not being updated, just check if staff exists (lightweight)
+        
         const { data: currentStaff, error: fetchError } = await supabase
           .from('staff')
           .select('id, user_id')
@@ -293,7 +292,7 @@ export class StaffService {
         throw new Error('Profile image file is required');
       }
 
-      // Optimize: Lightweight existence check (only check if staff exists)
+      
       const { data: staff, error: fetchError } = await supabase
         .from('staff')
         .select('id')
@@ -308,10 +307,10 @@ export class StaffService {
         throw new Error('Staff not found');
       }
 
-      // Get the uploaded file location from S3
+    
       const profileImageUrl = files.profile_image[0].location;
 
-      // Update staff record with profile_image URL
+      
       const updateData = {
         profile_image: profileImageUrl
       };

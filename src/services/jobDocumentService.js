@@ -4,7 +4,7 @@ import { successResponse } from '../helpers/responseHelper.js';
 export class JobDocumentService {
   static async createDocument(documentData, createdByUserId) {
     try {
-      // Optimize: Lightweight job existence check
+      
       const { supabase } = await import('../config/database.js');
       const { data: job, error: jobError } = await supabase
         .from('jobs')
@@ -53,7 +53,7 @@ export class JobDocumentService {
 
   static async getDocumentsByJobId(jobId) {
     try {
-      // Optimize: Lightweight job existence check
+      
       const { supabase } = await import('../config/database.js');
       const { data: job, error: jobError } = await supabase
         .from('jobs')

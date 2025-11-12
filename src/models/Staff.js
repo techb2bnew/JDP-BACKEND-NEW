@@ -34,7 +34,7 @@ export class Staff {
     try {
       const offset = (page - 1) * limit;
 
-      // Optimize: Run count and data queries in parallel
+     
       const [countResult, dataResult] = await Promise.all([
         supabase
           .from('staff')
@@ -152,7 +152,7 @@ export class Staff {
 
   static async delete(staffId) {
     try {
-      // Optimize: Fetch only required fields for delete response (not full staff details)
+     
       const { data: staff, error: fetchError } = await supabase
         .from('staff')
         .select(`
@@ -179,7 +179,7 @@ export class Staff {
 
       const userId = staff.user_id;
 
-      // Optimize: Run staff and user delete in parallel
+      
       const [staffDeleteResult, userDeleteResult] = await Promise.all([
         supabase
           .from('staff')
@@ -246,7 +246,7 @@ export class Staff {
     try {
       const q = (filters.q || '').toLowerCase().trim();
 
-      // Fetch all staff with user relationships
+      
       const { data, error } = await supabase
         .from("staff")
         .select(`
@@ -270,7 +270,7 @@ export class Staff {
       const inStr = (s) => (s || '').toString().toLowerCase().includes(q);
 
       const matches = (staff) => {
-        // Text search across multiple fields
+       
         if (q) {
           const staffMatch = inStr(staff.users?.full_name) || 
                             inStr(staff.users?.email) || 
@@ -281,7 +281,7 @@ export class Staff {
           if (!staffMatch) return false;
         }
 
-        // Exact field filters
+   
         if (filters.name && !inStr(staff.users?.full_name)) return false;
         if (filters.phone && !inStr(staff.users?.phone)) return false;
         if (filters.email && !inStr(staff.users?.email)) return false;
@@ -291,7 +291,7 @@ export class Staff {
         if (filters.status && staff.users?.status !== filters.status) return false;
         if (filters.role && staff.users?.role !== filters.role) return false;
 
-        // Date range filters
+      
         if (filters.dob_from && staff.dob && new Date(staff.dob) < filters.dob_from) return false;
         if (filters.dob_to && staff.dob && new Date(staff.dob) > filters.dob_to) return false;
         if (filters.date_of_joining_from && staff.date_of_joining && new Date(staff.date_of_joining) < filters.date_of_joining_from) return false;
@@ -302,7 +302,7 @@ export class Staff {
 
       let filtered = (data || []).filter(matches);
 
-      // Sort by user created_at (most recent first)
+    
       filtered = filtered.sort((a, b) => {
         const dateA = new Date(a.users?.created_at || 0);
         const dateB = new Date(b.users?.created_at || 0);
@@ -328,7 +328,7 @@ export class Staff {
 
   static async getStats() {
     try {
-      // Get all counts in parallel
+  
       const [
         { count: totalStaff },
         { count: staffCount },
@@ -343,7 +343,7 @@ export class Staff {
         supabase.from('suppliers').select('*', { count: 'exact', head: true })
       ]);
 
-      // Calculate total staff (staff + lead labor + labor + suppliers)
+      
       const totalStaffAll = (totalStaff || 0) + (leadLaborCount || 0) + (laborCount || 0) + (supplierCount || 0);
 
       return {

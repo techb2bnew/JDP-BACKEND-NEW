@@ -120,7 +120,7 @@ export class Order {
         return { ...order, order_items: [] };
       }
 
-      // Recalculate totals from order items
+     
       let recalculatedSubtotal = 0;
       if (items && items.length > 0) {
         recalculatedSubtotal = items.reduce((sum, item) => {
@@ -134,11 +134,11 @@ export class Order {
       const recalculatedDiscountAmount = parseFloat(order.discount_amount || 0);
       const recalculatedTotalAmount = recalculatedSubtotal + recalculatedTaxAmount - recalculatedDiscountAmount;
 
-      // Add formatted currency fields
+     
       const formattedOrder = {
         ...order,
         order_items: items || [],
-        // Use recalculated values
+       
         subtotal: recalculatedSubtotal,
         total_amount: recalculatedTotalAmount,
         subtotal_formatted: `$${recalculatedSubtotal.toFixed(2)}`,
@@ -463,7 +463,7 @@ export class Order {
     try {
       const q = (filters.q || '').toLowerCase().trim();
 
-      // Fetch all orders with relationships
+    
       const { data, error } = await supabase
         .from("orders")
         .select(`
@@ -527,7 +527,7 @@ export class Order {
       const inStr = (s) => (s || '').toString().toLowerCase().includes(q);
 
       const matches = (order) => {
-        // Text search across multiple fields
+      
         if (q) {
           const orderMatch = inStr(order.order_number) ||
                             inStr(order.id.toString()) ||
@@ -547,14 +547,13 @@ export class Order {
           if (!orderMatch) return false;
         }
 
-        // Exact field filters
+      
         if (filters.order_id && order.id !== parseInt(filters.order_id)) return false;
         if (filters.job_id && order.job_id !== parseInt(filters.job_id)) return false;
         if (filters.customer && !inStr(order.customer?.customer_name) && !inStr(order.customer?.company_name) && !inStr(order.customer?.email)) return false;
         if (filters.contractor && !inStr(order.contractor?.contractor_name) && !inStr(order.contractor?.company_name) && !inStr(order.contractor?.email)) return false;
         if (filters.status && filters.status.toLowerCase() !== 'all' && order.status !== filters.status) return false;
 
-        // Date range filters
         if (filters.order_date_from && order.order_date && new Date(order.order_date) < filters.order_date_from) return false;
         if (filters.order_date_to && order.order_date && new Date(order.order_date) > filters.order_date_to) return false;
 
@@ -563,7 +562,6 @@ export class Order {
 
       let filtered = (data || []).filter(matches);
 
-      // Sort by created_at (most recent first)
       filtered = filtered.sort((a, b) => {
         const dateA = new Date(a.created_at || 0);
         const dateB = new Date(b.created_at || 0);
