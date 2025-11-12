@@ -681,33 +681,7 @@ export class JobService {
       }
       const totalOrders = ordersQuery.count || 0;
 
-      const { data: bluesheets, error: bluesheetsError } = await supabase
-        .from('job_bluesheet')
-        .select('id')
-        .eq('job_id', jobId);
-
-      if (bluesheetsError) {
-        throw new Error(`Database error: ${bluesheetsError.message}`);
-      }
-
       let totalRegularSeconds = 0;
-
-      if (bluesheets && bluesheets.length > 0) {
-        const bluesheetIds = bluesheets.map((sheet) => sheet.id);
-
-        const { data: laborEntries, error: laborError } = await supabase
-          .from('job_bluesheet_labor')
-          .select('regular_hours')
-          .in('job_bluesheet_id', bluesheetIds);
-
-        if (laborError) {
-          throw new Error(`Database error: ${laborError.message}`);
-        }
-
-        (laborEntries || []).forEach((entry) => {
-          totalRegularSeconds += JobService.parseDurationToSeconds(entry.regular_hours);
-        });
-      }
 
       const { data: timesheetEntries, error: timesheetError } = await supabase
         .from('labor_timesheets')
