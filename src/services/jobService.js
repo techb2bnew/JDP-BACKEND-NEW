@@ -3,6 +3,7 @@ import { LaborTimesheet } from "../models/LaborTimesheet.js";
 import { successResponse } from "../helpers/responseHelper.js";
 import { supabase } from "../config/database.js";
 import { NotificationService } from "./notificationService.js";
+import { safeJsonParse } from "../utils/helpers.js";
 
 export class JobService {
   static async createJob(jobData, createdByUserId) {
@@ -659,6 +660,8 @@ export class JobService {
           due_date,
           created_at,
           updated_at,
+          assigned_labor_ids,
+          assigned_lead_labor_ids,
           created_by_user:users!jobs_created_by_fkey (
             id,
             full_name,
@@ -730,6 +733,16 @@ export class JobService {
         }
       });
 
+      // Fetch assigned labor, assigned lead labor, and bluesheets
+      const leadLaborIds = safeJsonParse(jobData.assigned_lead_labor_ids, []);
+      const laborIds = safeJsonParse(jobData.assigned_labor_ids, []);
+
+      const [assignedLeadLabor, assignedLabor, bluesheets] = await Promise.all([
+        Job.fetchLeadLaborDetails(leadLaborIds),
+        Job.fetchLaborDetails(laborIds),
+        Job.fetchBluesheetsDetails(jobId)
+      ]);
+
       return successResponse(
         {
           job: {
@@ -759,7 +772,10 @@ export class JobService {
             total_seconds: totalRegularSeconds,
             formatted: JobService.formatSeconds(totalRegularSeconds)
           },
-          labor_timesheets: timesheetEntries || []
+          labor_timesheets: timesheetEntries || [],
+          assigned_labor: assignedLabor || [],
+          assigned_lead_labor: assignedLeadLabor || [],
+          bluesheets: bluesheets || []
         },
         "Job activity retrieved successfully"
       );
