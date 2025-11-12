@@ -711,8 +711,29 @@ export class JobService {
 
       const { data: timesheetEntries, error: timesheetError } = await supabase
         .from('labor_timesheets')
-        .select('work_activity, start_time, end_time')
-        .eq('job_id', jobId);
+        .select(`
+          *,
+          labor:labor_id (
+            id,
+            labor_code,
+            users!labor_user_id_fkey (
+              id,
+              full_name,
+              email
+            )
+          ),
+          lead_labor:lead_labor_id (
+            id,
+            labor_code,
+            users!lead_labor_user_id_fkey (
+              id,
+              full_name,
+              email
+            )
+          )
+        `)
+        .eq('job_id', jobId)
+        .order('date', { ascending: false });
 
       if (timesheetError) {
         throw new Error(`Database error: ${timesheetError.message}`);
@@ -757,7 +778,8 @@ export class JobService {
           regular_hours: {
             total_seconds: totalRegularSeconds,
             formatted: JobService.formatSeconds(totalRegularSeconds)
-          }
+          },
+          labor_timesheets: timesheetEntries || []
         },
         "Job activity retrieved successfully"
       );
