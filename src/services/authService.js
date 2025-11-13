@@ -156,7 +156,7 @@ export class AuthService {
       });
 
       const tokenExpiry = new Date();
-      tokenExpiry.setHours(tokenExpiry.getHours() + 24);
+      tokenExpiry.setDate(tokenExpiry.getDate() + 30);
 
    
       const results = await Promise.all(fetchPromises);

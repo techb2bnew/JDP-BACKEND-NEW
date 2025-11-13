@@ -80,7 +80,7 @@ export const comparePassword = async (password, hashedPassword) => {
 
 export const generateToken = (payload) => {
   const secret = process.env.JWT_SECRET || 'your-secret-key';
-  const expiresIn = process.env.JWT_EXPIRES_IN || '24h';
+  const expiresIn = process.env.JWT_EXPIRES_IN || '30d';
   
   return jwt.sign(payload, secret, { expiresIn });
 };
