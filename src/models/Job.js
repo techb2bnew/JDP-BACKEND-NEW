@@ -1842,6 +1842,89 @@ export class Job {
         });
       }
 
+      // Fetch bluesheets for all jobs
+      let bluesheetMap = new Map();
+      if (jobIds.length > 0) {
+        const { data: bluesheetRows, error: bluesheetError } = await supabase
+          .from('job_bluesheet')
+          .select(`
+            *,
+            created_by_user:users!job_bluesheet_created_by_fkey (
+              id,
+              full_name,
+              email
+            ),
+            approved_by_user:users!job_bluesheet_approved_by_fkey (
+              id,
+              full_name,
+              email
+            ),
+            labor_entries:job_bluesheet_labor (
+              id,
+              labor_id,
+              lead_labor_id,
+              employee_name,
+              role,
+              labor_hours,
+              regular_hours,
+              overtime_hours,
+              total_hours,
+              hourly_rate,
+              total_cost,
+              rate_snapshot,
+              labor:labor_id (
+                id,
+                labor_code,
+                users!labor_user_id_fkey (
+                  id,
+                  full_name,
+                  email
+                )
+              ),
+              lead_labor:lead_labor_id (
+                id,
+                labor_code,
+                users!lead_labor_user_id_fkey (
+                  id,
+                  full_name,
+                  email
+                )
+              )
+            ),
+            material_entries:job_bluesheet_material (
+              id,
+              product_id,
+              material_name,
+              quantity,
+              unit,
+              total_ordered,
+              material_used,
+              supplier_order_id,
+              return_to_warehouse,
+              unit_cost,
+              total_cost,
+              product:product_id (
+                id,
+                product_name,
+                jdp_price,
+                supplier_cost_price
+              )
+            )
+          `)
+          .in('job_id', jobIds)
+          .order('date', { ascending: false });
+
+        if (bluesheetError) {
+          console.error('Error fetching bluesheets:', bluesheetError);
+        } else {
+          (bluesheetRows || []).forEach((row) => {
+            const list = bluesheetMap.get(row.job_id) || [];
+            list.push(row);
+            bluesheetMap.set(row.job_id, list);
+          });
+        }
+      }
+
       paginatedJobs.forEach((job) => {
         job.assigned_labor = (job.assigned_labor_ids || []).map((id) => laborMap.get(id)).filter(
           Boolean
@@ -1850,6 +1933,7 @@ export class Job {
           leadLaborMap.get(id)
         ).filter(Boolean);
         job.labor_timesheets = timesheetMap.get(job.id) || [];
+        job.bluesheets = bluesheetMap.get(job.id) || [];
       });
 
       
