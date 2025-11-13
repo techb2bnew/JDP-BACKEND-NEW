@@ -74,6 +74,26 @@ fastify.setErrorHandler((error, request, reply) => {
       statusCode: 413,
       error: 'Request Entity Too Large'
     });
+  } else if (error.validation) {
+    // Handle Fastify validation errors
+    const validationErrors = error.validation.map(err => {
+      // Custom message for password pattern validation
+      if (err.params && err.params.pattern && err.instancePath && err.instancePath.includes('newPassword')) {
+        return 'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character (@$!%*?&)';
+      }
+      // Custom message for other pattern validations
+      if (err.params && err.params.pattern) {
+        return err.message || 'Invalid format';
+      }
+      // Default validation message
+      return err.message || 'Validation error';
+    });
+    
+    reply.status(400).send({
+      success: false,
+      message: validationErrors[0] || 'Validation failed',
+      statusCode: 400
+    });
   } else {
     reply.status(error.statusCode || 500).send({
       success: false,

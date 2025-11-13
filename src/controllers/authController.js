@@ -188,6 +188,21 @@ export class AuthController {
     try {
       const { email, newPassword, confirmPassword } = request.body;
       
+      // Validate password format
+      const passwordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{6,}$/;
+      
+      if (!newPassword || typeof newPassword !== 'string') {
+        return reply.code(400).send(errorResponse("Password is required", 400));
+      }
+      
+      if (newPassword.length < 6) {
+        return reply.code(400).send(errorResponse("Password must be at least 6 characters long", 400));
+      }
+      
+      if (!passwordPattern.test(newPassword)) {
+        return reply.code(400).send(errorResponse("Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character (@$!%*?&)", 400));
+      }
+      
       if (newPassword !== confirmPassword) {
         return reply.code(400).send(errorResponse("Passwords do not match", 400));
       }
@@ -198,6 +213,17 @@ export class AuthController {
       console.error('Error in resetPassword:', error);
       console.error('Error message:', error.message);
       console.error('Error stack:', error.stack);
+      
+      // Handle validation errors from Fastify schema
+      if (error.validation) {
+        const validationErrors = error.validation.map(err => {
+          if (err.params && err.params.pattern) {
+            return "Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character (@$!%*?&)";
+          }
+          return err.message || 'Validation error';
+        });
+        return reply.code(400).send(errorResponse(validationErrors[0] || "Validation failed", 400));
+      }
       
       if (error.message.includes('Invalid') || error.message.includes('expired')) {
         return reply.code(400).send(errorResponse(error.message, 400));
