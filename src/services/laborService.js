@@ -125,6 +125,19 @@ export class LaborService {
         }
     }
 
+  static async getLaborByIdForMobile(laborId) {
+    try {
+      const data = await Labor.getLaborByIdForMobile(laborId);
+      return successResponse(
+        data,
+        "Labor retrieved successfully for mobile app",
+        200
+      );
+    } catch (error) {
+      throw error;
+    }
+  }
+
   static async getLaborById(laborId, page = 1, limit = 50) {
     try {
       const labor = await Labor.getLaborById(laborId);

@@ -47,6 +47,18 @@ export default async function leadLaborRoutes(fastify, options) {
   fastify.get('/getAllLeadLabor', {
   }, LeadLaborController.getAllLeadLabor);
 
+  fastify.get('/getLeadLaborByIdForMobile/:leadLaborId', {
+    schema: {
+      params: {
+        type: 'object',
+        required: ['leadLaborId'],
+        properties: {
+          leadLaborId: { type: 'string', pattern: '^[0-9]+$' }
+        }
+      }
+    }
+  }, LeadLaborController.getLeadLaborByIdForMobile);
+
   fastify.get('/searchLeadLabor', {
   }, LeadLaborController.searchLeadLabor);
 

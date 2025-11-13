@@ -129,6 +129,40 @@ export class LeadLabor {
     }
   }
 
+  static async getLeadLaborByIdForMobile(leadLaborId) {
+    try {
+      const { data, error } = await supabase
+        .from('lead_labor')
+        .select(`
+          *,
+          users!lead_labor_user_id_fkey (
+            id,
+            full_name,
+            email,
+            phone,
+            role,
+            status,
+            photo_url,
+            created_at
+          )
+        `)
+        .eq('id', leadLaborId)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      if (!data) {
+        throw new Error(`Lead labor not found with ID: ${leadLaborId}`);
+      }
+
+      return data;
+    } catch (error) {
+      throw error;
+    }
+  }
+
   static async getLeadLaborById(leadLaborId) {
     try {
       const { data, error } = await supabase

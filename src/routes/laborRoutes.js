@@ -10,6 +10,18 @@ export default async function laborRoutes(fastify, options) {
   fastify.get('/getAllLabor', {
   }, LaborController.getAllLabor);
 
+  fastify.get('/getLaborByIdForMobile/:laborId', {
+    schema: {
+      params: {
+        type: 'object',
+        required: ['laborId'],
+        properties: {
+          laborId: { type: 'string', pattern: '^[0-9]+$' }
+        }
+      }
+    }
+  }, LaborController.getLaborByIdForMobile);
+
   fastify.get('/searchLabor', {
   }, LaborController.searchLabor);
 

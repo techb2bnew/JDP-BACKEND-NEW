@@ -74,6 +74,24 @@ export class LeadLaborController {
     }
   }
 
+  static async getLeadLaborByIdForMobile(req, reply) {
+    try {
+      const { leadLaborId } = req.params;
+      
+      if (!leadLaborId || isNaN(leadLaborId)) {
+        return reply.status(400).send(errorResponse('Valid lead labor ID is required', 400));
+      }
+
+      const result = await LeadLaborService.getLeadLaborByIdForMobile(parseInt(leadLaborId));
+      return reply.status(200).send(result);
+    } catch (error) {
+      if (error.message.includes('not found')) {
+        return reply.status(404).send(errorResponse(error.message, 404));
+      }
+      return reply.status(500).send(errorResponse(`Failed to retrieve lead labor for mobile: ${error.message}`, 500));
+    }
+  }
+
   static async searchLeadLabor(req, reply) {
     try {
       const { 

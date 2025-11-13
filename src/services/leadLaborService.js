@@ -117,6 +117,19 @@ export class LeadLaborService {
     }
   }
 
+  static async getLeadLaborByIdForMobile(leadLaborId) {
+    try {
+      const data = await LeadLabor.getLeadLaborByIdForMobile(leadLaborId);
+      return successResponse(
+        data,
+        "Lead labor retrieved successfully for mobile app",
+        200
+      );
+    } catch (error) {
+      throw error;
+    }
+  }
+
   static async getLeadLaborById(leadLaborId, page = 1, limit = 50) {
     try {
       const leadLabor = await LeadLabor.getLeadLaborById(leadLaborId);

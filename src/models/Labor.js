@@ -177,6 +177,40 @@ export class Labor {
     }
   }
 
+  static async getLaborByIdForMobile(laborId) {
+    try {
+      const { data, error } = await supabase
+        .from('labor')
+        .select(`
+          *,
+          users!labor_user_id_fkey (
+            id,
+            full_name,
+            email,
+            phone,
+            role,
+            status,
+            photo_url,
+            created_at
+          )
+        `)
+        .eq('id', laborId)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      if (!data) {
+        throw new Error(`Labor not found with ID: ${laborId}`);
+      }
+
+      return this.parseLaborData(data);
+    } catch (error) {
+      throw error;
+    }
+  }
+
   static async getLaborById(laborId) {
     try {
       const { data, error } = await supabase
