@@ -20,10 +20,9 @@ export class User {
     }
   }
 
-
   static async findByEmail(email, includeRelated = true) {
     try {
-      // First get user
+      
       const { data: user, error: userError } = await supabase
         .from("users")
         .select("*")
@@ -70,8 +69,6 @@ export class User {
     }
   }
 
-
-
   static async findById(userId) {
     try {
       const { data, error } = await supabase
@@ -96,6 +93,32 @@ export class User {
       const { data, error } = await supabase
         .from("users")
         .update(updateData)
+        .eq("id", userId)
+        .select()
+        .single();
+
+      if (error) {
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      return data;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async deactivateAccount(userId) {
+    try {
+     
+      const user = await this.findById(userId);
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      
+      const { data, error } = await supabase
+        .from("users")
+        .update({ status: 'inactive' })
         .eq("id", userId)
         .select()
         .single();

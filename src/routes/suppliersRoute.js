@@ -3,16 +3,9 @@ import { authenticateToken } from '../middleware/authMiddleware.js';
 
 export default async function suppliersRoutes(fastify, options) {
   fastify.addHook('preHandler', authenticateToken);
-
-
   fastify.post('/createSupplier', suppliersController.createSupplier);
-
-
   fastify.get('/getAllSuppliers', suppliersController.getAllSuppliers);
-
   fastify.get('/searchSuppliers', suppliersController.searchSuppliers);
-
-
   fastify.get('/getSupplierById/:supplierId', {
     schema: {
       params: {
@@ -24,11 +17,7 @@ export default async function suppliersRoutes(fastify, options) {
       }
     }
   }, suppliersController.getSupplierById);
-
-
   fastify.post('/updateSupplier/:supplierId', suppliersController.updateSupplier);
-
-
   fastify.delete('/deleteSupplier/:supplierId', {
     schema: {
       params: {
@@ -40,5 +29,4 @@ export default async function suppliersRoutes(fastify, options) {
       }
     }
   }, suppliersController.deleteSupplier);
-
 }

@@ -9,9 +9,6 @@ export const hashPassword = async (password) => {
   return await bcrypt.hash(password, saltRounds);
 };
 
-
-
-
 export const sendWelcomeEmail = async (userEmail, userName, temporaryPassword) => {
   try {
   

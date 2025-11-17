@@ -72,4 +72,9 @@ export default async function authRoutes(fastify, options) {
     schema: resetPasswordWithTokenSchema,
     handler: AuthController.resetPassword
   });
+
+  fastify.put('/deactivate-account', {
+    preHandler: fastify.authenticateToken,
+    handler: AuthController.deactivateAccount
+  });
 }

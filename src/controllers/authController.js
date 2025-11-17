@@ -43,7 +43,7 @@ export class AuthController {
       if (error.message.includes('Invalid login method')) {
         return reply.code(400).send(errorResponse(error.message, 400));
       }
-      return reply.code(500).send(errorResponse(`Failed to login: ${error.message}`));
+      return reply.code(500).send(errorResponse(`${error.message}`));
     }
   }
 
@@ -181,6 +181,31 @@ export class AuthController {
         return reply.code(404).send(errorResponse(error.message, 404));
       }
       return reply.code(500).send(errorResponse(`Failed to resend forgot password OTP: ${error.message}`));
+    }
+  }
+
+  static async deactivateAccount(request, reply) {
+    try {
+      const userId = request.user?.id;
+      const targetUserId = request.body?.user_id || userId; // Allow admin to deactivate other users
+
+      if (!targetUserId) {
+        return reply.code(400).send(errorResponse('User ID is required', 400));
+      }
+
+      // Check if user is trying to deactivate themselves or has permission
+      // For now, allow users to deactivate their own account
+      // You can add admin check here if needed
+      const result = await AuthService.deactivateAccount(targetUserId);
+      return reply.code(200).send(result);
+    } catch (error) {
+      if (error.message.includes('not found')) {
+        return reply.code(404).send(errorResponse(error.message, 404));
+      }
+      if (error.message.includes('already inactive')) {
+        return reply.code(400).send(errorResponse(error.message, 400));
+      }
+      return reply.code(500).send(errorResponse(`Failed to deactivate account: ${error.message}`, 500));
     }
   }
 

@@ -2,6 +2,7 @@ import { User } from "../models/User.js";
 import { UserToken } from "../models/UserToken.js";
 import { LeadLabor } from "../models/LeadLabor.js";
 import { Labor } from "../models/Labor.js";
+import { Staff } from "../models/Staff.js";
 import {
   hashPassword,
   comparePassword,
@@ -125,6 +126,14 @@ export class AuthService {
             })
           );
         }
+      } else if (login_by === 'admin') {
+        // Fetch staff details for admin login
+        fetchPromises.push(
+          Staff.getStaffByUserIdForLogin(user.id).catch(err => {
+            console.error('Error fetching staff details:', err);
+            return null;
+          })
+        );
       }
 
      
@@ -163,6 +172,7 @@ export class AuthService {
       const permissions = results[0] || [];
       const leadLaborDetails = login_by === 'app' && user.management_type === 'lead_labor' ? results[1] : null;
       const laborDetails = login_by === 'app' && user.management_type === 'labor' ? results[1] : null;
+      const staffDetails = login_by === 'admin' ? results[1] : null;
 
      
       setImmediate(() => {
@@ -205,6 +215,9 @@ export class AuthService {
       }
       if (laborDetails) {
         cleanUser.labor = laborDetails;
+      }
+      if (staffDetails) {
+        cleanUser.staff = staffDetails;
       }
 
      
@@ -504,6 +517,34 @@ export class AuthService {
       return successResponse(
         null,
         "Logged out from all devices successfully"
+      );
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async deactivateAccount(userId) {
+    try {
+      const user = await User.findById(userId);
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      if (user.status === 'inactive') {
+        throw new Error('User account is already inactive');
+      }
+
+      await UserToken.deactivateAllUserTokens(userId);
+
+      const updatedUser = await User.deactivateAccount(userId);
+
+      return successResponse(
+        {
+          user_id: updatedUser.id,
+          email: updatedUser.email,
+          status: updatedUser.status
+        },
+        "User account deactivated successfully"
       );
     } catch (error) {
       throw error;

@@ -106,5 +106,4 @@ export const requireAdminOrSuperAdmin = async (request, reply) => {
   }
 };
 
-// Auth middleware object for easy usage
 export const authMiddleware = authenticateToken;

@@ -107,12 +107,12 @@ export class DashboardService {
 
       const activities = [];
 
-      // Helper to normalize
+      
       const push = (items = []) => {
         items.forEach((i) => activities.push(i));
       };
 
-      // Helper to push updated event if updated_at > created_at
+      
       const maybePushUpdated = (rec, type, title) => {
         if (rec.updated_at && (!rec.created_at || new Date(rec.updated_at) > new Date(rec.created_at))) {
           activities.push({
@@ -125,7 +125,7 @@ export class DashboardService {
         }
       };
 
-      // Jobs created / updated / completed
+      
       {
         const { data, error } = await supabase
           .from('jobs')
@@ -143,7 +143,6 @@ export class DashboardService {
         (data || []).forEach(j => maybePushUpdated(j, 'job_updated', `Job ${j.job_title} Updated`));
       }
 
-      // Jobs completed
       {
         const { data, error } = await supabase
           .from('jobs')
@@ -161,7 +160,7 @@ export class DashboardService {
         })));
       }
 
-      // Orders created / updated
+      
       {
         const { data, error } = await supabase
           .from('orders')
@@ -179,7 +178,7 @@ export class DashboardService {
         (data || []).forEach(o => maybePushUpdated(o, 'order_updated', `Order ${o.order_number} Updated`));
       }
 
-      // Customers created / updated
+      
       {
         const { data, error } = await supabase
           .from('customers')
@@ -197,7 +196,7 @@ export class DashboardService {
         (data || []).forEach(c => maybePushUpdated(c, 'customer_updated', `Customer ${c.customer_name} Updated`));
       }
 
-      // Staff, Labor, Lead Labor, Supplier created
+      
       const tableToType = [
         { table: 'staff', field: 'id, created_at, updated_at, users(id, full_name)', type: 'staff_created' },
         { table: 'labor', field: 'id, created_at, updated_at, users!labor_user_id_fkey(id, full_name)', type: 'labor_created' },
@@ -240,7 +239,7 @@ export class DashboardService {
         });
       }
 
-      // Products created/updated
+      
       {
         const { data, error } = await supabase
           .from('products')
@@ -272,7 +271,7 @@ export class DashboardService {
         }));
       }
 
-      // Bluesheets created / updated
+      
       {
         const { data, error } = await supabase
           .from('job_bluesheet')
@@ -290,7 +289,7 @@ export class DashboardService {
         (data || []).forEach(b => maybePushUpdated(b, 'bluesheet_updated', `Bluesheet #${b.id} Updated`));
       }
 
-      // Bluesheets approved
+     
       {
         const { data, error } = await supabase
           .from('job_bluesheet')
@@ -308,7 +307,7 @@ export class DashboardService {
         })));
       }
 
-      // Sort and cap to limit
+      
       activities.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
       const total = activities.length;
       const totalPages = Math.max(1, Math.ceil(total / limitNum));

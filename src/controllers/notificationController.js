@@ -146,7 +146,7 @@ export class NotificationController {
 
   static async markAllNotificationsAsRead(request, reply) {
     try {
-      // Get userId from body if provided, otherwise from token
+    
       const userIdFromBody = parseOptionalInt(request.body?.user_id);
       const userIdFromToken = request.user?.id;
       const userId = userIdFromBody || userIdFromToken;
@@ -182,7 +182,7 @@ export class NotificationController {
   }
 
   static async searchNotifications(request, reply) {
-    const startTime = Date.now(); // Track start time
+    const startTime = Date.now(); 
     
     try {
       const userId = request.user?.id;

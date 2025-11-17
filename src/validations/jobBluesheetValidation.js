@@ -22,7 +22,7 @@ export const addLaborEntrySchema = Joi.object({
   overtime_hours: Joi.string().optional(),
   hourly_rate: Joi.number().precision(2).optional()
 }).custom((value, helpers) => {
-  // At least one of labor_id or lead_labor_id should be provided
+ 
   if (!value.labor_id && !value.lead_labor_id) {
     return helpers.error('custom.laborRequired');
   }

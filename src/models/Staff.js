@@ -242,6 +242,32 @@ export class Staff {
     }
   }
 
+  static async getStaffByUserIdForLogin(userId) {
+    try {
+      const { data, error } = await supabase
+        .from('staff')
+        .select(`
+          id,
+          user_id,
+          position,
+          department,
+          date_of_joining,
+          address,
+          management_type,
+          system_ip,
+          created_at
+        `)
+        .eq('user_id', userId)
+        .single();
+      if (error && error.code !== 'PGRST116') {
+        throw new Error(`Database error: ${error.message}`);
+      }
+      return data || null;
+    } catch (error) {
+      throw error;
+    }
+  }
+
   static async search(filters, pagination = {}) {
     try {
       const q = (filters.q || '').toLowerCase().trim();

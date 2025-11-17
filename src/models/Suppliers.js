@@ -35,7 +35,7 @@ export class Suppliers {
     try {
       const offset = (page - 1) * limit;
 
-      // Optimize: Run count, data, and orders queries in parallel
+      
       const [countResult, dataResult, ordersResult] = await Promise.all([
         supabase
           .from('suppliers')

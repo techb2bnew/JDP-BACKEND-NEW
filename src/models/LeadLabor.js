@@ -226,8 +226,7 @@ export class LeadLabor {
       throw error;
     }
   }
-
-
+  
   static async getLeadLaborByUserIdForLogin(userId) {
     try {
       const { data, error } = await supabase

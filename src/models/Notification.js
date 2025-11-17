@@ -182,19 +182,19 @@ export class Notification {
 
   static async search({ userId, searchQuery, status, offset, limit }) {
     try {
-      // Optimize: Use a more efficient approach - get notification IDs first with smaller limit
+     
       let matchingNotificationIds = null;
       
       if (searchQuery && searchQuery.trim()) {
         const searchTerm = `%${searchQuery.trim()}%`;
         
-        // Optimized: Get only IDs with smaller limit and order by created_at DESC for recent first
+       
         const { data: matchingNotifications, error: searchError } = await supabase
           .from('notifications')
           .select('id')
           .or(`notification_title.ilike.${searchTerm},message.ilike.${searchTerm}`)
           .order('created_at', { ascending: false })
-          .limit(500); // Reduced limit for faster query
+          .limit(500); 
 
         if (searchError) {
           throw new Error(`Database error: ${searchError.message}`);
@@ -202,7 +202,7 @@ export class Notification {
 
         matchingNotificationIds = (matchingNotifications || []).map(n => n.id);
 
-        // Early return if no matches
+        
         if (matchingNotificationIds.length === 0) {
           const { count: unreadCount } = await supabase
             .from('notification_recipients')

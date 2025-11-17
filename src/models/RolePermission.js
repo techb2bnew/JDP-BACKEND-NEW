@@ -1,18 +1,18 @@
 import { supabase } from '../config/database.js';
 
 const permissionCache = new Map();
-const CACHE_TTL = 5 * 60 * 1000; 
+const CACHE_TTL = 5 * 60 * 1000;
 
 
 const rolesWithPermissionsCache = new Map();
-const ROLES_CACHE_TTL = 2 * 60 * 1000; 
+const ROLES_CACHE_TTL = 2 * 60 * 1000;
 
 export class RolePermission {
-  
+
   static get permissionCache() {
     return permissionCache;
   }
-  
+
   static get CACHE_TTL() {
     return CACHE_TTL;
   }
@@ -73,7 +73,7 @@ export class RolePermission {
 
   static async bulkUpdateRolePermissions(roleId, permissions, roleName) {
     try {
-    
+
       const permissionsToInsert = [];
       const permissionIdsSet = new Set();
 
@@ -89,9 +89,9 @@ export class RolePermission {
         }
       }
 
-     
+
       const operations = [];
-      
+
       if (roleName) {
         operations.push(
           supabase
@@ -108,23 +108,23 @@ export class RolePermission {
           .eq('role_id', roleId)
       );
 
-    
+
       const results = await Promise.all(operations);
-      
-   
+
+
       for (const result of results) {
         if (result.error) {
           throw new Error(`Database error: ${result.error.message}`);
         }
       }
 
-      
+
       if (permissionsToInsert.length === 0) {
         this.clearRolePermissionCache(roleId);
         return [];
       }
 
-    
+
       const { data: insertedData, error: insertError } = await supabase
         .from('role_permissions')
         .insert(permissionsToInsert)
@@ -134,14 +134,14 @@ export class RolePermission {
         throw new Error(`Database error: ${insertError.message}`);
       }
 
-      
+
       const permissionIds = Array.from(permissionIdsSet);
       const [permissionsResult] = await Promise.all([
         supabase
           .from('permissions')
           .select('id, module, action, display_name, description')
           .in('id', permissionIds),
-       
+
         Promise.resolve().then(() => this.clearRolePermissionCache(roleId))
       ]);
 
@@ -151,18 +151,18 @@ export class RolePermission {
 
       const allPermissions = permissionsResult.data || [];
 
-      
+
       const permissionMap = new Map();
       allPermissions.forEach(perm => {
         permissionMap.set(perm.id, perm);
       });
 
-   
+
       const permissionsWithDetails = new Array(insertedData.length);
       for (let i = 0; i < insertedData.length; i++) {
         const rp = insertedData[i];
         const permData = permissionMap.get(rp.permission_id);
-        
+
         if (permData) {
           permissionsWithDetails[i] = {
             ...rp,
@@ -185,8 +185,8 @@ export class RolePermission {
   static clearRolePermissionCache(roleId) {
 
     permissionCache.clear();
-    rolesWithPermissionsCache.clear(); 
-    
+    rolesWithPermissionsCache.clear();
+
     if (roleId) {
       const roleCacheKey = `role_permissions_${roleId}`;
       permissionCache.delete(roleCacheKey);
@@ -219,10 +219,10 @@ export class RolePermission {
         return [];
       }
 
-  
+
       const roleIds = roles.map(r => r.id);
 
-  
+
       const { data: allRolePermissions, error: allRpError } = await supabase
         .from('role_permissions')
         .select(`
@@ -243,13 +243,13 @@ export class RolePermission {
         throw new Error(`Database error: ${allRpError.message}`);
       }
 
-      
+
       const permissionsByRole = new Map();
       roles.forEach(role => {
         permissionsByRole.set(role.id, []);
       });
 
-      
+
       if (allRolePermissions && allRolePermissions.length > 0) {
         for (const rp of allRolePermissions) {
           if (rp.permissions && rp.role_id) {
@@ -264,13 +264,13 @@ export class RolePermission {
         }
       }
 
-      
+
       const rolesWithPermissions = new Array(roles.length);
       for (let i = 0; i < roles.length; i++) {
         const role = roles[i];
         const permissions = permissionsByRole.get(role.id) || [];
-        
-        
+
+
         let allowedCount = 0;
         let deniedCount = 0;
         for (let j = 0; j < permissions.length; j++) {
@@ -280,7 +280,7 @@ export class RolePermission {
             deniedCount++;
           }
         }
-        
+
         rolesWithPermissions[i] = {
           ...role,
           permissions: permissions,

@@ -3,8 +3,6 @@ import { authenticateToken } from '../middleware/authMiddleware.js';
 
 export async function jobDocumentRoutes(fastify, options) {
   fastify.addHook('preHandler', authenticateToken);
-
-
   fastify.post('/document', async (request, reply) => {
     if (request.isMultipart()) {
       const body = {};
@@ -66,17 +64,9 @@ export async function jobDocumentRoutes(fastify, options) {
 
     return JobDocumentController.createDocument(request, reply);
   });
-
-
   fastify.get('/documents', JobDocumentController.getAllDocuments);
-
-
   fastify.get('/document/:id', JobDocumentController.getDocumentById);
-
-
   fastify.get('/job/:jobId/documents', JobDocumentController.getDocumentsByJobId);
-
-
   fastify.put('/document/:id', async (request, reply) => {
     if (request.isMultipart()) {
       const body = {};
@@ -138,8 +128,6 @@ export async function jobDocumentRoutes(fastify, options) {
 
     return JobDocumentController.updateDocument(request, reply);
   });
-
-
   fastify.delete('/document/:id', JobDocumentController.deleteDocument);
 }
 

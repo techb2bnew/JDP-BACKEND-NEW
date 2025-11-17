@@ -8,7 +8,7 @@ const COMPLETED_JOB_STATUSES = new Set(['completed', 'done', 'closed']);
 export class Job {
   static async searchTimesheets(filters, pagination = {}) {
     try {
-     
+
       let query = supabase
         .from('labor_timesheets')
         .select(`
@@ -31,7 +31,7 @@ export class Job {
           )
         `);
 
-      
+
       if (filters.start_date && filters.end_date) {
         query = query.gte('date', filters.start_date).lte('date', filters.end_date);
       } else if (filters.start_date) {
@@ -60,7 +60,7 @@ export class Job {
         const jobTitle = (ts.job?.job_title || '').toLowerCase();
         const jobIdStr = (ts.job?.id || '').toString();
 
-       
+
         if (q) {
           const hit = isEmployee.includes(q) || jobTitle.includes(q) || jobIdStr.includes(q);
           if (!hit) continue;
@@ -93,7 +93,7 @@ export class Job {
         });
       }
 
-     
+
       if (timesheetRows.length === 0) {
         return {
           period: {
@@ -113,7 +113,7 @@ export class Job {
         };
       }
 
-     
+
       let actualStartDate, actualEndDate;
       if (filters.start_date && filters.end_date) {
         actualStartDate = filters.start_date;
@@ -152,12 +152,12 @@ export class Job {
       const statusCountsByKey = new Map();
 
       timesheetRows.forEach(r => {
-      
+
         if (r.date < actualStartDate || r.date > actualEndDate) return;
         const key = `${r.employee}|${r.job_id}|${r.labor_id || ''}`;
         const row = ensureRow(key, r.employee, r.job.split(' (Job-')[0], r.job_id, r.labor_id);
 
-       
+
         const dt = new Date(r.date);
         const dow = dt.getDay();
         const idx = dow === 0 ? 6 : dow - 1;
@@ -165,7 +165,7 @@ export class Job {
 
         const hoursVal = Job.timeToHours(r.hours || '00:00:00');
 
- 
+
         const existing = parseFloat((row[dayKey] || '0h').replace('h', '').replace('m', ''));
         row[dayKey] = Job.formatTimeDisplay(hoursVal + (isNaN(existing) ? 0 : existing));
 
@@ -222,7 +222,7 @@ export class Job {
         return [];
       }
 
-      
+
       const { data: leadLaborData, error } = await supabase
         .from("lead_labor")
         .select(`
@@ -245,7 +245,7 @@ export class Job {
         return [];
       }
 
-    
+
       const userIds = leadLaborData.map(ll => ll.user_id).filter(Boolean);
       let usersMap = new Map();
 
@@ -262,7 +262,7 @@ export class Job {
         }
       }
 
-     
+
       const leadLaborWithUsers = leadLaborData.map(leadLabor => ({
         ...leadLabor,
         user: usersMap.get(leadLabor.user_id) || null
@@ -281,7 +281,7 @@ export class Job {
         return [];
       }
 
-  
+
       const { data: laborData, error } = await supabase
         .from("labor")
         .select(`
@@ -306,7 +306,7 @@ export class Job {
         return [];
       }
 
-     
+
       const userIds = laborData.map(l => l.user_id).filter(Boolean);
       let usersMap = new Map();
 
@@ -323,7 +323,7 @@ export class Job {
         }
       }
 
-     
+
       const laborWithUsers = laborData.map(labor => ({
         ...labor,
         user: usersMap.get(labor.user_id) || null
@@ -396,7 +396,7 @@ export class Job {
         return [];
       }
 
-     
+
       const { data: ordersData, error } = await supabase
         .from("orders")
         .select(`
@@ -455,7 +455,7 @@ export class Job {
         return [];
       }
 
-   
+
       const orderIds = ordersData.map(o => o.id);
       const { data: allOrderItems, error: itemsError } = await supabase
         .from("order_items")
@@ -487,11 +487,11 @@ export class Job {
 
       if (itemsError) {
         console.error("Error fetching order items:", itemsError);
-       
+
         return ordersData.map(order => ({ ...order, items: [] }));
       }
 
-     
+
       const itemsByOrderId = new Map();
       if (allOrderItems && allOrderItems.length > 0) {
         allOrderItems.forEach(item => {
@@ -502,7 +502,7 @@ export class Job {
         });
       }
 
-      
+
       const ordersWithItems = ordersData.map(order => ({
         ...order,
         items: itemsByOrderId.get(order.id) || []
@@ -563,7 +563,7 @@ export class Job {
     const leadLaborIds = safeJsonParse(job.assigned_lead_labor_ids, []);
     const laborIds = safeJsonParse(job.assigned_labor_ids, []);
 
-    
+
     const [
       assignedLeadLabor,
       assignedLabor,
@@ -589,7 +589,7 @@ export class Job {
     jobWithDetails.orders = orders;
     jobWithDetails.labor_timesheets = laborTimesheets;
     jobWithDetails.bluesheets = bluesheets;
-    
+
     // assigned_by_user is already included from the query, ensure it's properly formatted
     if (job.assigned_by_user) {
       jobWithDetails.assigned_by = {
@@ -604,7 +604,7 @@ export class Job {
     return jobWithDetails;
   }
 
-  
+
   static async fetchBluesheetsDetails(jobId) {
     try {
       const { data: bluesheets, error } = await supabase
@@ -967,7 +967,7 @@ export class Job {
 
       const filtered = jobsWithDetails.filter(matches);
 
-     
+
       console.log('Total jobs fetched:', jobsWithDetails.length);
       console.log('Filter params:', { job_type: pagination.job_type, status: pagination.status, q });
       console.log('Filtered jobs count:', filtered.length);
@@ -999,10 +999,10 @@ export class Job {
 
   static async update(jobId, updateData) {
     try {
-      
+
       const cleanedUpdateData = { ...updateData };
-      
-     
+
+
       if (cleanedUpdateData.assigned_lead_labor_ids && Array.isArray(cleanedUpdateData.assigned_lead_labor_ids)) {
         cleanedUpdateData.assigned_lead_labor_ids = JSON.stringify(cleanedUpdateData.assigned_lead_labor_ids);
       }
@@ -1013,16 +1013,16 @@ export class Job {
         cleanedUpdateData.assigned_material_ids = JSON.stringify(cleanedUpdateData.assigned_material_ids);
       }
 
-      
+
       Object.keys(cleanedUpdateData).forEach(key => {
         if (cleanedUpdateData[key] === undefined) {
           delete cleanedUpdateData[key];
         }
       });
 
-      
+
       const checkPromises = [
-       
+
         supabase
           .from("jobs")
           .select("id")
@@ -1039,7 +1039,7 @@ export class Job {
           })
       ];
 
-      
+
       if (cleanedUpdateData.customer_id !== undefined && cleanedUpdateData.customer_id !== null) {
         checkPromises.push(
           supabase
@@ -1076,10 +1076,10 @@ export class Job {
         );
       }
 
-      
+
       await Promise.all(checkPromises);
 
-      
+
       const { error: updateError } = await supabase
         .from("jobs")
         .update({
@@ -1089,7 +1089,7 @@ export class Job {
         .eq("id", jobId);
 
       if (updateError) {
-      
+
         if (updateError.code === '23505') {
           throw new Error(`Database constraint violation: ${updateError.message}`);
         }
@@ -1105,7 +1105,7 @@ export class Job {
         throw new Error(`Database error: ${updateError.message}`);
       }
 
-  
+
       const { data, error: selectError } = await supabase
         .from("jobs")
         .select(`
@@ -1134,22 +1134,22 @@ export class Job {
         .maybeSingle();
 
       if (selectError && selectError.code !== 'PGRST116') {
-  
+
         const { data: simpleData, error: simpleError } = await supabase
           .from("jobs")
           .select("*")
           .eq("id", jobId)
           .maybeSingle();
-        
+
         if (simpleError && simpleError.code !== 'PGRST116') {
           throw new Error(`Database error: ${simpleError.message}`);
         }
-        
+
         if (!simpleData) {
           throw new Error("Job not found after update");
         }
-        
-    
+
+
         return simpleData;
       }
 
@@ -1157,14 +1157,14 @@ export class Job {
         throw new Error("Job not found after update");
       }
 
-    
+
       return data;
     } catch (error) {
 
-      if (error.message.includes("not found") || 
-          error.message.includes("Database error") ||
-          error.message.includes("does not exist") ||
-          error.message.includes("constraint violation")) {
+      if (error.message.includes("not found") ||
+        error.message.includes("Database error") ||
+        error.message.includes("does not exist") ||
+        error.message.includes("constraint violation")) {
         throw error;
       }
       throw new Error(`Failed to update job: ${error.message}`);
@@ -1207,7 +1207,7 @@ export class Job {
         throw new Error('laborId is required');
       }
 
-   
+
       const { data: potentialJobs, error: jobsError } = await supabase
         .from("jobs")
         .select(`
@@ -1237,14 +1237,14 @@ export class Job {
             email
           )
         `)
-        .ilike('assigned_labor_ids', `%${laborId}%`) 
+        .ilike('assigned_labor_ids', `%${laborId}%`)
         .order('created_at', { ascending: false });
 
       if (jobsError) {
         throw new Error(`Database error: ${jobsError.message}`);
       }
 
-    
+
       const targetId = parseInt(laborId);
       const filteredJobs = [];
       const jobsArray = potentialJobs || [];
@@ -1252,8 +1252,8 @@ export class Job {
       let completedJobs = 0;
       const startIdx = offset;
       const endIdx = offset + limit;
-      
-     
+
+
       for (let i = 0; i < jobsArray.length; i++) {
         const job = jobsArray[i];
         try {
@@ -1264,7 +1264,7 @@ export class Job {
             laborIds = job.assigned_labor_ids;
           }
 
-        
+
           const hasMatch = laborIds.some(id => parseInt(id) === targetId);
           if (hasMatch) {
             job.assigned_labor_ids = laborIds;
@@ -1273,8 +1273,8 @@ export class Job {
               : safeJsonParse(job.assigned_lead_labor_ids, []);
             job.assigned_lead_labor_ids = leadLaborIdsForJob;
             filteredJobs.push(job);
-            
-        
+
+
             const status = (job.status || '').toLowerCase();
             if (ACTIVE_JOB_STATUSES.has(status)) {
               activeJobs += 1;
@@ -1285,11 +1285,11 @@ export class Job {
           }
         } catch (e) {
           console.error('Error parsing labor IDs:', e);
-         
+
         }
       }
 
-  
+
       const totalJobs = filteredJobs.length;
       const paginatedJobs = filteredJobs.slice(startIdx, endIdx);
 
@@ -1477,7 +1477,7 @@ export class Job {
       });
       const totalPages = Math.ceil(totalJobs / limit);
 
-      
+
 
       return {
         jobs: paginatedJobs,
@@ -1493,7 +1493,7 @@ export class Job {
           hasNextPage: page < totalPages,
           hasPrevPage: page > 1
         },
-      
+
         summary: {
           total_jobs: totalJobs,
           active_jobs: activeJobs,
@@ -1566,7 +1566,7 @@ export class Job {
       }
 
 
-    
+
       const { data: potentialJobs, error: jobsError } = await supabase
         .from("jobs")
         .select(`
@@ -1596,14 +1596,14 @@ export class Job {
             email
           )
         `)
-        .ilike('assigned_lead_labor_ids', `%${leadLaborId}%`) 
+        .ilike('assigned_lead_labor_ids', `%${leadLaborId}%`)
         .order('created_at', { ascending: false });
 
       if (jobsError) {
         throw new Error(`Database error: ${jobsError.message}`);
       }
 
- 
+
       const targetId = parseInt(leadLaborId);
       const filteredJobs = [];
       const jobsArray = potentialJobs || [];
@@ -1612,21 +1612,21 @@ export class Job {
       let thisWeekJobs = 0;
       const startIdx = offset;
       const endIdx = offset + limit;
-      
-     
+
+
       const now = new Date();
-      const dayOfWeek = now.getDay(); 
-      const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; 
-      
+      const dayOfWeek = now.getDay();
+      const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+
       const startOfWeek = new Date(now);
       startOfWeek.setDate(now.getDate() + daysToMonday);
       startOfWeek.setHours(0, 0, 0, 0);
-      
+
       const endOfWeek = new Date(startOfWeek);
-      endOfWeek.setDate(startOfWeek.getDate() + 6); 
+      endOfWeek.setDate(startOfWeek.getDate() + 6);
       endOfWeek.setHours(23, 59, 59, 999);
-      
-    
+
+
       for (let i = 0; i < jobsArray.length; i++) {
         const job = jobsArray[i];
         try {
@@ -1641,8 +1641,8 @@ export class Job {
           if (hasMatch) {
             job.assigned_lead_labor_ids = leadLaborIds;
             filteredJobs.push(job);
-            
-         
+
+
             const status = (job.status || '').toLowerCase();
             if (ACTIVE_JOB_STATUSES.has(status)) {
               activeJobs += 1;
@@ -1650,8 +1650,8 @@ export class Job {
             if (COMPLETED_JOB_STATUSES.has(status)) {
               completedJobs += 1;
             }
-            
-           
+
+
             if (job.created_at) {
               const jobCreatedAt = new Date(job.created_at);
               if (jobCreatedAt >= startOfWeek && jobCreatedAt <= endOfWeek) {
@@ -1661,11 +1661,11 @@ export class Job {
           }
         } catch (e) {
           console.error('Error parsing lead labor IDs:', e);
-         
+
         }
       }
 
-     
+
       const totalJobs = filteredJobs.length;
       const paginatedJobs = filteredJobs.slice(startIdx, endIdx);
 
@@ -1936,12 +1936,12 @@ export class Job {
         job.bluesheets = bluesheetMap.get(job.id) || [];
       });
 
-      
+
 
       const totalPages = Math.ceil(filteredJobs.length / limit);
 
       return {
-        jobs: paginatedJobs, 
+        jobs: paginatedJobs,
         total: filteredJobs.length,
         page: page,
         limit: limit,
@@ -1954,7 +1954,7 @@ export class Job {
           hasNextPage: page < totalPages,
           hasPrevPage: page > 1
         },
-    
+
         summary: {
           total_jobs: totalJobs,
           active_jobs: activeJobs,
@@ -1976,7 +1976,7 @@ export class Job {
       const targetId = parseInt(leadLaborId);
       const offset = (page - 1) * limit;
 
-   
+
       const now = new Date();
       const startOfDay = new Date(now);
       startOfDay.setHours(0, 0, 0, 0);
@@ -1984,7 +1984,7 @@ export class Job {
       const endOfDay = new Date(startOfDay);
       endOfDay.setHours(23, 59, 59, 999);
 
-    
+
       const { data: potentialJobs, error: jobsError } = await supabase
         .from('jobs')
         .select(`
@@ -2342,10 +2342,6 @@ export class Job {
     }
   }
 
-
-
-
-
   static async getJobMaterialUsage(jobId) {
     try {
       const { data, error } = await supabase
@@ -2363,7 +2359,6 @@ export class Job {
       throw error;
     }
   }
-
 
   static async createJobTransaction(transactionData) {
     try {
@@ -2383,7 +2378,6 @@ export class Job {
     }
   }
 
-
   static async createJobTimeLog(timeLogData) {
     try {
       const { data, error } = await supabase
@@ -2402,7 +2396,6 @@ export class Job {
     }
   }
 
-
   static async createJobMaterialUsage(materialUsageData) {
     try {
       const { data, error } = await supabase
@@ -2420,7 +2413,6 @@ export class Job {
       throw error;
     }
   }
-
 
   static async updateWorkActivity(jobId, activityCount) {
     try {
@@ -2656,20 +2648,20 @@ export class Job {
           throw new Error('bulk_timesheets must be an array');
         }
 
-      
+
         for (const timesheetData of bulkTimesheets) {
           if (!timesheetData.labor_id || !timesheetData.date) {
             throw new Error('labor_id and date are required for each timesheet entry');
           }
 
-         
+
           const existingEntries = await LaborTimesheet.findByJobId(jobId);
           const existingEntry = existingEntries.find(entry =>
             entry.labor_id === timesheetData.labor_id &&
             entry.date === timesheetData.date
           );
 
-       
+
           const timesheetEntryData = {
             labor_id: timesheetData.labor_id,
             lead_labor_id: timesheetData.lead_labor_id || null,
@@ -2684,10 +2676,10 @@ export class Job {
           };
 
           if (existingEntry) {
-            
+
             await LaborTimesheet.update(existingEntry.id, timesheetEntryData);
           } else {
-           
+
             await LaborTimesheet.create(timesheetEntryData);
           }
         }
@@ -2705,7 +2697,7 @@ export class Job {
           throw new Error('either labor_id or lead_labor_id is required for timesheet');
         }
 
-    
+
         const existingEntries = await LaborTimesheet.findByJobId(jobId);
         const existingEntry = existingEntries.find(entry => {
           if (timesheetData.lead_labor_id) {
@@ -2715,7 +2707,7 @@ export class Job {
           }
         });
 
-     
+
         const timesheetEntryData = {
           labor_id: timesheetData.labor_id || null,
           lead_labor_id: timesheetData.lead_labor_id || null,
@@ -2730,10 +2722,10 @@ export class Job {
         };
 
         if (existingEntry) {
-          
+
           await LaborTimesheet.update(existingEntry.id, timesheetEntryData);
         } else {
-        
+
           await LaborTimesheet.create(timesheetEntryData);
         }
       }
@@ -2845,13 +2837,13 @@ export class Job {
     if (!timeString || timeString === "00:00:00") return 0;
 
     try {
-      
+
       if (typeof timeString !== 'string') {
         console.warn('Invalid time format - not a string:', timeString);
         return 0;
       }
 
-  
+
       const timeRegex = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/;
       if (!timeRegex.test(timeString)) {
         console.warn('Invalid time format:', timeString);
@@ -2863,7 +2855,7 @@ export class Job {
       const minutes = parseInt(parts[1], 10) || 0;
       const seconds = parseInt(parts[2] || '0', 10) || 0;
 
-   
+
       if (minutes >= 60 || seconds >= 60) {
         console.warn('Invalid time values:', timeString);
         return 0;
@@ -3482,7 +3474,7 @@ export class Job {
         throw new Error('No timesheet entries found for the given labor/lead_labor and date range');
       }
 
-  
+
       const updatePromises = timesheets.map(timesheet =>
         LaborTimesheet.update(timesheet.id, {
           status: status
@@ -3510,12 +3502,12 @@ export class Job {
 
   static async getAllJobsWeeklyTimesheetSummary(startDate, endDate, pagination = {}) {
     try {
-   
+
       let actualStartDate = startDate;
       let actualEndDate = endDate;
 
       if (!startDate || !endDate) {
-     
+
         const { data: latestTimesheet, error: latestError } = await supabase
           .from('labor_timesheets')
           .select('date')
@@ -3528,10 +3520,10 @@ export class Job {
         }
 
         if (latestTimesheet && latestTimesheet.date) {
-       
+
           const latestDateObj = new Date(latestTimesheet.date);
           const dayOfWeek = latestDateObj.getDay();
-          const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; 
+          const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
 
           const mondayOfWeek = new Date(latestDateObj);
           mondayOfWeek.setDate(latestDateObj.getDate() + daysToMonday);
@@ -3542,7 +3534,7 @@ export class Job {
           actualStartDate = Job.formatLocalDate(mondayOfWeek);
           actualEndDate = Job.formatLocalDate(sundayOfWeek);
         } else {
-     
+
           const today = new Date();
           const dayOfWeek = today.getDay();
           const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
@@ -3558,7 +3550,7 @@ export class Job {
         }
       }
 
-   
+
       const { data: allTimesheets, error: timesheetsError } = await supabase
         .from('labor_timesheets')
         .select(`
@@ -3590,7 +3582,7 @@ export class Job {
 
       const allDashboardTimesheets = [];
 
- 
+
       const timesheetsByJob = {};
       (allTimesheets || []).forEach(ts => {
         const jobId = ts.job_id;
@@ -3629,14 +3621,14 @@ export class Job {
               };
             }
 
-       
+
             let hours = 0;
             let timeValue = "00:00:00";
             if (timesheet.start_time && timesheet.end_time) {
               const start = new Date(`2000-01-01T${timesheet.start_time}`);
               const end = new Date(`2000-01-01T${timesheet.end_time}`);
               const diffMs = end - start;
-              hours = diffMs / (1000 * 60 * 60); 
+              hours = diffMs / (1000 * 60 * 60);
 
               const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
               const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
@@ -3644,7 +3636,7 @@ export class Job {
               timeValue = `${diffHours.toString().padStart(2, '0')}:${diffMinutes.toString().padStart(2, '0')}:${diffSeconds.toString().padStart(2, '0')}`;
             }
 
-            const cost = 0; 
+            const cost = 0;
 
             laborSummary[laborId].total_hours += hours;
             laborSummary[laborId].total_cost += cost;
@@ -3654,7 +3646,7 @@ export class Job {
               cost: cost,
               work_activity: timesheet.work_activity,
               status: timesheet.status || timesheet.job_status || 'pending',
-              billable: null 
+              billable: null
             };
           } else if (timesheet.lead_labor_id) {
             const leadLaborId = timesheet.lead_labor_id;
@@ -3669,14 +3661,14 @@ export class Job {
               };
             }
 
-           
+
             let hours = 0;
             let timeValue = "00:00:00";
             if (timesheet.start_time && timesheet.end_time) {
               const start = new Date(`2000-01-01T${timesheet.start_time}`);
               const end = new Date(`2000-01-01T${timesheet.end_time}`);
               const diffMs = end - start;
-              hours = diffMs / (1000 * 60 * 60); 
+              hours = diffMs / (1000 * 60 * 60);
 
               const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
               const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
@@ -3684,7 +3676,7 @@ export class Job {
               timeValue = `${diffHours.toString().padStart(2, '0')}:${diffMinutes.toString().padStart(2, '0')}:${diffSeconds.toString().padStart(2, '0')}`;
             }
 
-            const cost = 0; 
+            const cost = 0;
 
             leadLaborSummary[leadLaborId].total_hours += hours;
             leadLaborSummary[leadLaborId].total_cost += cost;
@@ -3694,7 +3686,7 @@ export class Job {
               cost: cost,
               work_activity: timesheet.work_activity,
               status: timesheet.status || timesheet.job_status || 'pending',
-              billable: null 
+              billable: null
             };
           }
         });
@@ -3793,7 +3785,7 @@ export class Job {
           let laborStatus = "Draft";
           const statusCounts = {};
 
-         
+
           const start = new Date(actualStartDate);
           const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -3870,7 +3862,7 @@ export class Job {
         });
       }
 
-      
+
       const { page = 1, limit = 10, offset = 0 } = pagination;
       const totalRecords = allDashboardTimesheets.length;
       const totalPages = Math.ceil(totalRecords / limit);
@@ -3905,7 +3897,7 @@ export class Job {
         throw new Error('Job not found');
       }
 
-      
+
       const allTimesheets = await LaborTimesheet.findByJobId(jobId);
       const laborTimesheets = allTimesheets.filter(ts => ts.labor_id);
       const leadLaborTimesheets = allTimesheets.filter(ts => ts.lead_labor_id);
@@ -3915,16 +3907,16 @@ export class Job {
       const laborSummary = {};
 
       laborTimesheets.forEach(timesheet => {
-       
+
         let hours = 0;
         if (timesheet.start_time && timesheet.end_time) {
           const start = new Date(`2000-01-01T${timesheet.start_time}`);
           const end = new Date(`2000-01-01T${timesheet.end_time}`);
           const diffMs = end - start;
-          hours = diffMs / (1000 * 60 * 60); 
+          hours = diffMs / (1000 * 60 * 60);
         }
 
-        const cost = 0; 
+        const cost = 0;
 
         totalLaborHours += hours;
         totalLaborCost += cost;
@@ -3949,16 +3941,16 @@ export class Job {
       const leadLaborSummary = {};
 
       leadLaborTimesheets.forEach(timesheet => {
-       
+
         let hours = 0;
         if (timesheet.start_time && timesheet.end_time) {
           const start = new Date(`2000-01-01T${timesheet.start_time}`);
           const end = new Date(`2000-01-01T${timesheet.end_time}`);
           const diffMs = end - start;
-          hours = diffMs / (1000 * 60 * 60); 
+          hours = diffMs / (1000 * 60 * 60);
         }
 
-        const cost = 0; 
+        const cost = 0;
 
         totalLeadLaborHours += hours;
         totalLeadLaborCost += cost;
@@ -4093,7 +4085,7 @@ export class Job {
         throw new Error('Job ID is required');
       }
 
- 
+
       const [jobResult, bluesheetsResult, estimatesResult] = await Promise.allSettled([
         Job.findById(jobId),
         supabase
@@ -4115,7 +4107,7 @@ export class Job {
           .eq('job_id', jobId)
       ]);
 
- 
+
       const job = jobResult.status === 'fulfilled' ? jobResult.value : null;
       if (!job) {
         throw new Error('Job not found');
@@ -4129,13 +4121,13 @@ export class Job {
         ? (estimatesResult.value.count || 0)
         : 0;
 
-      
+
       const parseHours = (hoursString) => {
         if (!hoursString) return 0;
-        
-     
+
+
         if (typeof hoursString === 'string') {
-        
+
           const timeMatch = hoursString.match(/^(\d+):(\d+):(\d+)$/);
           if (timeMatch) {
             const h = parseInt(timeMatch[1]) || 0;
@@ -4143,29 +4135,29 @@ export class Job {
             const s = parseInt(timeMatch[3]) || 0;
             return h + (m / 60) + (s / 3600);
           }
-          
-          
+
+
           const timeMatchShort = hoursString.match(/^(\d+):(\d+)$/);
           if (timeMatchShort) {
             const h = parseInt(timeMatchShort[1]) || 0;
             const m = parseInt(timeMatchShort[2]) || 0;
             return h + (m / 60);
           }
-          
-       
+
+
           const hMatch = hoursString.match(/(\d+(?:\.\d+)?)h(?:\d+m)?/);
           if (hMatch) return parseFloat(hMatch[1]);
-          
-        
+
+
           const num = parseFloat(hoursString);
           return isNaN(num) ? 0 : num;
         }
-        
-       
+
+
         if (typeof hoursString === 'number') {
           return isNaN(hoursString) ? 0 : hoursString;
         }
-        
+
         return 0;
       };
 
@@ -4180,15 +4172,15 @@ export class Job {
         console.error('Error calculating totalHoursWorked from bluesheets:', calcErr.message);
       }
 
- 
+
       let totalMaterialUsed = 0;
       if (job.assigned_materials && job.assigned_materials.length > 0) {
         totalMaterialUsed = job.assigned_materials.length;
       }
 
-     
+
       let totalLabourEntries = 0;
-  
+
       if (Array.isArray(job.assigned_lead_labor) && job.assigned_lead_labor.length > 0) {
         totalLabourEntries += job.assigned_lead_labor.length;
       }
@@ -4199,7 +4191,7 @@ export class Job {
         totalLabourEntries += job.custom_labor.length;
       }
 
-      
+
       const formatHoursToHm = (decimalHours) => {
         if (!decimalHours || decimalHours === 0) return "0h0m";
         const hours = Math.floor(decimalHours);
@@ -4338,7 +4330,7 @@ export class Job {
 
   static async getTimesheetDashboardStats() {
     try {
-    
+
       const { data: timesheets, error } = await supabase
         .from('labor_timesheets')
         .select('*');
@@ -4352,28 +4344,28 @@ export class Job {
       let totalHours = 0;
       let billableHours = 0;
 
-   
+
       (timesheets || []).forEach(timesheet => {
         totalTimesheets++;
 
 
         const currentStatus = timesheet.status || timesheet.job_status || 'pending';
 
-     
+
         if (currentStatus !== 'approved') {
           pendingApproval++;
         }
 
-   
+
         if (timesheet.start_time && timesheet.end_time) {
           const start = new Date(`2000-01-01T${timesheet.start_time}`);
           const end = new Date(`2000-01-01T${timesheet.end_time}`);
           const diffMs = end - start;
-          const hours = diffMs / (1000 * 60 * 60); 
+          const hours = diffMs / (1000 * 60 * 60);
 
           totalHours += hours;
 
-        
+
           if (currentStatus === 'approved') {
             billableHours += hours;
           }
@@ -4395,7 +4387,7 @@ export class Job {
     try {
       const q = (searchText || '').toLowerCase().trim();
 
-     
+
       const { data, error } = await supabase
         .from("jobs")
         .select(`
@@ -4438,10 +4430,10 @@ export class Job {
       const inStr = (s) => (s || '').toString().toLowerCase().includes(q);
       const normalizeType = (val) => (val || '').toString().toLowerCase().replace(/[\s-]+/g, '_').trim();
 
-  
+
       const userRole = (user?.role || '').toString();
 
-    
+
       const isAssignedToLabor = (job, userId) => {
         const hasLabor = Array.isArray(job.assigned_labor) && job.assigned_labor.some(l => l.user?.id === userId);
         const hasCustomLabor = Array.isArray(job.custom_labor) && job.custom_labor.some(l => l.user?.id === userId);
@@ -4450,7 +4442,7 @@ export class Job {
       const isAssignedToLead = (job, userId) => Array.isArray(job.assigned_lead_labor) && job.assigned_lead_labor.some(l => l.user?.id === userId);
 
       const matches = (job) => {
-       
+
         let assignedMatch = true;
         if (userRole && userRole.toLowerCase().includes('lead')) {
           assignedMatch = isAssignedToLead(job, user.id);
@@ -4460,7 +4452,7 @@ export class Job {
 
         if (!assignedMatch) return false;
 
-   
+
         if (q) {
           const jobMatch = inStr(job.job_title) || inStr(job.description);
           const custMatch = inStr(job.customer?.customer_name) || inStr(job.customer?.company_name);
@@ -4470,7 +4462,7 @@ export class Job {
           if (!(jobMatch || custMatch || contrMatch || laborMatch || leadMatch)) return false;
         }
 
-        
+
         if (pagination.job_type && pagination.job_type.toString().trim().length > 0) {
           const jt = normalizeType(pagination.job_type);
           if (jt !== 'all' && jt !== 'all_types') {
@@ -4478,7 +4470,7 @@ export class Job {
           }
         }
 
-     
+
         if (pagination.status && pagination.status.toString().trim().length > 0) {
           const list = pagination.status.toString().toLowerCase().split(',').map(s => s.trim()).filter(Boolean);
           if (list.length > 0) {
@@ -4486,7 +4478,7 @@ export class Job {
           }
         }
 
-      
+
         if (pagination.priority && pagination.priority.toString().trim().length > 0) {
           const list = pagination.priority.toString().toLowerCase().split(',').map(s => s.trim()).filter(Boolean);
           if (list.length > 0) {
@@ -4537,7 +4529,7 @@ export class Job {
   static parseHoursToDecimal(timeString) {
     if (!timeString) return 0;
 
-    
+
     if (timeString.includes(':')) {
       const parts = timeString.split(':');
       const hours = parseInt(parts[0]) || 0;
@@ -4550,4 +4542,5 @@ export class Job {
 
     return parseFloat(timeString) || 0;
   }
+
 }

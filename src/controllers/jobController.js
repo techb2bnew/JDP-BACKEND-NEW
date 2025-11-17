@@ -584,11 +584,11 @@ export class JobController {
     try {
       const { start_date, end_date, page = 1, limit = 10 } = request.query;
 
-      // Convert page and limit to numbers
+     
       const pageNum = parseInt(page);
       const limitNum = parseInt(limit);
 
-      // Validate pagination parameters
+     
       if (isNaN(pageNum) || pageNum < 1) {
         return reply.code(400).send(errorResponse('Page must be a positive number', 400));
       }

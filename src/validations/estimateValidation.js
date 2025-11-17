@@ -17,27 +17,18 @@ export const createEstimateSchema = Joi.object({
   po_number: Joi.string().max(100).allow('').optional(),
   notes: Joi.string().allow('').optional(),
   total_amount: Joi.number().precision(2).min(0).default(0),
-  
   status: Joi.string().valid('draft', 'sent', 'accepted', 'rejected', 'expired').default('draft'),
-  
-
   invoice_type: Joi.string().max(100).default('estimate'),
   invoice_number: Joi.string().max(50).optional(),
   issue_date: Joi.date().optional(),
   due_date: Joi.any().optional(),
-  
-  // New fields for invoice
   rep: Joi.string().max(100).allow('').optional(),
   payment_credits: Joi.number().precision(2).min(0).optional(),
   balance_due: Joi.any().optional(),
-  
- 
   additional_cost: Joi.object({
     description: Joi.string().max(200).required(),
     amount: Joi.number().precision(2).min(0).required()
   }).optional(),
-
-  // Custom products array
   custom_products: Joi.array().items(
     Joi.object({
       id: Joi.number().integer().positive().optional(),
@@ -57,7 +48,7 @@ export const createEstimateSchema = Joi.object({
       description: Joi.string().allow('').optional()
     })
   ).optional()
-}).or('customer_id', 'contractor_id'); // At least one of customer_id or contractor_id is required
+}).or('customer_id', 'contractor_id'); 
 
 export const updateEstimateSchema = Joi.object({
   job_id: Joi.number().integer().positive().optional(),
@@ -84,7 +75,7 @@ export const updateEstimateSchema = Joi.object({
   issue_date: Joi.date().optional(),
   due_date: Joi.any().optional(),
   
-  // New fields for invoice
+ 
   rep: Joi.string().max(100).allow('').optional(),
   payment_credits: Joi.number().precision(2).min(0).optional(),
   balance_due: Joi.any().optional(),
@@ -94,7 +85,7 @@ export const updateEstimateSchema = Joi.object({
     amount: Joi.number().precision(2).min(0).required()
   }).optional(),
 
-  // Custom products array for updates
+  
   custom_products: Joi.array().items(
     Joi.object({
       id: Joi.number().integer().positive().optional(),

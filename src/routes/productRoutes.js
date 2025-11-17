@@ -196,7 +196,6 @@ export default async function productRoutes(fastify, options) {
     }
   }, ProductController.getProductsBySupplier);
 
-
   fastify.get('/categories/list', {
     preHandler: [fastify.authenticateToken],
     schema: {
@@ -221,7 +220,6 @@ export default async function productRoutes(fastify, options) {
       }
     }
   }, ProductController.getProductCategories);
-
 
   fastify.patch('/:id/stock', {
     preHandler: [fastify.authenticateToken],
@@ -256,7 +254,6 @@ export default async function productRoutes(fastify, options) {
     }
   }, ProductController.updateStock);
 
-
   fastify.get('/low-stock/list', {
     preHandler: [fastify.authenticateToken],
     schema: {
@@ -284,7 +281,6 @@ export default async function productRoutes(fastify, options) {
       }
     }
   }, ProductController.calculatePricing);
-
 
   fastify.get('/statistics/overview', {
     preHandler: [fastify.authenticateToken],
@@ -314,7 +310,6 @@ export default async function productRoutes(fastify, options) {
       }
     }
   }, ProductController.getProductStatistics);
-
 
   fastify.get('/getProductStats/stats', {
     preHandler: [fastify.authenticateToken],

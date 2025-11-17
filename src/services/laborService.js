@@ -29,14 +29,14 @@ export class LaborService {
 
       const [existingUser, laborCode] = await Promise.all([
         User.findByEmail(laborData.email),
-        laborData.labor_code ? 
+        laborData.labor_code ?
           (async () => {
             const existingLabor = await Labor.findByLaborCode(laborData.labor_code);
             if (existingLabor) {
               throw new Error('Labor code already exists');
             }
             return laborData.labor_code;
-          })() : 
+          })() :
           Labor.generateNextLaborCode()
       ]);
 
@@ -51,7 +51,7 @@ export class LaborService {
         password: hashedPassword,
         role: laborData.role || 'labor',
         status: laborData.status || 'active',
-        management_type:laborData.management_type
+        management_type: laborData.management_type
       };
 
       const user = await User.create(userData);
@@ -62,12 +62,12 @@ export class LaborService {
         if (!supervisor) {
           throw new Error(`Supervisor with ID ${laborData.supervisor_id} not found`);
         }
-        
+
         const leadLabor = await LeadLabor.getLeadLaborByUserId(laborData.supervisor_id);
         if (!leadLabor) {
           throw new Error(`User with ID ${laborData.supervisor_id} is not a lead labor. Only lead labors can be supervisors.`);
         }
-        
+
         supervisorId = laborData.supervisor_id;
       }
 
@@ -88,7 +88,7 @@ export class LaborService {
         system_ip: laborData.system_ip,
         certifications: laborData.certifications ? JSON.stringify(laborData.certifications) : null,
         skills: laborData.skills ? JSON.stringify(laborData.skills) : null,
-        management_type:laborData.management_type,
+        management_type: laborData.management_type,
         is_custom: laborData.is_custom || false,
         job_id: laborData.job_id || null
       };
@@ -116,14 +116,14 @@ export class LaborService {
     }
   }
 
-    static async getAllLabor(page = 1, limit = 10) {
-        try {
-            const result = await Labor.getAllLabor(page, limit);
-            return result;
-        } catch (error) {
-            throw error;
-        }
+  static async getAllLabor(page = 1, limit = 10) {
+    try {
+      const result = await Labor.getAllLabor(page, limit);
+      return result;
+    } catch (error) {
+      throw error;
     }
+  }
 
   static async getLaborByIdForMobile(laborId) {
     try {
@@ -144,16 +144,16 @@ export class LaborService {
 
       const roleName = labor?.users?.role || labor?.user?.role || null;
 
-     
+
       const bluesheetIdsPromise = JobBluesheetLabor.findBluesheetIdsByLaborId(laborId).catch((error) => {
         console.error(`Failed to load bluesheet ids for labor ${laborId}:`, error.message);
         return [];
       });
 
-     
+
       const bluesheetIds = await bluesheetIdsPromise;
 
-      
+
       const [jobsResult, permissionsResult, bluesheets] = await Promise.all([
         Job.getJobsByLabor(laborId, page, limit).catch((error) => {
           console.error(`Failed to load jobs for labor ${laborId}:`, error.message);
@@ -161,21 +161,21 @@ export class LaborService {
         }),
         roleName
           ? RolePermission.getPermissionsByRoleName(roleName.trim())
-              .catch((error) => {
-                console.warn(`Failed to load permissions for role "${roleName}":`, error.message);
-                return [];
-              })
-          : [],
-  
-        Array.isArray(bluesheetIds) && bluesheetIds.length > 0
-          ? JobBluesheet.findByIds(bluesheetIds).catch((error) => {
-              console.error(`Failed to load bluesheets for labor ${laborId}:`, error.message);
+            .catch((error) => {
+              console.warn(`Failed to load permissions for role "${roleName}":`, error.message);
               return [];
             })
+          : [],
+
+        Array.isArray(bluesheetIds) && bluesheetIds.length > 0
+          ? JobBluesheet.findByIds(bluesheetIds).catch((error) => {
+            console.error(`Failed to load bluesheets for labor ${laborId}:`, error.message);
+            return [];
+          })
           : []
       ]);
 
-     
+
       const jobSummary = jobsResult?.summary || {
         total_jobs: jobsResult?.total ?? 0,
         active_jobs: 0,
@@ -186,12 +186,12 @@ export class LaborService {
         ...labor,
         assigned_jobs: jobsResult
           ? {
-              total: jobsResult.total,
-              page: jobsResult.page,
-              limit: jobsResult.limit,
-              totalPages: jobsResult.totalPages,
-              jobs: jobsResult.jobs
-            }
+            total: jobsResult.total,
+            page: jobsResult.page,
+            limit: jobsResult.limit,
+            totalPages: jobsResult.totalPages,
+            jobs: jobsResult.jobs
+          }
           : { total: 0, page, limit, totalPages: 0, jobs: [] },
         permissions: permissionsResult || [],
         bluesheets: {
@@ -207,7 +207,7 @@ export class LaborService {
 
   static async updateLabor(laborId, updateData) {
     try {
-    
+
       const { data: laborCheck } = await supabase
         .from('labor')
         .select('user_id, labor_code')
@@ -223,7 +223,7 @@ export class LaborService {
       const userData = {};
       const laborData = {};
 
-   
+
       let currentEmail = null;
       if (updateData.email !== undefined) {
         const { data: currentLabor } = await supabase
@@ -266,7 +266,7 @@ export class LaborService {
       if (updateData.hours_worked !== undefined) laborData.hours_worked = updateData.hours_worked;
       if (updateData.supervisor_id !== undefined) {
         if (updateData.supervisor_id) {
-          
+
           const [supervisorCheck, leadLaborCheck] = await Promise.all([
             supabase
               .from('users')
@@ -279,7 +279,7 @@ export class LaborService {
           if (!supervisorCheck.data) {
             throw new Error(`Supervisor with ID ${updateData.supervisor_id} not found`);
           }
-          
+
           if (!leadLaborCheck) {
             throw new Error(`User with ID ${updateData.supervisor_id} is not a lead labor. Only lead labors can be supervisors.`);
           }
@@ -292,7 +292,7 @@ export class LaborService {
       if (updateData.is_custom !== undefined) laborData.is_custom = updateData.is_custom;
       if (updateData.job_id !== undefined) laborData.job_id = updateData.job_id;
 
-    
+
       const updatePromises = [];
       if (Object.keys(userData).length > 0) {
         updatePromises.push(User.update(userId, userData));
@@ -312,7 +312,7 @@ export class LaborService {
 
   static async deleteLabor(laborId) {
     try {
-      
+
       const relationshipCheck = await Labor.checkLaborRelationships(laborId);
 
       if (!relationshipCheck.canDelete) {
@@ -336,7 +336,7 @@ export class LaborService {
     if (!laborData.email) {
       errors.push('Email is required');
     }
-    
+
     if (laborData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(laborData.email)) {
       errors.push('Invalid email format');
     }
@@ -356,7 +356,7 @@ export class LaborService {
     if (laborData.dob && isNaN(new Date(laborData.dob).getTime())) {
       errors.push('Invalid date of birth format');
     }
-    
+
     if (laborData.date_of_joining && isNaN(new Date(laborData.date_of_joining).getTime())) {
       errors.push('Invalid date of joining format');
     }
@@ -368,7 +368,7 @@ export class LaborService {
 
   static async updateProfile(laborId, updateData, files = null) {
     try {
-      
+
       const { data: laborCheck } = await supabase
         .from('labor')
         .select('user_id')
@@ -381,14 +381,14 @@ export class LaborService {
 
       const userId = laborCheck.user_id;
 
-     
+
       if (updateData.email) {
         const { data: currentLabor } = await supabase
           .from('labor')
           .select('users!labor_user_id_fkey(email)')
           .eq('id', laborId)
           .single();
-        
+
         const currentEmail = currentLabor?.users?.email;
         if (updateData.email !== currentEmail) {
           const existingUser = await User.findByEmail(updateData.email, false);
@@ -442,7 +442,7 @@ export class LaborService {
 
 
       const updatePromises = [];
-      
+
       if (Object.keys(userData).length > 0) {
         updatePromises.push(User.update(userId, userData));
       }

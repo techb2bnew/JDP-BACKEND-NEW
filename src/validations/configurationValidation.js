@@ -126,7 +126,7 @@ export const configurationValidation = {
   }
 };
 
-// Custom validation for hourly rate logic
+
 export const validateHourlyRateLogic = (data) => {
   const errors = [];
 
@@ -151,7 +151,7 @@ export const validateHourlyRateLogic = (data) => {
   return errors;
 };
 
-// Custom validation for markup percentage
+
 export const validateMarkupPercentage = (percentage) => {
   const errors = [];
 
@@ -166,7 +166,7 @@ export const validateMarkupPercentage = (percentage) => {
   return errors;
 };
 
-// Remove hourly rates validation
+
 export const removeHourlyRates = {
   body: Joi.object({
     rate_ids: Joi.array().items(
