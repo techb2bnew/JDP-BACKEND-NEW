@@ -93,8 +93,7 @@ export const configurationValidation = {
               'number.integer': 'ID must be an integer',
               'number.positive': 'ID must be positive'
             }),
-            description: Joi.string().max(200).required().messages({
-              'string.empty': 'Description is required',
+            description: Joi.string().max(200).allow(null, '').optional().messages({
               'string.max': 'Description must not exceed 200 characters'
             }),
             min_hours: Joi.number().integer().min(0).allow(null).optional().messages({
