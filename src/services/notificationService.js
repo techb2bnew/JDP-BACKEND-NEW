@@ -2,6 +2,7 @@ import { Notification } from '../models/Notification.js';
 import { successResponse } from '../helpers/responseHelper.js';
 import { supabase } from '../config/database.js';
 import { getFirebaseAdmin } from '../config/firebaseAdmin.js';
+import { User } from '../models/User.js';
 
 const MAX_FCM_BATCH_SIZE = 500;
 
@@ -19,21 +20,35 @@ const chunkArray = (array, size) => {
   return chunks;
 };
 
-const sendPushNotifications = async (tokens, title, body, data = {}) => {
-  if (!Array.isArray(tokens) || tokens.length === 0) {
+const sendPushNotifications = async (tokensWithPlatform, title, body, data = {}, tokenToUserIdMap = new Map()) => {
+  if (!Array.isArray(tokensWithPlatform) || tokensWithPlatform.length === 0) {
     return;
   }
 
   const firebaseAdmin = getFirebaseAdmin();
+  console.log("firebaseAdminfirebaseAdminfirebaseAdmin",firebaseAdmin);
+
+  
   if (!firebaseAdmin) {
     console.warn('Firebase admin SDK is not initialized. Skipping push notifications.');
     return;
   }
 
   const messaging = firebaseAdmin.messaging();
-  const uniqueTokens = Array.from(new Set(tokens.filter(Boolean)));
 
-  if (uniqueTokens.length === 0) {
+  console.log("messagingmessagingmessaging",messaging);
+  
+  // Remove duplicates based on token, but keep first occurrence's platform
+  const uniqueTokensMap = new Map();
+  tokensWithPlatform.forEach(item => {
+    if (item && item.token) {
+      if (!uniqueTokensMap.has(item.token)) {
+        uniqueTokensMap.set(item.token, item.platform || null);
+      }
+    }
+  });
+
+  if (uniqueTokensMap.size === 0) {
     return;
   }
 
@@ -44,25 +59,80 @@ const sendPushNotifications = async (tokens, title, body, data = {}) => {
     return acc;
   }, {});
 
-  const batches = chunkArray(uniqueTokens, MAX_FCM_BATCH_SIZE);
+  const tokensArray = Array.from(uniqueTokensMap.entries());
+  const batches = chunkArray(tokensArray, MAX_FCM_BATCH_SIZE);
+
+  const invalidTokens = []; // Track invalid tokens for cleanup
 
   for (const batch of batches) {
     await Promise.all(
-      batch.map(async (token) => {
+      batch.map(async ([token, platform]) => {
         try {
-          await messaging.send({
+          // Detect platform: explicit platform or try to detect from token
+          const normalizedPlatform = platform ? platform.trim().toLowerCase() : null;
+          const isWeb = normalizedPlatform && (normalizedPlatform === 'web' || normalizedPlatform === 'browser');
+          
+          const message = {
             token,
             notification: {
               title,
               body
             },
             data: normalizedData
-          });
+          };
+
+          // Add webpush configuration for web tokens
+          // Web push notifications require webpush field for proper browser handling
+          if (isWeb) {
+            message.webpush = {
+              notification: {
+                title,
+                body,
+                icon: '/icon-192x192.png', // Default icon, can be customized
+                badge: '/badge-72x72.png' // Default badge, can be customized
+              },
+              fcmOptions: {
+                link: data.custom_link || '/' // Link to open when notification is clicked
+              }
+            };
+          }
+          // For mobile (iOS/Android), no webpush config needed - FCM handles it automatically
+
+          await messaging.send(message);
+          console.log(`Push notification sent successfully to ${normalizedPlatform || 'mobile'} platform for token: ${token.substring(0, 20)}...`);
         } catch (error) {
-          console.error(`Push notification failed for token ${token}:`, error.message || error);
+          console.error(`Push notification failed for token ${token.substring(0, 20)}... (platform: ${platform || 'unknown'}):`, error.message || error);
+          
+          // If token is invalid, mark it for removal
+          if (error.code === 'messaging/invalid-registration-token' || 
+              error.code === 'messaging/registration-token-not-registered' ||
+              error.message?.includes('Requested entity was not found')) {
+            console.warn(`Invalid token detected, will remove from database: ${token.substring(0, 20)}...`);
+            invalidTokens.push(token);
+          }
         }
       })
     );
+  }
+
+  // Cleanup invalid tokens from database asynchronously
+  if (invalidTokens.length > 0 && tokenToUserIdMap.size > 0) {
+    setImmediate(async () => {
+      for (const invalidToken of invalidTokens) {
+        const userId = tokenToUserIdMap.get(invalidToken);
+        if (userId) {
+          try {
+            await User.update(userId, {
+              push_token: null,
+              push_platform: null
+            });
+            console.log(`Removed invalid push token for user ID: ${userId}`);
+          } catch (cleanupError) {
+            console.error(`Failed to remove invalid token for user ${userId}:`, cleanupError.message);
+          }
+        }
+      }
+    });
   }
 };
 
@@ -115,7 +185,7 @@ export class NotificationService {
 
       const { data: allActiveUsers, error: usersError } = await supabase
         .from('users')
-        .select('id, role, management_type, push_token')
+        .select('id, role, management_type, push_token, push_platform')
         .eq('status', 'active');
 
       if (usersError) {
@@ -143,7 +213,8 @@ export class NotificationService {
       }
 
       const recipients = [];
-      const pushTokenSet = new Set();
+      const pushTokensWithPlatform = [];
+      const tokenToUserIdMap = new Map(); // Track which token belongs to which user
 
       for (const user of allActiveUsers || []) {
         const roleNormalized = normalizeRoleValue(user.role);
@@ -172,8 +243,15 @@ export class NotificationService {
         });
 
         const trimmedToken = user.push_token ? user.push_token.trim() : '';
+        const platform = user.push_platform ? user.push_platform.trim().toLowerCase() : null;
+        
         if (trimmedToken) {
-          pushTokenSet.add(trimmedToken);
+          pushTokensWithPlatform.push({
+            token: trimmedToken,
+            platform: platform
+          });
+          // Map token to user ID for cleanup
+          tokenToUserIdMap.set(trimmedToken, user.id);
         }
       }
 
@@ -187,28 +265,37 @@ export class NotificationService {
         }
       }
 
-      const pushTokens = Array.from(pushTokenSet);
-
       await sendPushNotifications(
-        pushTokens,
+        pushTokensWithPlatform,
         notification.notification_title,
         notification.message,
         {
-          notification_id: notification.id
-        }
+          notification_id: notification.id.toString(),
+          custom_link: notification.custom_link || '/'
+        },
+        tokenToUserIdMap
       );
 
+      console.log("checkkkkkkkkkkkk",{
+          notification,
+          recipients: recipients.length,
+          push_recipients: pushTokensWithPlatform.length
+        },);
+      
       return successResponse(
         {
           notification,
           recipients: recipients.length,
-          push_recipients: pushTokens.length
+          push_recipients: pushTokensWithPlatform.length
         },
         'Notification sent successfully'
       );
     } catch (error) {
       throw error;
     }
+
+
+
   }
 
   static async getNotificationsForUser({ userId, status, page, limit }) {
