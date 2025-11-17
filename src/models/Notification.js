@@ -129,6 +129,38 @@ export class Notification {
     }
   }
 
+  static async markAllAsReadForUser({ userId }) {
+    try {
+      if (!userId) {
+        throw new Error('User ID is required');
+      }
+
+      const readAt = new Date().toISOString();
+      
+      const { data, error } = await supabase
+        .from('notification_recipients')
+        .update({
+          status: 'read',
+          read_at: readAt
+        })
+        .eq('user_id', userId)
+        .eq('status', 'unread')
+        .select('id');
+
+      if (error) {
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      return {
+        updated_count: data ? data.length : 0,
+        user_id: userId,
+        read_at: readAt
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+
   static async deleteRecipient({ recipientId }) {
     try {
       const { data, error } = await supabase

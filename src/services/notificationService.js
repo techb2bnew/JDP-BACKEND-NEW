@@ -363,6 +363,27 @@ export class NotificationService {
     }
   }
 
+  static async markAllNotificationsAsRead({ userId }) {
+    try {
+      if (!userId) {
+        throw new Error('User ID is required');
+      }
+
+      const result = await Notification.markAllAsReadForUser({ userId });
+
+      return successResponse(
+        {
+          user_id: result.user_id,
+          updated_count: result.updated_count,
+          read_at: result.read_at
+        },
+        `Successfully marked ${result.updated_count} notification(s) as read`
+      );
+    } catch (error) {
+      throw error;
+    }
+  }
+
   static async deleteNotificationRecipient({ recipientId }) {
     try {
       if (!recipientId) {

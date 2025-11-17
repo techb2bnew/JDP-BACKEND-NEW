@@ -144,6 +144,25 @@ export class NotificationController {
     }
   }
 
+  static async markAllNotificationsAsRead(request, reply) {
+    try {
+      // Get userId from body if provided, otherwise from token
+      const userIdFromBody = parseOptionalInt(request.body?.user_id);
+      const userIdFromToken = request.user?.id;
+      const userId = userIdFromBody || userIdFromToken;
+      
+      if (!userId) {
+        return responseHelper.error(reply, 'User ID is required. Please ensure you are authenticated or provide user_id in request body.', 401);
+      }
+
+      const result = await NotificationService.markAllNotificationsAsRead({ userId });
+
+      return responseHelper.success(reply, result.data, result.message);
+    } catch (error) {
+      return responseHelper.error(reply, error.message, 500);
+    }
+  }
+
   static async deleteNotificationRecipient(request, reply) {
     try {
       const recipientId = parseOptionalInt(request.params.recipientId);
