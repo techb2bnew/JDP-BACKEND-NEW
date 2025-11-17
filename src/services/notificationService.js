@@ -381,5 +381,45 @@ export class NotificationService {
       throw error;
     }
   }
+
+  static async searchNotifications({ userId, searchQuery, status, page, limit }) {
+    try {
+      if (!userId) {
+        throw new Error('User ID is required to search notifications');
+      }
+
+      const constrainedLimit = Math.min(Math.max(limit, 1), 100);
+      const safePage = Math.max(page, 1);
+      const offset = (safePage - 1) * constrainedLimit;
+
+      const { items, totalCount, unreadCount } = await Notification.search({
+        userId,
+        searchQuery: searchQuery || null,
+        status: status || null,
+        offset,
+        limit: constrainedLimit
+      });
+
+      const totalPages = constrainedLimit > 0 ? Math.ceil(totalCount / constrainedLimit) : 0;
+
+      return successResponse(
+        {
+          items,
+          pagination: {
+            page: safePage,
+            limit: constrainedLimit,
+            total_count: totalCount,
+            total_pages: totalPages,
+            unread_count: unreadCount
+          },
+          search_query: searchQuery || null,
+          status_filter: status || null
+        },
+        'Notifications searched successfully'
+      );
+    } catch (error) {
+      throw error;
+    }
+  }
 }
 

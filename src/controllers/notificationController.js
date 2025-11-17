@@ -161,5 +161,54 @@ export class NotificationController {
       return responseHelper.error(reply, error.message, 500);
     }
   }
+
+  static async searchNotifications(request, reply) {
+    const startTime = Date.now(); // Track start time
+    
+    try {
+      const userId = request.user?.id;
+      
+      if (!userId) {
+        return responseHelper.error(reply, 'User ID is required. Please ensure you are authenticated.', 401);
+      }
+
+      const { search, status, page, limit } = request.query;
+      const allowedStatuses = new Set(['unread', 'read', 'delivered', 'failed']);
+
+      const normalizedStatus = status ? status.toString().trim().toLowerCase() : null;
+
+      if (normalizedStatus && !allowedStatuses.has(normalizedStatus)) {
+        return responseHelper.validationError(reply, {
+          status: 'Status must be one of unread, read, delivered, or failed'
+        });
+      }
+
+      const pageNumber = Math.max(parseOptionalInt(page) || 1, 1);
+      const limitNumber = Math.max(parseOptionalInt(limit) || 20, 1);
+
+      const searchQuery = search ? search.toString().trim() : null;
+
+      const result = await NotificationService.searchNotifications({
+        userId,
+        searchQuery,
+        status: normalizedStatus,
+        page: pageNumber,
+        limit: limitNumber
+      });
+
+      // Calculate response time in milliseconds
+      const responseTime = Date.now() - startTime;
+      
+      // Add response time to the data
+      const responseData = {
+        ...result.data,
+        responseTime: `${responseTime}ms`
+      };
+
+      return responseHelper.success(reply, responseData, result.message);
+    } catch (error) {
+      return responseHelper.error(reply, error.message, 500);
+    }
+  }
 }
 

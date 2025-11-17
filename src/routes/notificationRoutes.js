@@ -5,6 +5,7 @@ export default async function notificationRoutes(fastify, options) {
 
   fastify.post('/sendNotification', NotificationController.sendNotification);
   fastify.get('/user/:userId', NotificationController.getNotificationsForUser);
+  fastify.get('/search', NotificationController.searchNotifications);
   fastify.put('/markNotificationAsRead/:recipientId/read', NotificationController.markNotificationAsRead);
   fastify.delete('/deleteNotificationRecipient/:recipientId', NotificationController.deleteNotificationRecipient);
 }
