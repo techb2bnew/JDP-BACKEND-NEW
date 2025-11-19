@@ -500,14 +500,39 @@ export class Estimate {
 
       const calculatedTotalAmount = productsTotalCost + additionalCostsTotal;
 
-      // Update total_amount in database
-      const { error: updateTotalError } = await supabase
-        .from("estimates")
-        .update({ total_amount: calculatedTotalAmount })
-        .eq("id", data.id);
+      // Check if user explicitly provided total_amount in payload
+      const userProvidedTotal = parseFloat(estimateData?.total_amount);
+      const hasUserProvidedTotal = !isNaN(userProvidedTotal) && userProvidedTotal > 0;
 
-      if (updateTotalError) {
-        console.error('Error updating total_amount:', updateTotalError);
+      // Determine final total_amount:
+      // - If user explicitly provided total_amount in payload, use that (highest priority)
+      // - If products or additional costs were created/added and no user value, use calculated
+      // - Otherwise, use calculated or fallback to user value
+      let finalTotalAmount;
+      if (hasUserProvidedTotal) {
+        // User explicitly set total_amount, use it
+        finalTotalAmount = userProvidedTotal;
+      } else {
+        // No user value, calculate from products and additional costs
+        const hasProductsOrCosts = (customProducts && customProducts.length > 0) || additionalCost;
+        if (hasProductsOrCosts || (products.length > 0 || additionalCosts.length > 0)) {
+          finalTotalAmount = calculatedTotalAmount > 0 ? calculatedTotalAmount : 0;
+        } else {
+          finalTotalAmount = parseFloat(completeEstimate?.total_amount) || calculatedTotalAmount || 0;
+        }
+      }
+
+      // Update total_amount in database only if it's different
+      const currentTotal = parseFloat(completeEstimate?.total_amount || 0);
+      if (Math.abs(finalTotalAmount - currentTotal) > 0.01) {
+        const { error: updateTotalError } = await supabase
+          .from("estimates")
+          .update({ total_amount: finalTotalAmount })
+          .eq("id", data.id);
+
+        if (updateTotalError) {
+          console.error('Error updating total_amount:', updateTotalError);
+        }
       }
 
       // Fetch updated estimate to return
@@ -548,9 +573,12 @@ export class Estimate {
         console.error('Error fetching updated estimate:', fetchUpdatedError);
       }
 
+      // Get the final total_amount value
+      const finalTotal = finalTotalAmount;
+
       return {
         ...(updatedEstimate || completeEstimate),
-        total_amount: calculatedTotalAmount,
+        total_amount: finalTotal,
         additional_costs_details: additionalCosts,
         products: products,
         labor: []
