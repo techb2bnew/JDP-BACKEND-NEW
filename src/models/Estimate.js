@@ -218,6 +218,11 @@ export class Estimate {
         throw new Error(`Database error: ${deleteError.message}`);
       }
 
+      // Recalculate and update total_amount
+      if (existingEntry && existingEntry.estimate_id) {
+        await Estimate.calculateTotalCosts(existingEntry.estimate_id);
+      }
+
       return {
         success: true,
         message: 'Product removed from estimate successfully',
@@ -483,8 +488,8 @@ export class Estimate {
           products = jobProducts;
         }
       }
-
   
+
       const productsTotalCost = products.reduce((sum, product) => {
         return sum + (parseFloat(product.total_cost) || 0);
       }, 0);
@@ -495,8 +500,56 @@ export class Estimate {
 
       const calculatedTotalAmount = productsTotalCost + additionalCostsTotal;
 
+      // Update total_amount in database
+      const { error: updateTotalError } = await supabase
+        .from("estimates")
+        .update({ total_amount: calculatedTotalAmount })
+        .eq("id", data.id);
+
+      if (updateTotalError) {
+        console.error('Error updating total_amount:', updateTotalError);
+      }
+
+      // Fetch updated estimate to return
+      const { data: updatedEstimate, error: fetchUpdatedError } = await supabase
+        .from("estimates")
+        .select(`
+          *,
+          job:jobs!estimates_job_id_fkey(
+            id,
+            job_title,
+            job_type,
+            status
+          ),
+          customer:customers!estimates_customer_id_fkey(
+            id,
+            customer_name,
+            company_name,
+            email,
+            phone
+          ),
+          contractor:contractors!estimates_contractor_id_fkey(
+            id,
+            contractor_name,
+            company_name,
+            email,
+            phone
+          ),
+          created_by_user:users!estimates_created_by_fkey(
+            id,
+            full_name,
+            email
+          )
+        `)
+        .eq('id', data.id)
+        .single();
+
+      if (fetchUpdatedError) {
+        console.error('Error fetching updated estimate:', fetchUpdatedError);
+      }
+
       return {
-        ...completeEstimate,
+        ...(updatedEstimate || completeEstimate),
         total_amount: calculatedTotalAmount,
         additional_costs_details: additionalCosts,
         products: products,
@@ -1116,8 +1169,56 @@ export class Estimate {
 
       const calculatedTotalAmount = productsTotalCost + additionalCostsTotal;
 
+      // Update total_amount in database
+      const { error: updateTotalError } = await supabase
+        .from("estimates")
+        .update({ total_amount: calculatedTotalAmount })
+        .eq("id", estimateId);
+
+      if (updateTotalError) {
+        console.error('Error updating total_amount:', updateTotalError);
+      }
+
+      // Fetch updated estimate to return
+      const { data: updatedEstimate, error: fetchUpdatedError } = await supabase
+        .from("estimates")
+        .select(`
+          *,
+          job:jobs!estimates_job_id_fkey(
+            id,
+            job_title,
+            job_type,
+            status
+          ),
+          customer:customers!estimates_customer_id_fkey(
+            id,
+            customer_name,
+            company_name,
+            email,
+            phone
+          ),
+          contractor:contractors!estimates_contractor_id_fkey(
+            id,
+            contractor_name,
+            company_name,
+            email,
+            phone
+          ),
+          created_by_user:users!estimates_created_by_fkey(
+            id,
+            full_name,
+            email
+          )
+        `)
+        .eq('id', estimateId)
+        .single();
+
+      if (fetchUpdatedError) {
+        console.error('Error fetching updated estimate:', fetchUpdatedError);
+      }
+
       return {
-        ...completeEstimate,
+        ...(updatedEstimate || completeEstimate),
         total_amount: calculatedTotalAmount,
         additional_costs_details: additionalCosts,
         products: products,
@@ -1234,25 +1335,34 @@ export class Estimate {
         throw new Error(`Database error: ${rejectedError.message}`);
       }
 
+      // Fetch all estimates with total_amount to calculate total billed
+      const { data: allEstimates, error: estimatesError } = await supabase
+        .from("estimates")
+        .select("total_amount");
 
-      const { data: additionalCostsData, error: additionalCostsError } = await supabase
-        .from("estimate_additional_costs")
-        .select("amount");
-
-      if (additionalCostsError) {
-        throw new Error(`Database error: ${additionalCostsError.message}`);
+      if (estimatesError) {
+        throw new Error(`Database error: ${estimatesError.message}`);
       }
 
-      const total = totalEstimates?.length || 0;
-      const draft = draftEstimates?.length || 0;
-      const sent = sentEstimates?.length || 0;
-      const accepted = acceptedEstimates?.length || 0;
-      const rejected = rejectedEstimates?.length || 0;
+      // Use count from count queries, or fallback to length
+      const total = totalEstimates?.count || totalEstimates?.length || 0;
+      const draft = draftEstimates?.count || draftEstimates?.length || 0;
+      const sent = sentEstimates?.count || sentEstimates?.length || 0;
+      const accepted = acceptedEstimates?.count || acceptedEstimates?.length || 0;
+      const rejected = rejectedEstimates?.count || rejectedEstimates?.length || 0;
 
-
-      const totalBilled = (additionalCostsData || []).reduce((sum, cost) => {
-        return sum + (parseFloat(cost.amount) || 0);
-      }, 0);
+      // Calculate totalBilled from sum of all total_amount values
+      let totalBilled = 0;
+      if (allEstimates && Array.isArray(allEstimates)) {
+        allEstimates.forEach((estimate) => {
+          if (estimate && estimate.total_amount !== null && estimate.total_amount !== undefined) {
+            const amount = parseFloat(estimate.total_amount);
+            if (!isNaN(amount)) {
+              totalBilled += amount;
+            }
+          }
+        });
+      }
 
       const paid = accepted;
       const pending = draft + sent;
@@ -1395,6 +1505,9 @@ export class Estimate {
         throw new Error(`Database error: ${error.message}`);
       }
 
+      // Recalculate and update total_amount
+      await Estimate.calculateTotalCosts(additionalCostData.estimate_id);
+
       return data;
     } catch (error) {
       throw error;
@@ -1421,6 +1534,13 @@ export class Estimate {
 
   static async updateAdditionalCost(additionalCostId, updateData) {
     try {
+      // First get the estimate_id before updating
+      const { data: existingCost } = await supabase
+        .from("estimate_additional_costs")
+        .select("estimate_id")
+        .eq("id", additionalCostId)
+        .single();
+
       const { data, error } = await supabase
         .from("estimate_additional_costs")
         .update(updateData)
@@ -1432,6 +1552,11 @@ export class Estimate {
         throw new Error(`Database error: ${error.message}`);
       }
 
+      // Recalculate and update total_amount
+      if (existingCost && existingCost.estimate_id) {
+        await Estimate.calculateTotalCosts(existingCost.estimate_id);
+      }
+
       return data;
     } catch (error) {
       throw error;
@@ -1440,6 +1565,13 @@ export class Estimate {
 
   static async deleteAdditionalCost(additionalCostId) {
     try {
+      // First get the estimate_id before deleting
+      const { data: existingCost } = await supabase
+        .from("estimate_additional_costs")
+        .select("estimate_id")
+        .eq("id", additionalCostId)
+        .single();
+
       const { error } = await supabase
         .from("estimate_additional_costs")
         .delete()
@@ -1447,6 +1579,11 @@ export class Estimate {
 
       if (error) {
         throw new Error(`Database error: ${error.message}`);
+      }
+
+      // Recalculate and update total_amount
+      if (existingCost && existingCost.estimate_id) {
+        await Estimate.calculateTotalCosts(existingCost.estimate_id);
       }
 
       return true;
@@ -1462,21 +1599,61 @@ export class Estimate {
         throw new Error('Estimate not found');
       }
 
-    
+      // Get additional costs
       const additionalCosts = await Estimate.getAdditionalCosts(estimateId);
-
       const additionalCostsTotal = additionalCosts.reduce((sum, cost) => {
         return sum + (parseFloat(cost.amount) || 0);
       }, 0);
 
+      // Get products
+      let products = [];
+      if (estimate.job && estimate.job.id) {
+        const { data: jobProducts } = await supabase
+          .from("products")
+          .select(`
+            id,
+            product_name,
+            jdp_sku,
+            supplier_sku,
+            unit_cost,
+            jdp_price,
+            estimated_price,
+            total_cost,
+            stock_quantity,
+            unit,
+            category,
+            description,
+            supplier_id
+          `)
+          .eq("job_id", estimate.job.id)
+          .eq("is_custom", true);
 
-      await Estimate.update(estimateId, {
-        total_amount: additionalCostsTotal
-      });
+        if (jobProducts) {
+          products = jobProducts;
+        }
+      }
+
+      // Calculate products total cost
+      const productsTotalCost = products.reduce((sum, product) => {
+        return sum + (parseFloat(product.total_cost) || 0);
+      }, 0);
+
+      const calculatedTotalAmount = productsTotalCost + additionalCostsTotal;
+
+      // Update total_amount in database
+      const { error: updateError } = await supabase
+        .from("estimates")
+        .update({ total_amount: calculatedTotalAmount })
+        .eq("id", estimateId);
+
+      if (updateError) {
+        throw new Error(`Database error: ${updateError.message}`);
+      }
 
       return {
+        products_total: productsTotalCost,
         additional_costs: additionalCostsTotal,
-        total_amount: additionalCostsTotal
+        total_amount: calculatedTotalAmount
       };
     } catch (error) {
       throw error;
