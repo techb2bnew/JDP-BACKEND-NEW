@@ -62,6 +62,10 @@ export async function jobRoutes(fastify, options) {
     handler: JobController.deleteJob
   });
 
+  fastify.get('/getJobsByCustomer', {
+    handler: JobController.getJobsByCustomer
+  });
+
   fastify.get('/getJobsByCustomer/:customerId', {
     handler: JobController.getJobsByCustomer
   });

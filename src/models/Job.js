@@ -2167,7 +2167,7 @@ export class Job {
 
   static async findByCustomerId(customerId) {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from("jobs")
         .select(`
           *,
@@ -2195,12 +2195,31 @@ export class Job {
             full_name,
             email
           )
-        `)
-        .eq("customer_id", customerId)
-        .order("created_at", { ascending: false });
+        `);
+
+      // If customerId is provided, filter by it; otherwise return all customer-based jobs (exclude contractor-only jobs)
+      if (customerId !== null && customerId !== undefined) {
+        const customerIdNum = parseInt(customerId);
+        if (isNaN(customerIdNum)) {
+          throw new Error('Invalid customer ID');
+        }
+        query = query.eq("customer_id", customerIdNum);
+      } else {
+        // When no customerId provided, only return jobs that have a customer_id (exclude contractor-only jobs)
+        query = query.not("customer_id", "is", null);
+      }
+
+      const { data, error } = await query.order("created_at", { ascending: false });
 
       if (error) {
         throw new Error(`Database error: ${error.message}`);
+      }
+
+      // Debug: Log the filter and results
+      if (customerId !== null && customerId !== undefined) {
+        console.log(`[findByCustomerId] Filtering by customer_id: ${customerId}, Found ${(data || []).length} jobs`);
+      } else {
+        console.log(`[findByCustomerId] Filtering for customer-based jobs only (excluding contractor-only jobs). Found ${(data || []).length} jobs`);
       }
 
       const jobsWithDetails = await Promise.all(
@@ -3507,6 +3526,13 @@ export class Job {
       let actualEndDate = endDate;
 
       if (!startDate || !endDate) {
+        // If no dates provided, get all timesheets date range (earliest to latest)
+        const { data: earliestTimesheet, error: earliestError } = await supabase
+          .from('labor_timesheets')
+          .select('date')
+          .order('date', { ascending: true })
+          .limit(1)
+          .single();
 
         const { data: latestTimesheet, error: latestError } = await supabase
           .from('labor_timesheets')
@@ -3515,26 +3541,37 @@ export class Job {
           .limit(1)
           .single();
 
+        if (earliestError && earliestError.code !== 'PGRST116') {
+          throw new Error(`Database error: ${earliestError.message}`);
+        }
         if (latestError && latestError.code !== 'PGRST116') {
           throw new Error(`Database error: ${latestError.message}`);
         }
 
-        if (latestTimesheet && latestTimesheet.date) {
+        if (earliestTimesheet && earliestTimesheet.date && latestTimesheet && latestTimesheet.date) {
+          // Get the Monday of the week containing the earliest date
+          const earliestDateObj = new Date(earliestTimesheet.date);
+          const earliestDayOfWeek = earliestDateObj.getDay();
+          const earliestDaysToMonday = earliestDayOfWeek === 0 ? -6 : 1 - earliestDayOfWeek;
 
+          const earliestMonday = new Date(earliestDateObj);
+          earliestMonday.setDate(earliestDateObj.getDate() + earliestDaysToMonday);
+
+          // Get the Sunday of the week containing the latest date
           const latestDateObj = new Date(latestTimesheet.date);
-          const dayOfWeek = latestDateObj.getDay();
-          const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+          const latestDayOfWeek = latestDateObj.getDay();
+          const latestDaysToMonday = latestDayOfWeek === 0 ? -6 : 1 - latestDayOfWeek;
 
-          const mondayOfWeek = new Date(latestDateObj);
-          mondayOfWeek.setDate(latestDateObj.getDate() + daysToMonday);
+          const latestMonday = new Date(latestDateObj);
+          latestMonday.setDate(latestDateObj.getDate() + latestDaysToMonday);
 
-          const sundayOfWeek = new Date(mondayOfWeek);
-          sundayOfWeek.setDate(mondayOfWeek.getDate() + 6);
+          const latestSunday = new Date(latestMonday);
+          latestSunday.setDate(latestMonday.getDate() + 6);
 
-          actualStartDate = Job.formatLocalDate(mondayOfWeek);
-          actualEndDate = Job.formatLocalDate(sundayOfWeek);
+          actualStartDate = Job.formatLocalDate(earliestMonday);
+          actualEndDate = Job.formatLocalDate(latestSunday);
         } else {
-
+          // Fallback to current week if no timesheets found
           const today = new Date();
           const dayOfWeek = today.getDay();
           const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
@@ -3580,12 +3617,27 @@ export class Job {
         throw new Error(`Database error: ${timesheetsError.message}`);
       }
 
+      // Debug: Log total timesheets fetched and their details
+      console.log(`Total timesheets fetched from database: ${(allTimesheets || []).length}`);
+      if (allTimesheets && allTimesheets.length > 0) {
+        const withLaborId = allTimesheets.filter(ts => ts.labor_id).length;
+        const withLeadLaborId = allTimesheets.filter(ts => ts.lead_labor_id).length;
+        const withBoth = allTimesheets.filter(ts => ts.labor_id && ts.lead_labor_id).length;
+        const withoutBoth = allTimesheets.filter(ts => !ts.labor_id && !ts.lead_labor_id).length;
+        console.log(`Timesheets breakdown: With labor_id: ${withLaborId}, With lead_labor_id: ${withLeadLaborId}, With both: ${withBoth}, Without both: ${withoutBoth}`);
+      }
+
       const allDashboardTimesheets = [];
 
 
       const timesheetsByJob = {};
       (allTimesheets || []).forEach(ts => {
         const jobId = ts.job_id;
+        if (!jobId) {
+          // Skip timesheets without job_id
+          console.warn('Timesheet without job_id found:', ts.id);
+          return;
+        }
         if (!timesheetsByJob[jobId]) {
           timesheetsByJob[jobId] = {
             job_id: jobId,
@@ -3600,8 +3652,20 @@ export class Job {
         const job = timesheetsByJob[jobId];
         const allTimesheetsForJob = job.timesheets;
 
-        const filteredLaborTimesheets = allTimesheetsForJob.filter(ts => ts.labor_id);
+        // Include ALL timesheets - separate labor and lead_labor to avoid duplication
+        // Labor timesheets: have labor_id but NOT lead_labor_id
+        const filteredLaborTimesheets = allTimesheetsForJob.filter(ts => ts.labor_id && !ts.lead_labor_id);
+        // Lead labor timesheets: have lead_labor_id (includes those with both labor_id and lead_labor_id)
         const filteredLeadLaborTimesheets = allTimesheetsForJob.filter(ts => ts.lead_labor_id);
+        
+        // Check for timesheets without both labor_id and lead_labor_id
+        const timesheetsWithoutIds = allTimesheetsForJob.filter(ts => !ts.labor_id && !ts.lead_labor_id);
+        if (timesheetsWithoutIds.length > 0) {
+          console.warn(`Job ${jobId}: Found ${timesheetsWithoutIds.length} timesheets without labor_id or lead_labor_id`);
+        }
+        
+        // Debug: Log counts for this job
+        console.log(`Job ${jobId} (${job.job_title}): Total timesheets: ${allTimesheetsForJob.length}, Labor only: ${filteredLaborTimesheets.length}, Lead Labor: ${filteredLeadLaborTimesheets.length}, Without IDs: ${timesheetsWithoutIds.length}`);
 
         const laborSummary = {};
         const leadLaborSummary = {};
@@ -3640,14 +3704,30 @@ export class Job {
 
             laborSummary[laborId].total_hours += hours;
             laborSummary[laborId].total_cost += cost;
-            laborSummary[laborId].days_worked += 1;
-            laborSummary[laborId].daily_breakdown[timesheet.date] = {
-              hours: timeValue,
-              cost: cost,
-              work_activity: timesheet.work_activity,
-              status: timesheet.status || timesheet.job_status || 'pending',
-              billable: null
-            };
+            
+            // Aggregate hours for same date (don't overwrite)
+            const dateKey = timesheet.date;
+            if (laborSummary[laborId].daily_breakdown[dateKey]) {
+              // If entry exists for this date, aggregate the hours
+              const existingHours = Job.timeToHours(laborSummary[laborId].daily_breakdown[dateKey].hours || "00:00:00");
+              const newTotalHours = existingHours + hours;
+              const aggregatedTimeValue = Job.hoursToTime(newTotalHours);
+              
+              laborSummary[laborId].daily_breakdown[dateKey].hours = aggregatedTimeValue;
+              laborSummary[laborId].daily_breakdown[dateKey].cost += cost;
+              // Keep the latest status
+              laborSummary[laborId].daily_breakdown[dateKey].status = timesheet.status || timesheet.job_status || laborSummary[laborId].daily_breakdown[dateKey].status || 'pending';
+            } else {
+              // First entry for this date
+              laborSummary[laborId].days_worked += 1;
+              laborSummary[laborId].daily_breakdown[dateKey] = {
+                hours: timeValue,
+                cost: cost,
+                work_activity: timesheet.work_activity,
+                status: timesheet.status || timesheet.job_status || 'pending',
+                billable: null
+              };
+            }
           } else if (timesheet.lead_labor_id) {
             const leadLaborId = timesheet.lead_labor_id;
             if (!leadLaborSummary[leadLaborId]) {
@@ -3680,14 +3760,30 @@ export class Job {
 
             leadLaborSummary[leadLaborId].total_hours += hours;
             leadLaborSummary[leadLaborId].total_cost += cost;
-            leadLaborSummary[leadLaborId].days_worked += 1;
-            leadLaborSummary[leadLaborId].daily_breakdown[timesheet.date] = {
-              hours: timeValue,
-              cost: cost,
-              work_activity: timesheet.work_activity,
-              status: timesheet.status || timesheet.job_status || 'pending',
-              billable: null
-            };
+            
+            // Aggregate hours for same date (don't overwrite)
+            const dateKey = timesheet.date;
+            if (leadLaborSummary[leadLaborId].daily_breakdown[dateKey]) {
+              // If entry exists for this date, aggregate the hours
+              const existingHours = Job.timeToHours(leadLaborSummary[leadLaborId].daily_breakdown[dateKey].hours || "00:00:00");
+              const newTotalHours = existingHours + hours;
+              const aggregatedTimeValue = Job.hoursToTime(newTotalHours);
+              
+              leadLaborSummary[leadLaborId].daily_breakdown[dateKey].hours = aggregatedTimeValue;
+              leadLaborSummary[leadLaborId].daily_breakdown[dateKey].cost += cost;
+              // Keep the latest status
+              leadLaborSummary[leadLaborId].daily_breakdown[dateKey].status = timesheet.status || timesheet.job_status || leadLaborSummary[leadLaborId].daily_breakdown[dateKey].status || 'pending';
+            } else {
+              // First entry for this date
+              leadLaborSummary[leadLaborId].days_worked += 1;
+              leadLaborSummary[leadLaborId].daily_breakdown[dateKey] = {
+                hours: timeValue,
+                cost: cost,
+                work_activity: timesheet.work_activity,
+                status: timesheet.status || timesheet.job_status || 'pending',
+                billable: null
+              };
+            }
           }
         });
 
@@ -3862,6 +3958,8 @@ export class Job {
         });
       }
 
+      // Debug: Log total dashboard entries created
+      console.log(`Total dashboard timesheet entries created: ${allDashboardTimesheets.length} from ${(allTimesheets || []).length} timesheets`);
 
       const { page = 1, limit = 10, offset = 0 } = pagination;
       const totalRecords = allDashboardTimesheets.length;
@@ -4328,55 +4426,192 @@ export class Job {
     }
   }
 
-  static async getTimesheetDashboardStats() {
+  static async getTimesheetDashboardStats(startDate = null, endDate = null) {
     try {
+      // Use same date range logic as getAllJobsWeeklyTimesheetSummary
+      let actualStartDate = startDate;
+      let actualEndDate = endDate;
 
-      const { data: timesheets, error } = await supabase
+      if (!startDate || !endDate) {
+        // If no dates provided, get all timesheets date range (earliest to latest)
+        const { data: earliestTimesheet, error: earliestError } = await supabase
+          .from('labor_timesheets')
+          .select('date')
+          .order('date', { ascending: true })
+          .limit(1)
+          .single();
+
+        const { data: latestTimesheet, error: latestError } = await supabase
+          .from('labor_timesheets')
+          .select('date')
+          .order('date', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (earliestError && earliestError.code !== 'PGRST116') {
+          throw new Error(`Database error: ${earliestError.message}`);
+        }
+        if (latestError && latestError.code !== 'PGRST116') {
+          throw new Error(`Database error: ${latestError.message}`);
+        }
+
+        if (earliestTimesheet && earliestTimesheet.date && latestTimesheet && latestTimesheet.date) {
+          // Get the Monday of the week containing the earliest date
+          const earliestDateObj = new Date(earliestTimesheet.date);
+          const earliestDayOfWeek = earliestDateObj.getDay();
+          const earliestDaysToMonday = earliestDayOfWeek === 0 ? -6 : 1 - earliestDayOfWeek;
+
+          const earliestMonday = new Date(earliestDateObj);
+          earliestMonday.setDate(earliestDateObj.getDate() + earliestDaysToMonday);
+
+          // Get the Sunday of the week containing the latest date
+          const latestDateObj = new Date(latestTimesheet.date);
+          const latestDayOfWeek = latestDateObj.getDay();
+          const latestDaysToMonday = latestDayOfWeek === 0 ? -6 : 1 - latestDayOfWeek;
+
+          const latestMonday = new Date(latestDateObj);
+          latestMonday.setDate(latestDateObj.getDate() + latestDaysToMonday);
+
+          const latestSunday = new Date(latestMonday);
+          latestSunday.setDate(latestMonday.getDate() + 6);
+
+          actualStartDate = Job.formatLocalDate(earliestMonday);
+          actualEndDate = Job.formatLocalDate(latestSunday);
+        } else {
+          // Fallback to current week if no timesheets found
+          const today = new Date();
+          const dayOfWeek = today.getDay();
+          const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+
+          const mondayOfWeek = new Date(today);
+          mondayOfWeek.setDate(today.getDate() + daysToMonday);
+
+          const sundayOfWeek = new Date(mondayOfWeek);
+          sundayOfWeek.setDate(mondayOfWeek.getDate() + 6);
+
+          actualStartDate = Job.formatLocalDate(mondayOfWeek);
+          actualEndDate = Job.formatLocalDate(sundayOfWeek);
+        }
+      }
+
+      // Fetch timesheets from labor_timesheets table with date filter (same as getAllJobsWeeklyTimesheetSummary)
+      let query = supabase
         .from('labor_timesheets')
-        .select('*');
+        .select('id, date, start_time, end_time, status, job_status, pause_timer, job_id, labor_id, lead_labor_id');
+
+      if (actualStartDate && actualEndDate) {
+        query = query.gte('date', actualStartDate).lte('date', actualEndDate);
+      }
+
+      const { data: timesheets, error } = await query;
 
       if (error) {
         throw new Error(`Database error: ${error.message}`);
       }
 
-      let totalTimesheets = 0;
-      let pendingApproval = 0;
+      // Group timesheets by job-labor combination (same as getAllJobsWeeklyTimesheetSummary)
+      const jobLaborCombinations = new Map();
       let totalHours = 0;
       let billableHours = 0;
 
-
       (timesheets || []).forEach(timesheet => {
-        totalTimesheets++;
-
-
-        const currentStatus = timesheet.status || timesheet.job_status || 'pending';
-
-
-        if (currentStatus !== 'approved') {
-          pendingApproval++;
+        if (!timesheet.job_id) {
+          return; // Skip timesheets without job_id
         }
 
+        // Create unique key for job-labor combination (same logic as getAllJobsWeeklyTimesheetSummary)
+        // Labor timesheets: have labor_id but NOT lead_labor_id
+        // Lead labor timesheets: have lead_labor_id (prioritize lead_labor)
+        let combinationKey;
+        if (timesheet.lead_labor_id) {
+          combinationKey = `job_${timesheet.job_id}_lead_labor_${timesheet.lead_labor_id}`;
+        } else if (timesheet.labor_id) {
+          combinationKey = `job_${timesheet.job_id}_labor_${timesheet.labor_id}`;
+        } else {
+          return; // Skip timesheets without both labor_id and lead_labor_id
+        }
 
+        // Check status - normalize to lowercase for comparison (same logic as getAllJobsWeeklyTimesheetSummary)
+        const rawStatus = timesheet.status || timesheet.job_status || 'pending';
+        const currentStatus = rawStatus.toLowerCase();
+        
+        // Approved statuses (same as getAllJobsWeeklyTimesheetSummary logic)
+        const isApproved = currentStatus === 'approved' || currentStatus === 'completed';
+
+        // Initialize combination if not exists
+        if (!jobLaborCombinations.has(combinationKey)) {
+          jobLaborCombinations.set(combinationKey, {
+            job_id: timesheet.job_id,
+            labor_id: timesheet.labor_id,
+            lead_labor_id: timesheet.lead_labor_id,
+            status: currentStatus,
+            isApproved: isApproved,
+            totalHours: 0,
+            billableHours: 0
+          });
+        }
+
+        const combination = jobLaborCombinations.get(combinationKey);
+        
+        // Update status (keep latest or most important status)
+        if (isApproved) {
+          combination.isApproved = true;
+          combination.status = currentStatus;
+        } else if (!combination.isApproved && currentStatus !== 'draft') {
+          combination.status = currentStatus;
+        }
+
+        // Calculate hours from start_time and end_time (same method as getAllJobsWeeklyTimesheetSummary)
         if (timesheet.start_time && timesheet.end_time) {
-          const start = new Date(`2000-01-01T${timesheet.start_time}`);
-          const end = new Date(`2000-01-01T${timesheet.end_time}`);
-          const diffMs = end - start;
-          const hours = diffMs / (1000 * 60 * 60);
+          try {
+            // Use same calculation method as getAllJobsWeeklyTimesheetSummary
+            const start = new Date(`2000-01-01T${timesheet.start_time}`);
+            const end = new Date(`2000-01-01T${timesheet.end_time}`);
+            const diffMs = end - start;
+            let hours = diffMs / (1000 * 60 * 60);
 
-          totalHours += hours;
+            // Handle case where end time is next day (e.g., 22:00 to 02:00)
+            if (hours < 0) {
+              hours += 24;
+            }
 
+            // Note: getAllJobsWeeklyTimesheetSummary does NOT subtract pause_timer, so we match that behavior
 
-          if (currentStatus === 'approved') {
-            billableHours += hours;
+            // Ensure hours is not negative
+            if (hours > 0) {
+              combination.totalHours += hours;
+              totalHours += hours;
+
+              // Billable hours: all timesheets are billable (pending, draft, approved, completed)
+              // Only rejected timesheets are not billable
+              const isRejected = currentStatus === 'rejected';
+              if (!isRejected) {
+                combination.billableHours += hours;
+                billableHours += hours;
+              }
+            }
+          } catch (timeError) {
+            console.error('Error calculating hours for timesheet:', timesheet.id, timeError);
+            // Skip this timesheet if time calculation fails
           }
+        }
+      });
+
+      // Count unique job-labor combinations (same as getAllJobsWeeklyTimesheetSummary)
+      const totalTimesheets = jobLaborCombinations.size;
+      let pendingApproval = 0;
+
+      jobLaborCombinations.forEach(combination => {
+        if (!combination.isApproved) {
+          pendingApproval++;
         }
       });
 
       return {
         total: totalTimesheets,
         pending: pendingApproval,
-        totalHours: Math.round(totalHours),
-        billableHours: Math.round(billableHours)
+        totalHours: totalHours, // Return as number, will be formatted in controller
+        billableHours: billableHours // Return as number, will be formatted in controller
       };
     } catch (error) {
       throw error;

@@ -237,12 +237,26 @@ export class JobController {
 
   static async getJobsByCustomer(request, reply) {
     try {
-      const { customerId } = request.params;
-      const result = await JobService.getJobsByCustomer(parseInt(customerId));
+      // Check both params and query for customerId
+      const customerId = request.params?.customerId || request.query?.customerId;
+      
+      // If customerId is provided, validate and use it; otherwise return all customers' jobs
+      let customerIdNum = null;
+      if (customerId) {
+        customerIdNum = parseInt(customerId);
+        if (isNaN(customerIdNum)) {
+          return reply.code(400).send(errorResponse('Invalid customer ID', 400));
+        }
+      }
+
+      const result = await JobService.getJobsByCustomer(customerIdNum);
       return reply.code(200).send(result);
     } catch (error) {
       if (error.message.includes('Database error')) {
         return reply.code(500).send(errorResponse('Database error occurred', 500));
+      }
+      if (error.message.includes('required') || error.message.includes('Invalid')) {
+        return reply.code(400).send(errorResponse(error.message, 400));
       }
       return reply.code(500).send(errorResponse(error.message));
     }
@@ -751,15 +765,18 @@ export class JobController {
 
   static async getTimesheetDashboardStats(request, reply) {
     try {
-      const result = await Job.getTimesheetDashboardStats();
+      const { start_date, end_date } = request.query;
+      const result = await Job.getTimesheetDashboardStats(start_date, end_date);
+      
+      // Use same formatTimeDisplay as getAllJobsWeeklyTimesheetSummary
       return reply.code(200).send({
         success: true,
         message: 'Timesheet dashboard statistics retrieved successfully',
         data: {
           total: result.total,
           pending: result.pending,
-          totalHours: `${result.totalHours}h`,
-          billableHours: `${result.billableHours}h`
+          totalHours: Job.formatTimeDisplay(result.totalHours),
+          billableHours: Job.formatTimeDisplay(result.billableHours)
         }
       });
     } catch (error) {
