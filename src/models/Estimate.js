@@ -53,7 +53,7 @@ export class Estimate {
         }
 
         if (filters.status && filters.status.toLowerCase() !== 'all' && (est.status || '').toLowerCase() !== String(filters.status).toLowerCase()) return false;
-        if (filters.invoice_type && (est.invoice_type || '').toLowerCase() !== String(filters.invoice_type).toLowerCase()) return false;
+        if (filters.invoice_type && filters.invoice_type.toLowerCase() !== 'all' && (est.invoice_type || '').toLowerCase() !== String(filters.invoice_type).toLowerCase()) return false;
         if (filters.customer &&
           !(
             Estimate.inStr(est.customer?.customer_name, filters.customer) ||
