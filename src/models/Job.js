@@ -4109,37 +4109,56 @@ export class Job {
         throw new Error('Job not found');
       }
 
+      // Fetch bluesheets for the job to get materials and labor costs
+      const bluesheets = await Job.fetchBluesheetsDetails(jobId);
+
+      // Calculate materialsCost from bluesheet material entries
       let materialsCost = 0;
-      if (job.assigned_materials && job.assigned_materials.length > 0) {
-        materialsCost = job.assigned_materials.reduce((total, material) => {
-          const quantity = material.stock_quantity || 0;
-          const unitCost = parseFloat(material.unit_cost) || 0;
-          return total + (quantity * unitCost);
-        }, 0);
+      let allMaterialEntries = [];
+      if (bluesheets && bluesheets.length > 0) {
+        bluesheets.forEach(bluesheet => {
+          if (bluesheet.material_entries && bluesheet.material_entries.length > 0) {
+            bluesheet.material_entries.forEach(material => {
+              let materialCost = 0;
+              const totalCost = parseFloat(material.total_cost) || 0;
+              
+              // If total_cost exists and > 0, use it; otherwise calculate from product jdp_price
+              if (totalCost > 0) {
+                materialCost = totalCost;
+              } else {
+                // Calculate from product jdp_price * quantity
+                const jdpPrice = parseFloat(material.product?.jdp_price) || 0;
+                const quantity = parseFloat(material.material_used) || parseFloat(material.quantity) || 0;
+                materialCost = jdpPrice * quantity;
+              }
+              
+              materialsCost += materialCost;
+              allMaterialEntries.push(material);
+            });
+          }
+        });
       }
 
+      // Calculate laborCost from bluesheet labor entries
       let laborCost = 0;
-      if (job.assigned_labor && job.assigned_labor.length > 0) {
-        laborCost = job.assigned_labor.reduce((total, labor) => {
-          const hourlyRate = parseFloat(labor.hourly_rate) || 0;
-          const hoursWorked = parseFloat(labor.hours_worked) || 0;
-          return total + (hourlyRate * hoursWorked);
-        }, 0);
-      }
-
-      if (job.custom_labor && job.custom_labor.length > 0) {
-        const customLaborCost = job.custom_labor.reduce((total, labor) => {
-          const hourlyRate = parseFloat(labor.hourly_rate) || 0;
-          const hoursWorked = parseFloat(labor.hours_worked) || 0;
-          return total + (hourlyRate * hoursWorked);
-        }, 0);
-        laborCost += customLaborCost;
+      let allLaborEntries = [];
+      if (bluesheets && bluesheets.length > 0) {
+        bluesheets.forEach(bluesheet => {
+          if (bluesheet.labor_entries && bluesheet.labor_entries.length > 0) {
+            bluesheet.labor_entries.forEach(labor => {
+              const totalCost = parseFloat(labor.total_cost) || 0;
+              laborCost += totalCost;
+              allLaborEntries.push(labor);
+            });
+          }
+        });
       }
 
       const actualProjectCost = materialsCost + laborCost;
 
 
       const jobEstimate = parseFloat(job.estimated_cost) || 0;
+      const total = actualProjectCost;
 
       return {
         jobId: job.id,
@@ -4148,19 +4167,20 @@ export class Job {
           jobEstimate: jobEstimate,
           materialsCost: materialsCost,
           laborCost: laborCost,
-          actualProjectCost: actualProjectCost
+          actualProjectCost: actualProjectCost,
+          total: total
         },
         costBreakdown: {
           materials: {
             totalCost: materialsCost,
-            items: job.assigned_materials || [],
-            count: job.assigned_materials ? job.assigned_materials.length : 0
+            items: allMaterialEntries,
+            count: allMaterialEntries.length
           },
           labor: {
             totalCost: laborCost,
-            regularLabor: job.assigned_labor || [],
-            customLabor: job.custom_labor || [],
-            totalWorkers: (job.assigned_labor ? job.assigned_labor.length : 0) + (job.custom_labor ? job.custom_labor.length : 0)
+            regularLabor: allLaborEntries,
+            customLabor: [],
+            totalWorkers: allLaborEntries.length
           }
         },
         workTracking: {
