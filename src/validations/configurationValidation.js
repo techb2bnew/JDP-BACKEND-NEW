@@ -106,9 +106,9 @@ export const configurationValidation = {
               'number.integer': 'Maximum hours must be an integer',
               'number.min': 'Maximum hours must be 0 or greater'
             }),
-            rate: Joi.number().positive().precision(2).required().messages({
+            rate: Joi.number().min(0).precision(2).allow(null).optional().messages({
               'number.base': 'Rate must be a number',
-              'number.positive': 'Rate must be greater than 0',
+              'number.min': 'Rate must be 0 or greater',
               'number.precision': 'Rate can have maximum 2 decimal places'
             })
           })
@@ -143,8 +143,8 @@ export const validateHourlyRateLogic = (data) => {
     errors.push('Maximum hours cannot be negative');
   }
 
-  if (data.rate !== undefined && data.rate <= 0) {
-    errors.push('Rate must be greater than 0');
+  if (data.rate !== undefined && data.rate !== null && data.rate < 0) {
+    errors.push('Rate cannot be negative');
   }
 
   return errors;
