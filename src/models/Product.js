@@ -993,4 +993,49 @@ export class Product {
       throw error;
     }
   }
+
+  static async findByIdOrSku(productId, jdpSku, supplierSku, supplierId) {
+    try {
+      if (productId) {
+        const { data, error } = await supabase
+          .from('products')
+          .select('*')
+          .eq('id', productId)
+          .single();
+        
+        if (!error && data) {
+          return data;
+        }
+      }
+
+      if (jdpSku) {
+        const { data, error } = await supabase
+          .from('products')
+          .select('*')
+          .eq('jdp_sku', jdpSku)
+          .single();
+        
+        if (!error && data) {
+          return data;
+        }
+      }
+
+      if (supplierSku && supplierId) {
+        const { data, error } = await supabase
+          .from('products')
+          .select('*')
+          .eq('supplier_sku', supplierSku)
+          .eq('supplier_id', supplierId)
+          .single();
+        
+        if (!error && data) {
+          return data;
+        }
+      }
+
+      return null;
+    } catch (error) {
+      throw error;
+    }
+  }
 }

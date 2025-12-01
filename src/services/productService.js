@@ -376,4 +376,242 @@ export class ProductService {
       throw error;
     }
   }
+
+  static async importProducts(csvContent, createdByUserId) {
+    try {
+      const lines = csvContent.split('\n').filter(line => line.trim());
+      if (lines.length < 2) {
+        throw new Error('CSV file must have at least a header row and one data row');
+      }
+
+      const headers = this.parseCSVLine(lines[0]);
+      const headerMap = this.mapCSVHeaders(headers);
+
+      const results = {
+        total: 0,
+        created: 0,
+        updated: 0,
+        errors: [],
+        success: []
+      };
+
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+
+        try {
+          const row = this.parseCSVLine(line);
+          const productData = this.mapCSVRowToProduct(row, headerMap, createdByUserId);
+
+          if (!productData.product_name) {
+            results.errors.push({
+              row: i + 1,
+              error: 'Product name is required'
+            });
+            continue;
+          }
+
+          results.total++;
+
+          if (productData._supplier_name && !productData.supplier_id) {
+            const supplier = await Suppliers.findByName(productData._supplier_name);
+            if (supplier) {
+              productData.supplier_id = supplier.id;
+            }
+            delete productData._supplier_name;
+          }
+
+          const existingProduct = await Product.findByIdOrSku(
+            productData.id,
+            productData.jdp_sku,
+            productData.supplier_sku,
+            productData.supplier_id
+          );
+
+          if (existingProduct) {
+            const updateData = { ...productData };
+            delete updateData.id;
+            delete updateData.created_by;
+            delete updateData.created_at;
+
+            const updatedProduct = await ProductService.updateProduct(existingProduct.id, updateData);
+            results.updated++;
+            results.success.push({
+              row: i + 1,
+              action: 'updated',
+              product_id: existingProduct.id,
+              product_name: updatedProduct.product_name
+            });
+          } else {
+            const newProduct = await ProductService.createProduct(productData, createdByUserId);
+            results.created++;
+            results.success.push({
+              row: i + 1,
+              action: 'created',
+              product_id: newProduct.product.id,
+              product_name: newProduct.product.product_name
+            });
+          }
+        } catch (error) {
+          results.errors.push({
+            row: i + 1,
+            error: error.message
+          });
+        }
+      }
+
+      return {
+        success: true,
+        message: `Import completed: ${results.created} created, ${results.updated} updated, ${results.errors.length} errors`,
+        data: results
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static parseCSVLine(line) {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      
+      if (char === '"') {
+        if (inQuotes && line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (char === ',' && !inQuotes) {
+        result.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    result.push(current.trim());
+    return result;
+  }
+
+  static mapCSVHeaders(headers) {
+    const map = {};
+    headers.forEach((header, index) => {
+      const normalized = header.trim().toLowerCase();
+      map[normalized] = index;
+    });
+    return map;
+  }
+
+  static mapCSVRowToProduct(row, headerMap, createdByUserId) {
+    const getValue = (key) => {
+      const index = headerMap[key];
+      return index !== undefined && row[index] ? row[index].trim() : null;
+    };
+
+    const parseNumber = (value) => {
+      if (!value) return null;
+      const cleaned = value.toString().replace(/[^0-9.-]/g, '');
+      const num = parseFloat(cleaned);
+      return isNaN(num) ? null : num;
+    };
+
+    const parseInteger = (value) => {
+      if (!value) return null;
+      const cleaned = value.toString().replace(/[^0-9]/g, '');
+      const num = parseInt(cleaned);
+      return isNaN(num) ? null : num;
+    };
+
+    const parseDate = (value) => {
+      if (!value) return null;
+      const dateMatch = value.match(/(\d{2})-(\d{2})-(\d{4})/);
+      if (dateMatch) {
+        const [, day, month, year] = dateMatch;
+        return new Date(`${year}-${month}-${day}`).toISOString();
+      }
+      return null;
+    };
+
+    const parsePercentage = (value) => {
+      if (!value) return null;
+      const cleaned = value.toString().replace(/[^0-9.-]/g, '');
+      const num = parseFloat(cleaned);
+      return isNaN(num) ? null : num;
+    };
+
+    const productData = {
+      created_by: createdByUserId
+    };
+
+    const id = getValue('id');
+    if (id) {
+      const parsedId = parseInteger(id);
+      if (parsedId) productData.id = parsedId;
+    }
+
+    productData.product_name = getValue('name') || null;
+    productData.category = getValue('category') || null;
+    
+    const supplierId = getValue('supplier id') || getValue('supplier_id');
+    if (supplierId) {
+      const parsedSupplierId = parseInteger(supplierId);
+      if (parsedSupplierId) productData.supplier_id = parsedSupplierId;
+    } else {
+      const supplierName = getValue('supplier');
+      if (supplierName && !supplierName.toLowerCase().includes('unknown')) {
+        productData._supplier_name = supplierName;
+      }
+    }
+
+    productData.supplier_sku = getValue('supplier sku') || getValue('supplier_sku') || null;
+    productData.jdp_sku = getValue('jdp sku') || getValue('jdp_sku') || null;
+    
+    const unitCost = getValue('unit cost') || getValue('unit_cost');
+    if (unitCost) {
+      productData.supplier_cost_price = parseNumber(unitCost);
+    }
+
+    const markupPercent = getValue('markup percentage') || getValue('markup_percentage');
+    if (markupPercent) {
+      productData.markup_percentage = parsePercentage(markupPercent);
+    }
+
+    const markupAmount = getValue('markup amount') || getValue('markup_amount');
+    if (markupAmount) {
+      productData.markup_amount = parseNumber(markupAmount);
+    }
+
+    const jdpPrice = getValue('jdp price') || getValue('jdp_price');
+    if (jdpPrice) {
+      productData.jdp_price = parseNumber(jdpPrice);
+    }
+
+    const stockQty = getValue('stock quantity') || getValue('stock_quantity');
+    if (stockQty) {
+      productData.stock_quantity = parseInteger(stockQty);
+    }
+
+    productData.status = (getValue('status') || 'active').toLowerCase();
+    if (!['active', 'inactive', 'draft'].includes(productData.status)) {
+      productData.status = 'active';
+    }
+
+    productData.description = getValue('description') || null;
+
+    const createdDate = getValue('created date') || getValue('created_date');
+    if (createdDate) {
+      const parsedDate = parseDate(createdDate);
+      if (parsedDate) productData.created_at = parsedDate;
+    }
+
+    const estimatedPrice = getValue('estimated price') || getValue('estimated_price');
+    if (estimatedPrice) {
+      productData.estimated_price = parseNumber(estimatedPrice);
+    }
+
+    return productData;
+  }
 }

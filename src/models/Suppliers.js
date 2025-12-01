@@ -521,4 +521,25 @@ export class Suppliers {
       throw error;
     }
   }
+
+  static async findByName(name) {
+    try {
+      if (!name) return null;
+
+      const { data, error } = await supabase
+        .from('suppliers')
+        .select('id, company_name, contact_person')
+        .or(`company_name.ilike.%${name}%,contact_person.ilike.%${name}%`)
+        .limit(1)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        return null;
+      }
+
+      return data;
+    } catch (error) {
+      return null;
+    }
+  }
 }
