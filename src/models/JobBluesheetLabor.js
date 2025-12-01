@@ -475,140 +475,57 @@ export class JobBluesheetLabor {
     const regularHours = Number(regularHoursDecimal) || 0;
     const overtimeHours = Number(overtimeHoursDecimal) || 0;
 
-    const firstTier = normalizedRates[0];
+    // Find Tier 1 (has max_hours) and Tier 2 (has min_hours)
+    const tier1 = normalizedRates.find(tier => 
+      tier.max_hours !== null && tier.max_hours !== undefined
+    );
+    
+    const tier2 = normalizedRates.find(tier => 
+      tier.min_hours !== null && tier.min_hours !== undefined
+    );
+
+    // If no tier structure found, use first tier as fallback
+    const fallbackTier = normalizedRates[0];
     const lastTier = normalizedRates[normalizedRates.length - 1];
 
-    const fullRegularHours = Math.ceil(Math.max(0, regularHours));
-
-    let tierForRegular = firstTier;
-
-    if (normalizedRates.length > 1 && fullRegularHours > 0) {
-  
-
-      let matchedTier = null;
-
-     
-      const exactMinMatch = normalizedRates.find((tier) => {
-        const hasMinHours = tier.min_hours !== null && tier.min_hours !== undefined;
-        return hasMinHours && fullRegularHours === tier.min_hours;
-      });
-
-      
-      const exactMaxMatch = normalizedRates.find((tier) => {
-        const hasMaxHours = tier.max_hours !== null && tier.max_hours !== undefined;
-        return hasMaxHours && fullRegularHours === tier.max_hours;
-      });
-
-      if (exactMinMatch && exactMaxMatch) {
-      
-        matchedTier = exactMinMatch.rate > exactMaxMatch.rate ? exactMinMatch : exactMaxMatch;
-      } else if (exactMinMatch) {
-
-        matchedTier = exactMinMatch;
-      } else if (exactMaxMatch) {
-    
-        matchedTier = exactMaxMatch;
-      } else {
-       
-        const rangeTiers = normalizedRates.filter((tier) => {
-          const hasMinHours = tier.min_hours !== null && tier.min_hours !== undefined;
-          const hasMaxHours = tier.max_hours !== null && tier.max_hours !== undefined;
-          return hasMinHours && hasMaxHours;
-        });
-
-       
-        const betweenTiers = rangeTiers.filter((tier) => {
-          return fullRegularHours > tier.min_hours && fullRegularHours < tier.max_hours;
-        });
-
-        if (betweenTiers.length > 0) {
-        
-          betweenTiers.sort((a, b) => a.max_hours - b.max_hours);
-          matchedTier = betweenTiers[0];
-        } else {
-         
-          const matchingTiers = normalizedRates.filter((tier) => {
-            const hasMaxHours = tier.max_hours !== null && tier.max_hours !== undefined;
-            const hasMinHours = tier.min_hours !== null && tier.min_hours !== undefined;
-
-          
-            if (!hasMaxHours && !hasMinHours) {
-              return true;
-            }
-
-       
-            let matches = true;
-
-        
-            if (hasMaxHours) {
-              matches = matches && (fullRegularHours <= tier.max_hours);
-            }
-
-          
-            if (hasMinHours) {
-              matches = matches && (fullRegularHours >= tier.min_hours);
-            }
-
-            return matches;
-          });
-
-          if (matchingTiers.length > 0) {
-           
-            const sortedMatchingTiers = matchingTiers.sort((a, b) => {
-              const hasMinA = a.min_hours !== null && a.min_hours !== undefined;
-              const hasMinB = b.min_hours !== null && b.min_hours !== undefined;
-
-          
-              if (hasMinA && !hasMinB) return -1;
-              if (!hasMinA && hasMinB) return 1;
-
-            
-              if (hasMinA && hasMinB) {
-                return b.min_hours - a.min_hours;
-              }
-
-              const hasMaxA = a.max_hours !== null && a.max_hours !== undefined;
-              const hasMaxB = b.max_hours !== null && b.max_hours !== undefined;
-              if (hasMaxA && hasMaxB) {
-                return a.max_hours - b.max_hours;
-              }
-
-              return 0;
-            });
-
-            matchedTier = sortedMatchingTiers[0];
-          } else {
-      
-            const defaultTier = normalizedRates.find(tier =>
-              (tier.max_hours === null || tier.max_hours === undefined) &&
-              (tier.min_hours === null || tier.min_hours === undefined)
-            );
-
-            if (defaultTier) {
-              matchedTier = defaultTier;
-            } else {
-       
-              matchedTier = lastTier;
-            }
-          }
-        }
-      }
-
-      if (matchedTier) {
-        tierForRegular = matchedTier;
-      }
-    }
-
-    let hourlyRate = tierForRegular.rate;
+    let hourlyRate = fallbackTier.rate;
     let totalCost = 0;
+    let matchedTier = fallbackTier;
+    let billableHours = regularHours;
 
+    // Apply tier-based calculation for regular hours
     if (regularHours > 0) {
-   
-        totalCost = fullRegularHours * tierForRegular.rate;
+      if (tier1 && tier2) {
+        // Tier system: Tier 1 has max_hours, Tier 2 has min_hours
+        const tier1MaxHours = tier1.max_hours;
+        const tier2MinHours = tier2.min_hours;
+        
+        // If hours <= Tier 1 threshold, use Tier 1 rate × Tier 1 max_hours (minimum payment)
+        if (regularHours <= tier1MaxHours) {
+          hourlyRate = tier1.rate;
+          billableHours = tier1MaxHours; // Minimum hours for Tier 1
+          totalCost = tier1MaxHours * tier1.rate;
+          matchedTier = tier1;
+        } 
+        // If hours > Tier 1 threshold, use Tier 2 rate × actual hours
+        else if (regularHours > tier1MaxHours) {
+          hourlyRate = tier2.rate;
+          billableHours = regularHours; // Actual hours for Tier 2
+          totalCost = regularHours * tier2.rate;
+          matchedTier = tier2;
+        }
+      } else {
+        // Fallback: use first tier with actual hours
+        hourlyRate = fallbackTier.rate;
+        billableHours = regularHours;
+        totalCost = regularHours * fallbackTier.rate;
+        matchedTier = fallbackTier;
+      }
     }
 
+    // Overtime hours use the last tier rate
     if (overtimeHours > 0) {
-      const overtimeBillableHours = Math.ceil(Math.max(0, overtimeHours));
+      const overtimeBillableHours = overtimeHours;
       totalCost += overtimeBillableHours * lastTier.rate;
     }
 
@@ -616,12 +533,13 @@ export class JobBluesheetLabor {
       hourlyRate,
       totalCost: Math.round(totalCost * 100) / 100,
       matchedTier: {
-        id: tierForRegular.id,
-        rate: tierForRegular.rate,
-        min_hours: tierForRegular.min_hours,
-        max_hours: tierForRegular.max_hours,
-        description: tierForRegular.description,
-        regular_hours: fullRegularHours
+        id: matchedTier.id,
+        rate: matchedTier.rate,
+        min_hours: matchedTier.min_hours,
+        max_hours: matchedTier.max_hours,
+        description: matchedTier.description,
+        regular_hours: billableHours,
+        actual_hours: regularHours
       }
     };
   }
