@@ -37,6 +37,7 @@ export class EstimateController {
         invoice_type,
         type,
         customer,
+        contractor,
         job
       } = req.query;
 
@@ -52,6 +53,7 @@ export class EstimateController {
         status: status ? String(status).toLowerCase() : undefined,
         invoice_type: (invoice_type ? String(invoice_type) : (type ? String(type) : undefined)),
         customer,
+        contractor,
         job
       };
 

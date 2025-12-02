@@ -47,6 +47,9 @@ export class Estimate {
             Estimate.inStr(est.customer?.customer_name, q) ||
             Estimate.inStr(est.customer?.company_name, q) ||
             Estimate.inStr(est.customer?.email, q) ||
+            Estimate.inStr(est.contractor?.contractor_name, q) ||
+            Estimate.inStr(est.contractor?.company_name, q) ||
+            Estimate.inStr(est.contractor?.email, q) ||
             Estimate.inStr(est.job?.job_title, q) ||
             Estimate.inStr(est.job?.id?.toString(), q);
           if (!textHit) return false;
@@ -59,6 +62,12 @@ export class Estimate {
             Estimate.inStr(est.customer?.customer_name, filters.customer) ||
             Estimate.inStr(est.customer?.company_name, filters.customer) ||
             Estimate.inStr(est.customer?.email, filters.customer)
+          )) return false;
+        if (filters.contractor &&
+          !(
+            Estimate.inStr(est.contractor?.contractor_name, filters.contractor) ||
+            Estimate.inStr(est.contractor?.company_name, filters.contractor) ||
+            Estimate.inStr(est.contractor?.email, filters.contractor)
           )) return false;
         if (filters.job &&
           !(
