@@ -29,4 +29,8 @@ export default async function suppliersRoutes(fastify, options) {
       }
     }
   }, suppliersController.deleteSupplier);
+
+  fastify.post('/import', {
+    handler: suppliersController.importSuppliers
+  });
 }

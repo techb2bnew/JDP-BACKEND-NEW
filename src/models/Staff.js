@@ -383,4 +383,44 @@ export class Staff {
       throw error;
     }
   }
+
+  static async findByIdOrEmail(staffId, email) {
+    try {
+      if (staffId) {
+        const { data, error } = await supabase
+          .from('staff')
+          .select('*')
+          .eq('id', staffId)
+          .single();
+        
+        if (!error && data) {
+          return data;
+        }
+      }
+
+      if (email) {
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('id')
+          .eq('email', email)
+          .single();
+        
+        if (!userError && userData) {
+          const { data, error } = await supabase
+            .from('staff')
+            .select('*')
+            .eq('user_id', userData.id)
+            .single();
+          
+          if (!error && data) {
+            return data;
+          }
+        }
+      }
+
+      return null;
+    } catch (error) {
+      throw error;
+    }
+  }
 }

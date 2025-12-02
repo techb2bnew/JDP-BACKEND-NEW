@@ -160,4 +160,9 @@ export default async function staffRoutes(fastify, options) {
   fastify.get('/getStaffStats', {
     preHandler: authenticateToken
   }, StaffController.getStaffStats);
+
+  fastify.post('/import', {
+    preHandler: authenticateToken,
+    handler: StaffController.importStaff
+  });
 }

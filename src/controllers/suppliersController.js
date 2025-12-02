@@ -201,4 +201,48 @@ export class suppliersController {
       return reply.status(500).send(errorResponse(`${error.message}`, 500));
     }
   }
+
+  static async importSuppliers(request, reply) {
+    try {
+      const userId = request.user.id;
+      const data = await request.file();
+
+      if (!data) {
+        return reply.status(400).send(errorResponse(
+          'CSV file is required',
+          400
+        ));
+      }
+
+      if (data.mimetype !== 'text/csv' && !data.filename.endsWith('.csv')) {
+        return reply.status(400).send(errorResponse(
+          'File must be a CSV file',
+          400
+        ));
+      }
+
+      const buffer = await data.toBuffer();
+      const csvContent = buffer.toString('utf-8');
+
+      if (!csvContent || csvContent.trim().length === 0) {
+        return reply.status(400).send(errorResponse(
+          'CSV file is empty',
+          400
+        ));
+      }
+
+      const result = await SuppliersService.importSuppliers(csvContent, userId);
+      
+      return reply.status(200).send(successResponse(
+        result.data,
+        result.message,
+        200
+      ));
+    } catch (error) {
+      return reply.status(500).send(errorResponse(
+        `Failed to import suppliers: ${error.message}`,
+        500
+      ));
+    }
+  }
 }

@@ -302,4 +302,310 @@ export class SuppliersService {
             throw error;
         }
     }
+
+    static async importSuppliers(csvContent, createdByUserId) {
+        try {
+            const lines = csvContent.split('\n').filter(line => line.trim());
+            if (lines.length < 2) {
+                throw new Error('CSV file must have at least a header row and one data row');
+            }
+
+            const headers = this.parseCSVLine(lines[0]);
+            const headerMap = this.mapCSVHeaders(headers);
+
+            const results = {
+                total: 0,
+                created: 0,
+                updated: 0,
+                errors: [],
+                success: []
+            };
+
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
+
+                try {
+                    const row = this.parseCSVLine(line);
+                    
+                    // Debug: Log header map for first row to help troubleshoot
+                    if (i === 1) {
+                        console.log('CSV Headers detected:', Object.keys(headerMap));
+                    }
+                    
+                    const supplierData = this.mapCSVRowToSupplier(row, headerMap, createdByUserId);
+
+                    if (!supplierData.full_name || !supplierData.email || !supplierData.company_name) {
+                        results.errors.push({
+                            row: i + 1,
+                            error: 'Full name, email, and company name are required'
+                        });
+                        continue;
+                    }
+
+                    results.total++;
+
+                    const existingSupplier = await Suppliers.findByIdOrCode(
+                        supplierData.id,
+                        supplierData.supplier_code,
+                        supplierData.email
+                    );
+
+                    if (existingSupplier) {
+                        const updateData = { ...supplierData };
+                        delete updateData.id;
+                        delete updateData.created_by;
+                        delete updateData.created_at;
+
+                        const updatedSupplier = await SuppliersService.updateSupplier(existingSupplier.id, updateData);
+                        results.updated++;
+                        results.success.push({
+                            row: i + 1,
+                            action: 'updated',
+                            supplier_id: existingSupplier.id,
+                            company_name: updatedSupplier.company_name
+                        });
+                    } else {
+                        const newSupplier = await SuppliersService.createSuppliersWithUser(supplierData);
+                        results.created++;
+                        results.success.push({
+                            row: i + 1,
+                            action: 'created',
+                            supplier_id: newSupplier.supplier.id,
+                            company_name: newSupplier.supplier.company_name
+                        });
+                    }
+                } catch (error) {
+                    results.errors.push({
+                        row: i + 1,
+                        error: error.message
+                    });
+                }
+            }
+
+            return {
+                success: true,
+                message: `Import completed: ${results.created} created, ${results.updated} updated, ${results.errors.length} errors`,
+                data: results
+            };
+        } catch (error) {
+            throw error;
+        }
+    }
+
+    static parseCSVLine(line) {
+        const result = [];
+        let current = '';
+        let inQuotes = false;
+
+        for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+            
+            if (char === '"') {
+                if (inQuotes && line[i + 1] === '"') {
+                    current += '"';
+                    i++;
+                } else {
+                    inQuotes = !inQuotes;
+                }
+            } else if (char === ',' && !inQuotes) {
+                result.push(current.trim());
+                current = '';
+            } else {
+                current += char;
+            }
+        }
+        result.push(current.trim());
+        return result;
+    }
+
+    static mapCSVHeaders(headers) {
+        const map = {};
+        headers.forEach((header, index) => {
+            const normalized = header.trim().toLowerCase();
+            map[normalized] = index;
+            
+            // Also map partial matches for truncated headers
+            if (normalized.includes('supplier') && normalized.includes('id')) {
+                map['supplier id'] = index;
+                map['supplier_code'] = index;
+            }
+            if (normalized.includes('full') && normalized.includes('name')) {
+                map['full name'] = index;
+            }
+            if (normalized.includes('company') && normalized.includes('name')) {
+                map['company name'] = index;
+            }
+            if (normalized.includes('contact') && normalized.includes('person')) {
+                map['contact person'] = index;
+            }
+            if (normalized.includes('contract') && normalized.includes('start')) {
+                map['contract start'] = index;
+            }
+            if (normalized.includes('contract') && normalized.includes('end')) {
+                map['contract end'] = index;
+            }
+            if (normalized.includes('total') && normalized.includes('order')) {
+                map['total orders'] = index;
+            }
+        });
+        return map;
+    }
+
+    static mapCSVRowToSupplier(row, headerMap, createdByUserId) {
+        const getValue = (key) => {
+            let index = headerMap[key];
+            
+            // If exact match not found, try partial matches
+            if (index === undefined) {
+                const matchingKey = Object.keys(headerMap).find(h => 
+                    h.includes(key.toLowerCase()) || key.toLowerCase().includes(h)
+                );
+                if (matchingKey) {
+                    index = headerMap[matchingKey];
+                }
+            }
+            
+            return index !== undefined && row[index] ? row[index].trim() : null;
+        };
+
+        const parseNumber = (value) => {
+            if (!value) return null;
+            const cleaned = value.toString().replace(/[^0-9.-]/g, '');
+            const num = parseFloat(cleaned);
+            return isNaN(num) ? null : num;
+        };
+
+        const parseInteger = (value) => {
+            if (!value) return null;
+            const cleaned = value.toString().replace(/[^0-9]/g, '');
+            const num = parseInt(cleaned);
+            return isNaN(num) ? null : num;
+        };
+
+        const parseDate = (value) => {
+            if (!value || value.trim() === '' || value.includes('########') || value.includes('#')) {
+                return null;
+            }
+            
+            // Try MM/DD/YYYY format (common in US Excel exports)
+            let dateMatch = value.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+            if (dateMatch) {
+                const [, month, day, year] = dateMatch;
+                const date = new Date(`${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`);
+                if (!isNaN(date.getTime())) {
+                    return date.toISOString().split('T')[0];
+                }
+            }
+            
+            // Try DD-MM-YYYY format
+            dateMatch = value.match(/(\d{2})-(\d{2})-(\d{4})/);
+            if (dateMatch) {
+                const [, day, month, year] = dateMatch;
+                const date = new Date(`${year}-${month}-${day}`);
+                if (!isNaN(date.getTime())) {
+                    return date.toISOString().split('T')[0];
+                }
+            }
+            
+            // Try YYYY-MM-DD format
+            dateMatch = value.match(/(\d{4})-(\d{2})-(\d{2})/);
+            if (dateMatch) {
+                const [, year, month, day] = dateMatch;
+                const date = new Date(`${year}-${month}-${day}`);
+                if (!isNaN(date.getTime())) {
+                    return date.toISOString().split('T')[0];
+                }
+            }
+            
+            // Try to parse as ISO date
+            const isoDate = new Date(value);
+            if (!isNaN(isoDate.getTime())) {
+                return isoDate.toISOString().split('T')[0];
+            }
+            
+            return null;
+        };
+
+        const extractSupplierCode = (value) => {
+            if (!value) return null;
+            const codeMatch = value.match(/(SUP-\d{4}-\d+)/);
+            return codeMatch ? codeMatch[1] : null;
+        };
+
+        const supplierData = {};
+
+        const id = getValue('id');
+        if (id) {
+            const parsedId = parseInteger(id);
+            if (parsedId) supplierData.id = parsedId;
+        }
+
+        const supplierId = getValue('supplier id') || getValue('supplier_id');
+        if (supplierId) {
+            const code = extractSupplierCode(supplierId);
+            if (code) {
+                supplierData.supplier_code = code;
+            }
+        }
+
+        const fullName = getValue('full name') || getValue('full_name');
+        supplierData.full_name = fullName || null;
+
+        supplierData.email = getValue('email') || null;
+        
+        const phone = getValue('phone');
+        if (phone) {
+            if (phone.includes('E+') || phone.includes('e+')) {
+                const phoneNum = parseFloat(phone);
+                if (!isNaN(phoneNum)) {
+                    supplierData.phone = phoneNum.toFixed(0);
+                } else {
+                    supplierData.phone = phone;
+                }
+            } else {
+                supplierData.phone = phone;
+            }
+        } else {
+            supplierData.phone = null;
+        }
+
+        const companyName = getValue('company name') || getValue('company_name');
+        supplierData.company_name = companyName || null;
+
+        const contactPerson = getValue('contact person') || getValue('contact_person');
+        supplierData.contact_person = contactPerson || null;
+
+        supplierData.address = getValue('address') || null;
+
+        const status = getValue('status');
+        if (status) {
+            supplierData.status = status.toLowerCase() === 'active' ? 'active' : 'inactive';
+        } else {
+            supplierData.status = 'active';
+        }
+
+        const contractStart = getValue('contract start') || getValue('contract_start');
+        if (contractStart) {
+            const parsedDate = parseDate(contractStart);
+            supplierData.contract_start = parsedDate || null;
+        } else {
+            supplierData.contract_start = null;
+        }
+
+        const contractEnd = getValue('contract end') || getValue('contract_end');
+        if (contractEnd) {
+            const parsedDate = parseDate(contractEnd);
+            supplierData.contract_end = parsedDate || null;
+        } else {
+            supplierData.contract_end = null;
+        }
+
+        supplierData.notes = getValue('notes') || null;
+
+        supplierData.role = 'supplier';
+        supplierData.management_type = 'supplier';
+
+        return supplierData;
+    }
 }

@@ -542,4 +542,56 @@ export class Suppliers {
       return null;
     }
   }
+
+  static async findByIdOrCode(supplierId, supplierCode, email) {
+    try {
+      if (supplierId) {
+        const { data, error } = await supabase
+          .from('suppliers')
+          .select('*')
+          .eq('id', supplierId)
+          .single();
+        
+        if (!error && data) {
+          return data;
+        }
+      }
+
+      if (supplierCode) {
+        const { data, error } = await supabase
+          .from('suppliers')
+          .select('*')
+          .eq('supplier_code', supplierCode)
+          .single();
+        
+        if (!error && data) {
+          return data;
+        }
+      }
+
+      if (email) {
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('id')
+          .eq('email', email)
+          .single();
+        
+        if (!userError && userData) {
+          const { data, error } = await supabase
+            .from('suppliers')
+            .select('*')
+            .eq('user_id', userData.id)
+            .single();
+          
+          if (!error && data) {
+            return data;
+          }
+        }
+      }
+
+      return null;
+    } catch (error) {
+      throw error;
+    }
+  }
 }

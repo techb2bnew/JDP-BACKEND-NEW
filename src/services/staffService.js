@@ -375,4 +375,283 @@ export class StaffService {
       throw error;
     }
   }
+
+  static async importStaff(csvContent, createdByUserId) {
+    try {
+      const lines = csvContent.split('\n').filter(line => line.trim());
+      if (lines.length < 2) {
+        throw new Error('CSV file must have at least a header row and one data row');
+      }
+
+      const headers = this.parseCSVLine(lines[0]);
+      const headerMap = this.mapCSVHeaders(headers);
+
+      const results = {
+        total: 0,
+        created: 0,
+        updated: 0,
+        errors: [],
+        success: []
+      };
+
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+
+        try {
+          const row = this.parseCSVLine(line);
+          
+          // Debug: Log header map for first row to help troubleshoot
+          if (i === 1) {
+            console.log('CSV Headers detected:', Object.keys(headerMap));
+          }
+          
+          const staffData = this.mapCSVRowToStaff(row, headerMap, createdByUserId);
+
+          if (!staffData.full_name || !staffData.email) {
+            results.errors.push({
+              row: i + 1,
+              error: 'Full name and email are required'
+            });
+            continue;
+          }
+
+          results.total++;
+
+          const existingStaff = await Staff.findByIdOrEmail(
+            staffData.id,
+            staffData.email
+          );
+
+          if (existingStaff) {
+            const updateData = { ...staffData };
+            delete updateData.id;
+            delete updateData.created_by;
+            delete updateData.created_at;
+
+            const updatedStaff = await StaffService.updateStaff(existingStaff.id, updateData);
+            results.updated++;
+            results.success.push({
+              row: i + 1,
+              action: 'updated',
+              staff_id: existingStaff.id,
+              full_name: updatedStaff.full_name || updatedStaff.users?.full_name
+            });
+          } else {
+            const newStaff = await StaffService.createStaffWithUser(staffData);
+            results.created++;
+            results.success.push({
+              row: i + 1,
+              action: 'created',
+              staff_id: newStaff.staff.id,
+              full_name: newStaff.staff.users?.full_name || newStaff.staff.full_name
+            });
+          }
+        } catch (error) {
+          results.errors.push({
+            row: i + 1,
+            error: error.message
+          });
+        }
+      }
+
+      return {
+        success: true,
+        message: `Import completed: ${results.created} created, ${results.updated} updated, ${results.errors.length} errors`,
+        data: results
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static parseCSVLine(line) {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      
+      if (char === '"') {
+        if (inQuotes && line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (char === ',' && !inQuotes) {
+        result.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    result.push(current.trim());
+    return result;
+  }
+
+  static mapCSVHeaders(headers) {
+    const map = {};
+    headers.forEach((header, index) => {
+      const normalized = header.trim().toLowerCase();
+      map[normalized] = index;
+      
+      // Also map partial matches for truncated headers
+      if (normalized.includes('date') && normalized.includes('joi')) {
+        map['date of join'] = index;
+        map['date of jo'] = index;
+      }
+      if (normalized.includes('date') && normalized.includes('join')) {
+        map['date of join'] = index;
+        map['date of jo'] = index;
+      }
+      if (normalized.includes('depart')) {
+        map['department'] = index;
+        map['departme'] = index;
+      }
+      if (normalized.includes('posit')) {
+        map['position'] = index;
+      }
+    });
+    return map;
+  }
+
+  static mapCSVRowToStaff(row, headerMap, createdByUserId) {
+    const getValue = (key) => {
+      let index = headerMap[key];
+      
+      // If exact match not found, try partial matches
+      if (index === undefined) {
+        const matchingKey = Object.keys(headerMap).find(h => 
+          h.includes(key.toLowerCase()) || key.toLowerCase().includes(h)
+        );
+        if (matchingKey) {
+          index = headerMap[matchingKey];
+        }
+      }
+      
+      return index !== undefined && row[index] ? row[index].trim() : null;
+    };
+
+    const parseNumber = (value) => {
+      if (!value) return null;
+      const cleaned = value.toString().replace(/[^0-9.-]/g, '');
+      const num = parseFloat(cleaned);
+      return isNaN(num) ? null : num;
+    };
+
+    const parseInteger = (value) => {
+      if (!value) return null;
+      const cleaned = value.toString().replace(/[^0-9]/g, '');
+      const num = parseInt(cleaned);
+      return isNaN(num) ? null : num;
+    };
+
+    const parseDate = (value) => {
+      if (!value || value.trim() === '' || value.includes('########') || value.includes('#')) {
+        return null;
+      }
+      
+      // Try DD-MM-YYYY format
+      let dateMatch = value.match(/(\d{2})-(\d{2})-(\d{4})/);
+      if (dateMatch) {
+        const [, day, month, year] = dateMatch;
+        const date = new Date(`${year}-${month}-${day}`);
+        if (!isNaN(date.getTime())) {
+          return date.toISOString().split('T')[0];
+        }
+      }
+      
+      // Try YYYY-MM-DD format
+      dateMatch = value.match(/(\d{4})-(\d{2})-(\d{2})/);
+      if (dateMatch) {
+        const [, year, month, day] = dateMatch;
+        const date = new Date(`${year}-${month}-${day}`);
+        if (!isNaN(date.getTime())) {
+          return date.toISOString().split('T')[0];
+        }
+      }
+      
+      // Try MM/DD/YYYY format
+      dateMatch = value.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+      if (dateMatch) {
+        const [, month, day, year] = dateMatch;
+        const date = new Date(`${year}-${month}-${day}`);
+        if (!isNaN(date.getTime())) {
+          return date.toISOString().split('T')[0];
+        }
+      }
+      
+      // Try to parse as ISO date
+      const isoDate = new Date(value);
+      if (!isNaN(isoDate.getTime())) {
+        return isoDate.toISOString().split('T')[0];
+      }
+      
+      return null;
+    };
+
+    const staffData = {};
+
+    const id = getValue('id');
+    if (id) {
+      const parsedId = parseInteger(id);
+      if (parsedId) staffData.id = parsedId;
+    }
+
+    const name = getValue('name');
+    staffData.full_name = name || null;
+
+    staffData.email = getValue('email') || null;
+    
+    const phone = getValue('phone');
+    if (phone) {
+      if (phone.includes('E+') || phone.includes('e+')) {
+        const phoneNum = parseFloat(phone);
+        if (!isNaN(phoneNum)) {
+          staffData.phone = phoneNum.toFixed(0);
+        } else {
+          staffData.phone = phone;
+        }
+      } else {
+        staffData.phone = phone;
+      }
+    } else {
+      staffData.phone = null;
+    }
+
+    const address = getValue('address');
+    staffData.address = address || null;
+
+    staffData.position = getValue('position') || null;
+
+    const department = getValue('departme') || getValue('department');
+    staffData.department = department || null;
+
+    const dateOfJoin = getValue('date of jo') || 
+                       getValue('date of joi') || 
+                       getValue('date of join') || 
+                       getValue('date_of_joining');
+    
+    const parsedDateOfJoin = dateOfJoin ? parseDate(dateOfJoin) : null;
+    if (!parsedDateOfJoin) {
+      // If date of join is missing, use current date as default
+      staffData.date_of_joining = new Date().toISOString().split('T')[0];
+    } else {
+      staffData.date_of_joining = parsedDateOfJoin;
+    }
+
+    const status = getValue('status');
+    if (status) {
+      staffData.status = status.toLowerCase() === 'active' ? 'active' : 'inactive';
+    } else {
+      staffData.status = 'active';
+    }
+
+    staffData.role = 'staff';
+    staffData.management_type = 'staff';
+
+    return staffData;
+  }
 }
