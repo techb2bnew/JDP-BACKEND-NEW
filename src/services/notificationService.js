@@ -143,8 +143,63 @@ export class NotificationService {
         ? notificationPayload.recipient_user_ids
         : [];
 
+      // Fetch user_ids from labor_ids array if provided
+      const laborIds = Array.isArray(notificationPayload.labor_ids) 
+        ? notificationPayload.labor_ids.filter(id => id !== null && id !== undefined)
+        : [];
+      
+      let laborUserIds = [];
+      if (laborIds.length > 0) {
+        try {
+          const { data: laborData, error: laborError } = await supabase
+            .from('labor')
+            .select('user_id')
+            .in('id', laborIds)
+            .not('user_id', 'is', null);
+          
+          if (!laborError && laborData) {
+            laborUserIds = laborData
+              .map(l => l.user_id)
+              .filter(id => id !== null && id !== undefined);
+          }
+        } catch (error) {
+          console.error('Error fetching user_ids from labor_ids:', error);
+        }
+      }
+
+      // Fetch user_ids from lead_labor_ids array if provided
+      const leadLaborIds = Array.isArray(notificationPayload.lead_labor_ids)
+        ? notificationPayload.lead_labor_ids.filter(id => id !== null && id !== undefined)
+        : [];
+      
+      let leadLaborUserIds = [];
+      if (leadLaborIds.length > 0) {
+        try {
+          const { data: leadLaborData, error: leadLaborError } = await supabase
+            .from('lead_labor')
+            .select('user_id')
+            .in('id', leadLaborIds)
+            .not('user_id', 'is', null);
+          
+          if (!leadLaborError && leadLaborData) {
+            leadLaborUserIds = leadLaborData
+              .map(ll => ll.user_id)
+              .filter(id => id !== null && id !== undefined);
+          }
+        } catch (error) {
+          console.error('Error fetching user_ids from lead_labor_ids:', error);
+        }
+      }
+
+      // Merge all user_ids: existing + labor + lead_labor
+      const allUserIds = [
+        ...rawTargetUserIds,
+        ...laborUserIds,
+        ...leadLaborUserIds
+      ];
+
       const targetUserIds = new Set(
-        rawTargetUserIds
+        allUserIds
           .map((value) => {
             if (typeof value === 'number' && Number.isFinite(value)) {
               return value;

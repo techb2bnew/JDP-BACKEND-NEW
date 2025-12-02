@@ -28,7 +28,10 @@ export class NotificationController {
         staff_id,
         lead_labor_id,
         labor_id,
-        supplier_id
+        supplier_id,
+        labor_ids,
+        lead_labor_ids,
+        recipient_user_ids
       } = request.body;
 
       if (!notification_title || !notification_title.trim()) {
@@ -62,6 +65,20 @@ export class NotificationController {
         }
       }
 
+      // Parse labor_ids and lead_labor_ids arrays
+      const parsedLaborIds = Array.isArray(labor_ids) 
+        ? labor_ids.map(id => parseOptionalInt(id)).filter(id => id !== null)
+        : [];
+      
+      const parsedLeadLaborIds = Array.isArray(lead_labor_ids)
+        ? lead_labor_ids.map(id => parseOptionalInt(id)).filter(id => id !== null)
+        : [];
+
+      // Parse recipient_user_ids array if provided
+      const parsedRecipientUserIds = Array.isArray(recipient_user_ids)
+        ? recipient_user_ids.map(id => parseOptionalInt(id)).filter(id => id !== null)
+        : [];
+
       const payload = {
         notification_title: notification_title.trim(),
         message: message.trim(),
@@ -78,7 +95,10 @@ export class NotificationController {
         staff_id: parseOptionalInt(staff_id),
         lead_labor_id: parseOptionalInt(lead_labor_id),
         labor_id: parseOptionalInt(labor_id),
-        supplier_id: parseOptionalInt(supplier_id)
+        supplier_id: parseOptionalInt(supplier_id),
+        labor_ids: parsedLaborIds,
+        lead_labor_ids: parsedLeadLaborIds,
+        recipient_user_ids: parsedRecipientUserIds
       };
 
       const result = await NotificationService.sendNotification(payload);
