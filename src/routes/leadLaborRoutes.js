@@ -174,5 +174,9 @@ export default async function leadLaborRoutes(fastify, options) {
       }
     }
   }, LeadLaborController.deleteLeadLabor);
+
+  fastify.post('/import', {
+    handler: LeadLaborController.importLeadLabor
+  });
   
 }

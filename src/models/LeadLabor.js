@@ -714,4 +714,56 @@ export class LeadLabor {
       throw error;
     }
   }
+
+  static async findByIdOrCode(leadLaborId, laborCode, email) {
+    try {
+      if (leadLaborId) {
+        const { data, error } = await supabase
+          .from('lead_labor')
+          .select('*')
+          .eq('id', leadLaborId)
+          .single();
+        
+        if (!error && data) {
+          return data;
+        }
+      }
+
+      if (laborCode) {
+        const { data, error } = await supabase
+          .from('lead_labor')
+          .select('*')
+          .eq('labor_code', laborCode)
+          .single();
+        
+        if (!error && data) {
+          return data;
+        }
+      }
+
+      if (email) {
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('id')
+          .eq('email', email)
+          .single();
+        
+        if (!userError && userData) {
+          const { data, error } = await supabase
+            .from('lead_labor')
+            .select('*')
+            .eq('user_id', userData.id)
+            .single();
+          
+          if (!error && data) {
+            return data;
+          }
+        }
+      }
+
+      return null;
+    } catch (error) {
+      throw error;
+    }
+  }
 }
