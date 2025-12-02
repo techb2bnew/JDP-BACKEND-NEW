@@ -111,4 +111,8 @@ export default async function laborRoutes(fastify, options) {
 
   fastify.get('/getLaborByJob/:jobId', LaborController.getLaborByJob);
 
+  fastify.post('/import', {
+    handler: LaborController.importLabor
+  });
+
 }

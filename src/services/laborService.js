@@ -520,4 +520,360 @@ export class LaborService {
       throw error;
     }
   }
+
+  static async importLabor(csvContent, createdByUserId) {
+    try {
+      const lines = csvContent.split('\n').filter(line => line.trim());
+      if (lines.length < 2) {
+        throw new Error('CSV file must have at least a header row and one data row');
+      }
+
+      const headers = this.parseCSVLine(lines[0]);
+      const headerMap = this.mapCSVHeaders(headers);
+
+      const results = {
+        total: 0,
+        created: 0,
+        updated: 0,
+        errors: [],
+        success: []
+      };
+
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+
+        try {
+          const row = this.parseCSVLine(line);
+          
+          // Debug: Log header map for first row to help troubleshoot
+          if (i === 1) {
+            console.log('CSV Headers detected:', Object.keys(headerMap));
+          }
+          
+          const laborData = this.mapCSVRowToLabor(row, headerMap, createdByUserId);
+
+          if (!laborData.full_name || !laborData.email) {
+            results.errors.push({
+              row: i + 1,
+              error: 'Full name and email are required'
+            });
+            continue;
+          }
+
+          results.total++;
+
+          // Handle supervisor lookup if supervisor code is provided
+          if (laborData._supervisor_code) {
+            const supervisor = await LeadLabor.findByLaborCode(laborData._supervisor_code);
+            if (supervisor && supervisor.user_id) {
+              laborData.supervisor_id = supervisor.user_id;
+            }
+            delete laborData._supervisor_code;
+          }
+
+          const existingLabor = await Labor.findByIdOrCode(
+            laborData.id,
+            laborData.labor_code,
+            laborData.email
+          );
+
+          if (existingLabor) {
+            const updateData = { ...laborData };
+            delete updateData.id;
+            delete updateData.created_by;
+            delete updateData.created_at;
+
+            const updatedLabor = await LaborService.updateLabor(existingLabor.id, updateData);
+            results.updated++;
+            results.success.push({
+              row: i + 1,
+              action: 'updated',
+              labor_id: existingLabor.id,
+              full_name: updatedLabor.full_name || updatedLabor.users?.full_name
+            });
+          } else {
+            const newLabor = await LaborService.createLaborWithUser(laborData);
+            results.created++;
+            results.success.push({
+              row: i + 1,
+              action: 'created',
+              labor_id: newLabor.labor.id,
+              full_name: newLabor.labor.users?.full_name || newLabor.labor.full_name
+            });
+          }
+        } catch (error) {
+          results.errors.push({
+            row: i + 1,
+            error: error.message
+          });
+        }
+      }
+
+      return {
+        success: true,
+        message: `Import completed: ${results.created} created, ${results.updated} updated, ${results.errors.length} errors`,
+        data: results
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static parseCSVLine(line) {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      
+      if (char === '"') {
+        if (inQuotes && line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (char === ',' && !inQuotes) {
+        result.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    result.push(current.trim());
+    return result;
+  }
+
+  static mapCSVHeaders(headers) {
+    const map = {};
+    headers.forEach((header, index) => {
+      const normalized = header.trim().toLowerCase();
+      map[normalized] = index;
+      
+      // Also map partial matches for truncated headers
+      if (normalized.includes('date') && normalized.includes('joi')) {
+        map['date of join'] = index;
+        map['date of jo'] = index;
+      }
+      if (normalized.includes('date') && normalized.includes('join')) {
+        map['date of join'] = index;
+        map['date of jo'] = index;
+      }
+      if (normalized.includes('dob') || (normalized.includes('date') && normalized.includes('birth'))) {
+        map['dob'] = index;
+        map['date of birth'] = index;
+      }
+      if (normalized.includes('labor') && normalized.includes('id')) {
+        map['labor id'] = index;
+        map['labor_code'] = index;
+      }
+      if (normalized.includes('hourly') && normalized.includes('rat')) {
+        map['hourly rate'] = index;
+        map['hourly_rate'] = index;
+      }
+      if (normalized.includes('avail')) {
+        map['availability'] = index;
+        map['availabilit'] = index;
+      }
+      if (normalized.includes('supervis')) {
+        map['supervisor'] = index;
+        map['superviso'] = index;
+      }
+      if (normalized.includes('certif')) {
+        map['certification'] = index;
+        map['certificati'] = index;
+      }
+      if (normalized.includes('experienc')) {
+        map['experience'] = index;
+        map['experienc'] = index;
+      }
+    });
+    return map;
+  }
+
+  static mapCSVRowToLabor(row, headerMap, createdByUserId) {
+    const getValue = (key) => {
+      let index = headerMap[key];
+      
+      // If exact match not found, try partial matches
+      if (index === undefined) {
+        const matchingKey = Object.keys(headerMap).find(h => 
+          h.includes(key.toLowerCase()) || key.toLowerCase().includes(h)
+        );
+        if (matchingKey) {
+          index = headerMap[matchingKey];
+        }
+      }
+      
+      return index !== undefined && row[index] ? row[index].trim() : null;
+    };
+
+    const parseNumber = (value) => {
+      if (!value) return null;
+      const cleaned = value.toString().replace(/[^0-9.-]/g, '');
+      const num = parseFloat(cleaned);
+      return isNaN(num) ? null : num;
+    };
+
+    const parseInteger = (value) => {
+      if (!value) return null;
+      const cleaned = value.toString().replace(/[^0-9]/g, '');
+      const num = parseInt(cleaned);
+      return isNaN(num) ? null : num;
+    };
+
+    const parseDate = (value) => {
+      if (!value || value.trim() === '' || value.includes('########') || value.includes('#')) {
+        return null;
+      }
+      
+      // Try DD-MM-YYYY format
+      let dateMatch = value.match(/(\d{2})-(\d{2})-(\d{4})/);
+      if (dateMatch) {
+        const [, day, month, year] = dateMatch;
+        const date = new Date(`${year}-${month}-${day}`);
+        if (!isNaN(date.getTime())) {
+          return date.toISOString().split('T')[0];
+        }
+      }
+      
+      // Try YYYY-MM-DD format
+      dateMatch = value.match(/(\d{4})-(\d{2})-(\d{2})/);
+      if (dateMatch) {
+        const [, year, month, day] = dateMatch;
+        const date = new Date(`${year}-${month}-${day}`);
+        if (!isNaN(date.getTime())) {
+          return date.toISOString().split('T')[0];
+        }
+      }
+      
+      // Try MM/DD/YYYY format
+      dateMatch = value.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+      if (dateMatch) {
+        const [, month, day, year] = dateMatch;
+        const date = new Date(`${year}-${month}-${day}`);
+        if (!isNaN(date.getTime())) {
+          return date.toISOString().split('T')[0];
+        }
+      }
+      
+      // Try to parse as ISO date
+      const isoDate = new Date(value);
+      if (!isNaN(isoDate.getTime())) {
+        return isoDate.toISOString().split('T')[0];
+      }
+      
+      return null;
+    };
+
+    const extractLaborCode = (value) => {
+      if (!value) return null;
+      const codeMatch = value.match(/(LB-\d{4}-\d+)/);
+      return codeMatch ? codeMatch[1] : null;
+    };
+
+    const laborData = {};
+
+    const id = getValue('id');
+    if (id) {
+      const parsedId = parseInteger(id);
+      if (parsedId) laborData.id = parsedId;
+    }
+
+    const laborId = getValue('labor id') || getValue('labor_id');
+    if (laborId) {
+      const code = extractLaborCode(laborId);
+      if (code) {
+        laborData.labor_code = code;
+      }
+    }
+
+    const name = getValue('name');
+    laborData.full_name = name || null;
+
+    laborData.email = getValue('email') || null;
+    
+    const phone = getValue('phone');
+    if (phone) {
+      if (phone.includes('E+') || phone.includes('e+')) {
+        const phoneNum = parseFloat(phone);
+        if (!isNaN(phoneNum)) {
+          laborData.phone = phoneNum.toFixed(0);
+        } else {
+          laborData.phone = phone;
+        }
+      } else {
+        laborData.phone = phone;
+      }
+    } else {
+      laborData.phone = null;
+    }
+
+    const dob = getValue('dob') || getValue('date of birth');
+    const parsedDob = dob ? parseDate(dob) : null;
+    if (!parsedDob) {
+      // If DOB is missing, use a default date (e.g., 25 years ago from current date)
+      const defaultDob = new Date();
+      defaultDob.setFullYear(defaultDob.getFullYear() - 25);
+      laborData.dob = defaultDob.toISOString().split('T')[0];
+    } else {
+      laborData.dob = parsedDob;
+    }
+
+    const address = getValue('address');
+    if (!address || address.trim() === '') {
+      throw new Error('Address is required');
+    }
+    laborData.address = address;
+
+    laborData.trade = getValue('trade') || null;
+    laborData.experience = getValue('experienc') || getValue('experience') || null;
+
+    const hourlyRate = getValue('hourly rat') || getValue('hourly rate') || getValue('hourly_rate');
+    if (hourlyRate) {
+      laborData.hourly_rate = parseNumber(hourlyRate);
+    }
+
+    const availability = getValue('availabilit') || getValue('availability');
+    if (availability) {
+      laborData.availability = availability.toLowerCase();
+      laborData.status = availability.toLowerCase() === 'active' ? 'active' : 'inactive';
+    } else {
+      laborData.status = 'active';
+      laborData.availability = 'active';
+    }
+
+    const dateOfJoin = getValue('date of jo') || 
+                       getValue('date of joi') || 
+                       getValue('date of join') || 
+                       getValue('date_of_joining');
+    
+    const parsedDateOfJoin = dateOfJoin ? parseDate(dateOfJoin) : null;
+    if (!parsedDateOfJoin) {
+      // If date of join is missing, use current date as default
+      laborData.date_of_joining = new Date().toISOString().split('T')[0];
+    } else {
+      laborData.date_of_joining = parsedDateOfJoin;
+    }
+
+    const supervisor = getValue('superviso') || getValue('supervisor');
+    if (supervisor) {
+      // Try to find supervisor by labor code (Lead Labor)
+      const supervisorCode = extractLaborCode(supervisor) || supervisor;
+      if (supervisorCode) {
+        laborData._supervisor_code = supervisorCode;
+      }
+    }
+
+    laborData.certifications = getValue('certificati') || getValue('certification') || null;
+    laborData.skills = getValue('skills') || null;
+    laborData.notes = getValue('notes') || null;
+
+    laborData.role = 'labor';
+    laborData.management_type = 'labor';
+
+    return laborData;
+  }
 }

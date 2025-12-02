@@ -889,4 +889,56 @@ export class Labor {
       throw error;
     }
   }
+
+  static async findByIdOrCode(laborId, laborCode, email) {
+    try {
+      if (laborId) {
+        const { data, error } = await supabase
+          .from('labor')
+          .select('*')
+          .eq('id', laborId)
+          .single();
+        
+        if (!error && data) {
+          return this.parseLaborData(data);
+        }
+      }
+
+      if (laborCode) {
+        const { data, error } = await supabase
+          .from('labor')
+          .select('*')
+          .eq('labor_code', laborCode)
+          .single();
+        
+        if (!error && data) {
+          return this.parseLaborData(data);
+        }
+      }
+
+      if (email) {
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('id')
+          .eq('email', email)
+          .single();
+        
+        if (!userError && userData) {
+          const { data, error } = await supabase
+            .from('labor')
+            .select('*')
+            .eq('user_id', userData.id)
+            .single();
+          
+          if (!error && data) {
+            return this.parseLaborData(data);
+          }
+        }
+      }
+
+      return null;
+    } catch (error) {
+      throw error;
+    }
+  }
 }
