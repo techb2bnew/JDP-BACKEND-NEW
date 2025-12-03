@@ -627,6 +627,44 @@ export class JobController {
     }
   }
 
+  static async getWeeklyTimesheetView(request, reply) {
+    try {
+      const { labor_id, lead_labor_id, start_date, end_date } = request.query;
+
+      if (!start_date || !end_date) {
+        return reply.code(400).send(errorResponse('start_date and end_date are required', 400));
+      }
+
+      if (!labor_id && !lead_labor_id) {
+        return reply.code(400).send(errorResponse('Either labor_id or lead_labor_id is required', 400));
+      }
+
+      const laborId = labor_id ? parseInt(labor_id) : null;
+      const leadLaborId = lead_labor_id ? parseInt(lead_labor_id) : null;
+
+      if (labor_id && (isNaN(laborId) || laborId < 1)) {
+        return reply.code(400).send(errorResponse('Invalid labor_id', 400));
+      }
+
+      if (lead_labor_id && (isNaN(leadLaborId) || leadLaborId < 1)) {
+        return reply.code(400).send(errorResponse('Invalid lead_labor_id', 400));
+      }
+
+      const result = await Job.getWeeklyTimesheetView(laborId, leadLaborId, start_date, end_date);
+      
+      return reply.code(200).send({
+        success: true,
+        message: 'Weekly timesheet view retrieved successfully',
+        data: result
+      });
+    } catch (error) {
+      if (error.message.includes('not found')) {
+        return reply.code(404).send(errorResponse(error.message, 404));
+      }
+      return reply.code(500).send(errorResponse(error.message));
+    }
+  }
+
   static async approveTimesheet(request, reply) {
     try {
       const { jobId, laborId, date, status, billable } = request.body;

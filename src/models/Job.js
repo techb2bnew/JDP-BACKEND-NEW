@@ -3598,12 +3598,14 @@ export class Job {
           ),
           labor:labor_id (
             id,
+            hourly_rate,
             users!labor_user_id_fkey (
               full_name
             )
           ),
           lead_labor:lead_labor_id (
             id,
+            hourly_rate,
             users!lead_labor_user_id_fkey (
               full_name
             )
@@ -3678,6 +3680,7 @@ export class Job {
               laborSummary[laborId] = {
                 labor_id: laborId,
                 labor_name: timesheet.labor?.users?.full_name || 'Unknown',
+                hourly_rate: timesheet.labor?.hourly_rate || null,
                 total_hours: 0,
                 total_cost: 0,
                 days_worked: 0,
@@ -3734,6 +3737,7 @@ export class Job {
               leadLaborSummary[leadLaborId] = {
                 lead_labor_id: leadLaborId,
                 labor_name: timesheet.lead_labor?.users?.full_name || 'Unknown',
+                hourly_rate: timesheet.lead_labor?.hourly_rate || null,
                 total_hours: 0,
                 total_cost: 0,
                 days_worked: 0,
@@ -3784,6 +3788,53 @@ export class Job {
                 billable: null
               };
             }
+          }
+        });
+
+        // Fetch hourly_rates for all labor and lead_labor IDs
+        const allLaborIds = Object.keys(laborSummary).map(id => parseInt(id));
+        const allLeadLaborIds = Object.keys(leadLaborSummary).map(id => parseInt(id));
+        
+        const hourlyRateMap = {};
+        
+        if (allLaborIds.length > 0) {
+          const { data: laborRates, error: laborRatesError } = await supabase
+            .from('labor')
+            .select('id, hourly_rate')
+            .in('id', allLaborIds);
+          
+          if (!laborRatesError && laborRates) {
+            laborRates.forEach(l => {
+              hourlyRateMap[`labor_${l.id}`] = l.hourly_rate || 0;
+            });
+          }
+        }
+        
+        if (allLeadLaborIds.length > 0) {
+          const { data: leadLaborRates, error: leadLaborRatesError } = await supabase
+            .from('lead_labor')
+            .select('id, hourly_rate')
+            .in('id', allLeadLaborIds);
+          
+          if (!leadLaborRatesError && leadLaborRates) {
+            leadLaborRates.forEach(l => {
+              hourlyRateMap[`lead_labor_${l.id}`] = l.hourly_rate || 0;
+            });
+          }
+        }
+        
+        // Update summaries with hourly_rates
+        Object.keys(laborSummary).forEach(laborId => {
+          const rate = hourlyRateMap[`labor_${laborId}`];
+          if (rate !== undefined) {
+            laborSummary[laborId].hourly_rate = rate;
+          }
+        });
+        
+        Object.keys(leadLaborSummary).forEach(leadLaborId => {
+          const rate = hourlyRateMap[`lead_labor_${leadLaborId}`];
+          if (rate !== undefined) {
+            leadLaborSummary[leadLaborId].hourly_rate = rate;
           }
         });
 
@@ -3857,6 +3908,9 @@ export class Job {
           }
 
 
+          const hourlyRate = labor.hourly_rate || 0;
+          const weeklyPayment = totalHours * hourlyRate;
+
           allDashboardTimesheets.push({
             employee: labor.labor_name,
             job: `${job.job_title} (Job-${job.job_id})`,
@@ -3867,6 +3921,8 @@ export class Job {
             ...employeeHours,
             total: Job.formatTimeDisplay(totalHours),
             billable: Job.formatTimeDisplay(billableHours),
+            hourly_rate: hourlyRate,
+            weekly_payment: parseFloat(weeklyPayment.toFixed(2)),
             status: laborStatus,
             actions: ["approve", "reject"]
           });
@@ -3942,6 +3998,9 @@ export class Job {
           }
 
 
+          const hourlyRate = labor.hourly_rate || 0;
+          const weeklyPayment = totalHours * hourlyRate;
+
           allDashboardTimesheets.push({
             employee: labor.labor_name,
             job: `${job.job_title} (Job-${job.job_id})`,
@@ -3952,6 +4011,8 @@ export class Job {
             ...employeeHours,
             total: Job.formatTimeDisplay(totalHours),
             billable: Job.formatTimeDisplay(billableHours),
+            hourly_rate: hourlyRate,
+            weekly_payment: parseFloat(weeklyPayment.toFixed(2)),
             status: laborStatus,
             actions: ["approve", "reject"]
           });
@@ -3981,6 +4042,196 @@ export class Job {
           records_per_page: limit,
           has_next_page: page < totalPages,
           has_prev_page: page > 1
+        }
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async getWeeklyTimesheetView(laborId, leadLaborId, startDate, endDate) {
+    try {
+      if (!startDate || !endDate) {
+        throw new Error('start_date and end_date are required');
+      }
+
+      if (!laborId && !leadLaborId) {
+        throw new Error('Either labor_id or lead_labor_id is required');
+      }
+
+      // Build query filter
+      let query = supabase
+        .from('labor_timesheets')
+        .select(`
+          *,
+          job:job_id (
+            id,
+            job_title
+          ),
+          labor:labor_id (
+            id,
+            hourly_rate,
+            users!labor_user_id_fkey (
+              full_name
+            )
+          ),
+          lead_labor:lead_labor_id (
+            id,
+            hourly_rate,
+            users!lead_labor_user_id_fkey (
+              full_name
+            )
+          )
+        `)
+        .gte('date', startDate)
+        .lte('date', endDate)
+        .order('date', { ascending: true })
+        .order('start_time', { ascending: true });
+
+      if (laborId) {
+        query = query.eq('labor_id', laborId);
+      }
+      if (leadLaborId) {
+        query = query.eq('lead_labor_id', leadLaborId);
+      }
+
+      const { data: timesheets, error: timesheetsError } = await query;
+
+      if (timesheetsError) {
+        throw new Error(`Database error: ${timesheetsError.message}`);
+      }
+
+      if (!timesheets || timesheets.length === 0) {
+        return {
+          employee_name: null,
+          hourly_rate: 0,
+          daily_breakdown: [],
+          week_total: {
+            total_hours: 0,
+            hourly_rate: 0,
+            total_pay: 0
+          }
+        };
+      }
+
+      // Get employee name and hourly rate
+      const firstTimesheet = timesheets[0];
+      const employeeName = laborId 
+        ? firstTimesheet.labor?.users?.full_name || 'Unknown'
+        : firstTimesheet.lead_labor?.users?.full_name || 'Unknown';
+      
+      const hourlyRate = laborId
+        ? (firstTimesheet.labor?.hourly_rate || 0)
+        : (firstTimesheet.lead_labor?.hourly_rate || 0);
+
+      // Group timesheets by date and job
+      const dailyBreakdown = [];
+      const timesheetsByDate = {};
+
+      timesheets.forEach(timesheet => {
+        const dateKey = timesheet.date;
+        if (!timesheetsByDate[dateKey]) {
+          timesheetsByDate[dateKey] = {};
+        }
+
+        const jobId = timesheet.job_id;
+        if (!timesheetsByDate[dateKey][jobId]) {
+          timesheetsByDate[dateKey][jobId] = {
+            job_id: jobId,
+            job_title: timesheet.job?.job_title || 'Unknown Job',
+            hours: 0,
+            timesheets: []
+          };
+        }
+
+        // Calculate hours
+        let hours = 0;
+        if (timesheet.start_time && timesheet.end_time) {
+          const start = new Date(`2000-01-01T${timesheet.start_time}`);
+          const end = new Date(`2000-01-01T${timesheet.end_time}`);
+          const diffMs = end - start;
+          hours = diffMs / (1000 * 60 * 60);
+        }
+
+        timesheetsByDate[dateKey][jobId].hours += hours;
+        timesheetsByDate[dateKey][jobId].timesheets.push(timesheet);
+      });
+
+      // Generate all days in the week
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      
+      let totalHours = 0;
+      let currentDate = new Date(start);
+
+      while (currentDate <= end) {
+        const dateStr = Job.formatLocalDate(currentDate);
+        const dayOfWeek = currentDate.getDay();
+        const dayName = dayNames[dayOfWeek];
+        const monthName = monthNames[currentDate.getMonth()];
+        const day = currentDate.getDate();
+        const year = currentDate.getFullYear();
+        
+        const formattedDate = `${monthName} ${day}, ${year}`;
+        
+        const dateTimesheets = timesheetsByDate[dateStr] || {};
+        const jobIds = Object.keys(dateTimesheets);
+
+        if (jobIds.length === 0) {
+          // No work on this day - show as Leave
+          dailyBreakdown.push({
+            date: dateStr,
+            formatted_date: formattedDate,
+            day: dayName,
+            job_id: null,
+            job_title: 'Leave',
+            hours_worked: 0,
+            hours_worked_display: '0h',
+            pay_amount: 0
+          });
+        } else {
+          // Add each job entry for this day
+          jobIds.forEach(jobId => {
+            const jobData = dateTimesheets[jobId];
+            const hoursWorked = jobData.hours;
+            const payAmount = hoursWorked * hourlyRate;
+            totalHours += hoursWorked;
+
+            dailyBreakdown.push({
+              date: dateStr,
+              formatted_date: formattedDate,
+              day: dayName,
+              job_id: jobData.job_id,
+              job_title: jobData.job_title,
+              hours_worked: parseFloat(hoursWorked.toFixed(2)),
+              hours_worked_display: Job.formatTimeDisplay(hoursWorked),
+              pay_amount: parseFloat(payAmount.toFixed(2))
+            });
+          });
+        }
+
+        // Move to next day
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+
+      const totalPay = totalHours * hourlyRate;
+
+      return {
+        employee_name: employeeName,
+        hourly_rate: hourlyRate,
+        period: {
+          start_date: startDate,
+          end_date: endDate,
+          week_range: `${startDate} - ${endDate}`
+        },
+        daily_breakdown: dailyBreakdown,
+        week_total: {
+          total_hours: parseFloat(totalHours.toFixed(2)),
+          total_hours_display: Job.formatTimeDisplay(totalHours),
+          hourly_rate: hourlyRate,
+          total_pay: parseFloat(totalPay.toFixed(2))
         }
       };
     } catch (error) {

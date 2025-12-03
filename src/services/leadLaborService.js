@@ -74,6 +74,7 @@ export class LeadLaborService {
         specialization: leadLaborData.specialization || null,
         trade: leadLaborData.trade || null,
         experience: leadLaborData.experience || null,
+        hourly_rate: leadLaborData.hourly_rate || null,
         id_proof_url: fileUrls.id_proof_url || leadLaborData.id_proof_url || null,
         photo_url: fileUrls.photo_url || leadLaborData.photo_url || null,
         resume_url: fileUrls.resume_url || leadLaborData.resume_url || null,
@@ -298,6 +299,7 @@ export class LeadLaborService {
       if (updateData.specialization !== undefined) leadLaborData.specialization = updateData.specialization;
       if (updateData.trade !== undefined) leadLaborData.trade = updateData.trade;
       if (updateData.experience !== undefined) leadLaborData.experience = updateData.experience;
+      if (updateData.hourly_rate !== undefined) leadLaborData.hourly_rate = updateData.hourly_rate;
       if (updateData.agreed_terms !== undefined) leadLaborData.agreed_terms = updateData.agreed_terms;
 
       if (fileUrls.id_proof_url) leadLaborData.id_proof_url = fileUrls.id_proof_url;
@@ -451,6 +453,7 @@ export class LeadLaborService {
       if (updateData.specialization !== undefined) leadLaborData.specialization = updateData.specialization;
       if (updateData.trade !== undefined) leadLaborData.trade = updateData.trade;
       if (updateData.experience !== undefined) leadLaborData.experience = updateData.experience;
+      if (updateData.hourly_rate !== undefined) leadLaborData.hourly_rate = updateData.hourly_rate;
       if (updateData.agreed_terms !== undefined) leadLaborData.agreed_terms = updateData.agreed_terms;
       if (updateData.management_type !== undefined) leadLaborData.management_type = updateData.management_type;
 
@@ -690,6 +693,11 @@ export class LeadLaborService {
         map['lead labo'] = index;
         map['name'] = index;
       }
+      if (normalized.includes('hourly') && normalized.includes('rate')) {
+        map['hourly rate'] = index;
+        map['hourly_rate'] = index;
+        map['hourlyrate'] = index;
+      }
     });
     return map;
   }
@@ -847,6 +855,9 @@ export class LeadLaborService {
 
     leadLaborData.specialization = getValue('specializa') || getValue('specialization') || null;
     leadLaborData.experience = getValue('experience') || null;
+    
+    const hourlyRate = getValue('hourly rate') || getValue('hourly_rate') || getValue('hourlyrate');
+    leadLaborData.hourly_rate = hourlyRate ? parseNumber(hourlyRate) : null;
 
     const availability = getValue('availability');
     if (availability) {

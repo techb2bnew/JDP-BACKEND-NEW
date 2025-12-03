@@ -203,6 +203,10 @@ export async function jobRoutes(fastify, options) {
     handler: JobController.getAllJobsWeeklyTimesheetSummary
   });
 
+  fastify.get('/getWeeklyTimesheetView', {
+    handler: JobController.getWeeklyTimesheetView
+  });
+
   fastify.post('/approveTimesheet', {
     handler: JobController.approveTimesheet
   });
