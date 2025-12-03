@@ -13,6 +13,7 @@ import {
 import authRoutes from './routes/authRoutes.js';
 import rolePermissionRoutes from './routes/rolePermissionRoutes.js';
 import staffRoutes from './routes/staffRoutes.js';
+import staffTimesheetRoutes from './routes/staffTimesheetRoutes.js';
 import laborRoutes from './routes/laborRoutes.js';
 import leadLaborRoutes from './routes/leadLaborRoutes.js';
 import suppliersRoutes from './routes/suppliersRoute.js';
@@ -107,6 +108,7 @@ fastify.decorate('requireAdminOrSuperAdmin', requireAdminOrSuperAdmin);
 await fastify.register(authRoutes, { prefix: '/api/auth' });
 await fastify.register(rolePermissionRoutes, { prefix: '/api/permissions' });
 await fastify.register(staffRoutes, { prefix: '/api/staff' });
+await fastify.register(staffTimesheetRoutes, { prefix: '/api/staff-timesheet' });
 await fastify.register(laborRoutes, { prefix: '/api/labor' });
 await fastify.register(leadLaborRoutes, { prefix: '/api/lead-labor' });
 await fastify.register(suppliersRoutes, { prefix: '/api/suppliers' });
