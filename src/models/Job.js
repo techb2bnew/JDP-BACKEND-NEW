@@ -120,8 +120,9 @@ export class Job {
 
       let actualStartDate, actualEndDate;
       if (filters.start_date && filters.end_date) {
-        actualStartDate = filters.start_date;
-        actualEndDate = filters.end_date;
+        // Use filter dates directly and ensure consistent format
+        actualStartDate = Job.formatLocalDate(new Date(filters.start_date));
+        actualEndDate = Job.formatLocalDate(new Date(filters.end_date));
       } else {
 
         const latest = timesheetRows.reduce((max, r) => (new Date(r.date) > new Date(max) ? r.date : max), timesheetRows[0].date);
