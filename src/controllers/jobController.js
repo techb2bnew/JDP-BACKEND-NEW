@@ -23,7 +23,7 @@ export class JobController {
 
   static async searchTimesheets(request, reply) {
     try {
-      const { q, employee, job, status, start_date, end_date, page, limit } = request.query;
+      const { q, employee, job, status, start_date, end_date, page, limit, name } = request.query;
 
       const pagination = {
         page: parseInt(page) || 1,
@@ -38,7 +38,8 @@ export class JobController {
         job: job || '',
         status: status || '',
         start_date: start_date || '',
-        end_date: end_date || ''
+        end_date: end_date || '',
+        name: name || ''
       };
 
       const result = await JobService.searchTimesheets(filters, pagination);

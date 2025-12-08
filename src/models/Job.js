@@ -50,6 +50,7 @@ export class Job {
       const employeeFilter = (filters.employee || '').toLowerCase().trim();
       const jobFilter = (filters.job || '').toLowerCase().trim();
       const statusFilter = (filters.status || '').toLowerCase().trim();
+      const nameFilter = (filters.name || '').toLowerCase().trim();
 
       const timesheetRows = [];
 
@@ -67,6 +68,7 @@ export class Job {
         }
 
         if (employeeFilter && !isEmployee.includes(employeeFilter)) continue;
+        if (nameFilter && !isEmployee.includes(nameFilter)) continue;
         if (jobFilter && !(jobTitle.includes(jobFilter) || jobIdStr.includes(jobFilter))) continue;
         if (statusFilter && isStatus !== statusFilter) continue;
 
@@ -152,8 +154,16 @@ export class Job {
       const statusCountsByKey = new Map();
 
       timesheetRows.forEach(r => {
-
-        if (r.date < actualStartDate || r.date > actualEndDate) return;
+        // Convert dates to Date objects for accurate comparison
+        const recordDate = new Date(r.date);
+        const startDate = new Date(actualStartDate);
+        const endDate = new Date(actualEndDate);
+        // Set time to start/end of day for accurate comparison
+        startDate.setHours(0, 0, 0, 0);
+        endDate.setHours(23, 59, 59, 999);
+        recordDate.setHours(0, 0, 0, 0);
+        
+        if (recordDate < startDate || recordDate > endDate) return;
         const key = `${r.employee}|${r.job_id}|${r.labor_id || ''}`;
         const row = ensureRow(key, r.employee, r.job.split(' (Job-')[0], r.job_id, r.labor_id);
 
