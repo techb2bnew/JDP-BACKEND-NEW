@@ -3539,9 +3539,9 @@ export class Job {
       let actualEndDate = endDate;
 
       // If dates are provided, ensure they align to week boundaries (Monday to Sunday)
+      // For weekly summary, use only the first week (7 days) from start date
       if (startDate && endDate) {
         const startDateObj = new Date(startDate);
-        const endDateObj = new Date(endDate);
         
         // Get Monday of the week for start date
         const startDayOfWeek = startDateObj.getDay();
@@ -3549,13 +3549,9 @@ export class Job {
         const startMonday = new Date(startDateObj);
         startMonday.setDate(startDateObj.getDate() + startDaysToMonday);
         
-        // Get Sunday of the week for end date
-        const endDayOfWeek = endDateObj.getDay();
-        const endDaysToMonday = endDayOfWeek === 0 ? -6 : 1 - endDayOfWeek;
-        const endMonday = new Date(endDateObj);
-        endMonday.setDate(endDateObj.getDate() + endDaysToMonday);
-        const endSunday = new Date(endMonday);
-        endSunday.setDate(endMonday.getDate() + 6);
+        // For weekly summary, use only first week (7 days from Monday)
+        const endSunday = new Date(startMonday);
+        endSunday.setDate(startMonday.getDate() + 6);
         
         actualStartDate = Job.formatLocalDate(startMonday);
         actualEndDate = Job.formatLocalDate(endSunday);
@@ -3743,7 +3739,8 @@ export class Job {
             laborSummary[laborId].total_cost += cost;
             
             // Aggregate hours for same date (don't overwrite)
-            const dateKey = timesheet.date;
+            // Normalize date to YYYY-MM-DD format for consistency
+            const dateKey = Job.formatLocalDate(timesheet.date);
             if (laborSummary[laborId].daily_breakdown[dateKey]) {
               // If entry exists for this date, aggregate the hours
               const existingHours = Job.timeToHours(laborSummary[laborId].daily_breakdown[dateKey].hours || "00:00:00");
@@ -3800,7 +3797,8 @@ export class Job {
             leadLaborSummary[leadLaborId].total_cost += cost;
             
             // Aggregate hours for same date (don't overwrite)
-            const dateKey = timesheet.date;
+            // Normalize date to YYYY-MM-DD format for consistency
+            const dateKey = Job.formatLocalDate(timesheet.date);
             if (leadLaborSummary[leadLaborId].daily_breakdown[dateKey]) {
               // If entry exists for this date, aggregate the hours
               const existingHours = Job.timeToHours(leadLaborSummary[leadLaborId].daily_breakdown[dateKey].hours || "00:00:00");
@@ -3881,18 +3879,43 @@ export class Job {
           let laborStatus = "Draft";
           const statusCounts = {};
 
-          const start = new Date(actualStartDate);
-          const end = new Date(actualEndDate);
+          // Calculate actual week from daily_breakdown dates
+          const datesWithData = Object.keys(labor.daily_breakdown).filter(date => {
+            const data = labor.daily_breakdown[date];
+            return data && (data.hours || data.status);
+          });
+
+          let weekStartDate, weekEndDate;
+          
+          if (datesWithData.length > 0) {
+            // Find earliest date
+            const earliestDate = datesWithData.sort()[0];
+            const earliestDateObj = new Date(earliestDate);
+            const earliestDayOfWeek = earliestDateObj.getDay();
+            const earliestDaysToMonday = earliestDayOfWeek === 0 ? -6 : 1 - earliestDayOfWeek;
+            const monday = new Date(earliestDateObj);
+            monday.setDate(earliestDateObj.getDate() + earliestDaysToMonday);
+            const sunday = new Date(monday);
+            sunday.setDate(monday.getDate() + 6);
+            
+            weekStartDate = Job.formatLocalDate(monday);
+            weekEndDate = Job.formatLocalDate(sunday);
+          } else {
+            // Fallback to global period
+            weekStartDate = actualStartDate;
+            weekEndDate = actualEndDate;
+          }
+
+          const start = new Date(weekStartDate);
           const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-          // Calculate all days in the date range, not just 7 days
-          const daysDiff = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
-          const totalDaysInRange = Math.min(daysDiff, 14); // Limit to max 14 days (2 weeks)
+          // For weekly summary, always use exactly 7 days (one week)
+          const totalDaysInRange = 7;
 
           for (let i = 0; i < totalDaysInRange; i++) {
             const day = new Date(start);
             day.setDate(start.getDate() + i);
-            weekDays.push(day.toISOString().split('T')[0]);
+            weekDays.push(Job.formatLocalDate(day));
           }
 
           weekDays.forEach((dayDate) => {
@@ -3956,7 +3979,7 @@ export class Job {
             job_id: job.job_id,
             labor_id: labor.labor_id,
             lead_labor_id: null,
-            week: `${actualStartDate} - ${actualEndDate}`,
+            week: `${weekStartDate} - ${weekEndDate}`,
             ...employeeHours,
             total: Job.formatTimeDisplay(totalHours),
             billable: Job.formatTimeDisplay(billableHours),
@@ -3976,19 +3999,43 @@ export class Job {
           let laborStatus = "Draft";
           const statusCounts = {};
 
+          // Calculate actual week from daily_breakdown dates
+          const datesWithData = Object.keys(labor.daily_breakdown).filter(date => {
+            const data = labor.daily_breakdown[date];
+            return data && (data.hours || data.status);
+          });
 
-          const start = new Date(actualStartDate);
-          const end = new Date(actualEndDate);
+          let weekStartDate, weekEndDate;
+          
+          if (datesWithData.length > 0) {
+            // Find earliest date
+            const earliestDate = datesWithData.sort()[0];
+            const earliestDateObj = new Date(earliestDate);
+            const earliestDayOfWeek = earliestDateObj.getDay();
+            const earliestDaysToMonday = earliestDayOfWeek === 0 ? -6 : 1 - earliestDayOfWeek;
+            const monday = new Date(earliestDateObj);
+            monday.setDate(earliestDateObj.getDate() + earliestDaysToMonday);
+            const sunday = new Date(monday);
+            sunday.setDate(monday.getDate() + 6);
+            
+            weekStartDate = Job.formatLocalDate(monday);
+            weekEndDate = Job.formatLocalDate(sunday);
+          } else {
+            // Fallback to global period
+            weekStartDate = actualStartDate;
+            weekEndDate = actualEndDate;
+          }
+
+          const start = new Date(weekStartDate);
           const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-          // Calculate all days in the date range, not just 7 days
-          const daysDiff = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
-          const totalDaysInRange = Math.min(daysDiff, 14); // Limit to max 14 days (2 weeks)
+          // For weekly summary, always use exactly 7 days (one week)
+          const totalDaysInRange = 7;
 
           for (let i = 0; i < totalDaysInRange; i++) {
             const day = new Date(start);
             day.setDate(start.getDate() + i);
-            weekDays.push(day.toISOString().split('T')[0]);
+            weekDays.push(Job.formatLocalDate(day));
           }
 
           weekDays.forEach((dayDate) => {
@@ -4051,7 +4098,7 @@ export class Job {
             job_id: job.job_id,
             labor_id: null,
             lead_labor_id: labor.lead_labor_id,
-            week: `${actualStartDate} - ${actualEndDate}`,
+            week: `${weekStartDate} - ${weekEndDate}`,
             ...employeeHours,
             total: Job.formatTimeDisplay(totalHours),
             billable: Job.formatTimeDisplay(billableHours),
