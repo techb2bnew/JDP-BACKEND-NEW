@@ -3538,7 +3538,28 @@ export class Job {
       let actualStartDate = startDate;
       let actualEndDate = endDate;
 
-      if (!startDate || !endDate) {
+      // If dates are provided, ensure they align to week boundaries (Monday to Sunday)
+      if (startDate && endDate) {
+        const startDateObj = new Date(startDate);
+        const endDateObj = new Date(endDate);
+        
+        // Get Monday of the week for start date
+        const startDayOfWeek = startDateObj.getDay();
+        const startDaysToMonday = startDayOfWeek === 0 ? -6 : 1 - startDayOfWeek;
+        const startMonday = new Date(startDateObj);
+        startMonday.setDate(startDateObj.getDate() + startDaysToMonday);
+        
+        // Get Sunday of the week for end date
+        const endDayOfWeek = endDateObj.getDay();
+        const endDaysToMonday = endDayOfWeek === 0 ? -6 : 1 - endDayOfWeek;
+        const endMonday = new Date(endDateObj);
+        endMonday.setDate(endDateObj.getDate() + endDaysToMonday);
+        const endSunday = new Date(endMonday);
+        endSunday.setDate(endMonday.getDate() + 6);
+        
+        actualStartDate = Job.formatLocalDate(startMonday);
+        actualEndDate = Job.formatLocalDate(endSunday);
+      } else if (!startDate || !endDate) {
         // If no dates provided, get all timesheets date range (earliest to latest)
         const { data: earliestTimesheet, error: earliestError } = await supabase
           .from('labor_timesheets')
@@ -3861,9 +3882,14 @@ export class Job {
           const statusCounts = {};
 
           const start = new Date(actualStartDate);
+          const end = new Date(actualEndDate);
           const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-          for (let i = 0; i < 7; i++) {
+          // Calculate all days in the date range, not just 7 days
+          const daysDiff = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+          const totalDaysInRange = Math.min(daysDiff, 14); // Limit to max 14 days (2 weeks)
+
+          for (let i = 0; i < totalDaysInRange; i++) {
             const day = new Date(start);
             day.setDate(start.getDate() + i);
             weekDays.push(day.toISOString().split('T')[0]);
@@ -3901,8 +3927,8 @@ export class Job {
             }
           });
 
-          const totalDays = Object.values(statusCounts).reduce((sum, count) => sum + count, 0);
-          if (totalDays > 0) {
+          const totalDaysWithStatus = Object.values(statusCounts).reduce((sum, count) => sum + count, 0);
+          if (totalDaysWithStatus > 0) {
             if (statusCounts.approved > 0) {
               laborStatus = "Approved";
               console.log(`DEBUG - Setting status to Approved (lowercase check)`);
@@ -3952,9 +3978,14 @@ export class Job {
 
 
           const start = new Date(actualStartDate);
+          const end = new Date(actualEndDate);
           const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-          for (let i = 0; i < 7; i++) {
+          // Calculate all days in the date range, not just 7 days
+          const daysDiff = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+          const totalDaysInRange = Math.min(daysDiff, 14); // Limit to max 14 days (2 weeks)
+
+          for (let i = 0; i < totalDaysInRange; i++) {
             const day = new Date(start);
             day.setDate(start.getDate() + i);
             weekDays.push(day.toISOString().split('T')[0]);
@@ -3992,8 +4023,8 @@ export class Job {
             }
           });
 
-          const totalDays = Object.values(statusCounts).reduce((sum, count) => sum + count, 0);
-          if (totalDays > 0) {
+          const totalDaysWithStatus = Object.values(statusCounts).reduce((sum, count) => sum + count, 0);
+          if (totalDaysWithStatus > 0) {
             if (statusCounts.approved > 0) {
               laborStatus = "Approved";
             } else if (statusCounts.submitted > 0) {
