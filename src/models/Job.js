@@ -45,6 +45,8 @@ export class Job {
       if (error) {
         throw new Error(`Database error: ${error.message}`);
       }
+      
+      
 
       const q = (filters.q || '').toLowerCase().trim();
       const employeeFilter = (filters.employee || '').toLowerCase().trim();
