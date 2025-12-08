@@ -25,6 +25,14 @@ export class StaffTimesheet {
               full_name,
               email
             )
+          ),
+          job:job_id (
+            id,
+            job_title,
+            job_type,
+            status,
+            priority,
+            description
           )
         `)
         .single();
@@ -54,6 +62,14 @@ export class StaffTimesheet {
               full_name,
               email
             )
+          ),
+          job:job_id (
+            id,
+            job_title,
+            job_type,
+            status,
+            priority,
+            description
           )
         `)
         .eq('id', id)
@@ -87,12 +103,24 @@ export class StaffTimesheet {
               full_name,
               email
             )
+          ),
+          job:job_id (
+            id,
+            job_title,
+            job_type,
+            status,
+            priority,
+            description
           )
         `, { count: 'exact' });
 
       // Apply filters
       if (filters.staff_id) {
         query = query.eq('staff_id', filters.staff_id);
+      }
+
+      if (filters.job_id) {
+        query = query.eq('job_id', filters.job_id);
       }
 
       if (filters.date_from) {
@@ -152,6 +180,14 @@ export class StaffTimesheet {
               full_name,
               email
             )
+          ),
+          job:job_id (
+            id,
+            job_title,
+            job_type,
+            status,
+            priority,
+            description
           )
         `)
         .eq('staff_id', staffId);
@@ -209,6 +245,14 @@ export class StaffTimesheet {
               full_name,
               email
             )
+          ),
+          job:job_id (
+            id,
+            job_title,
+            job_type,
+            status,
+            priority,
+            description
           )
         `)
         .single();

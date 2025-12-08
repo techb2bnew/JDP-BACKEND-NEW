@@ -1,5 +1,6 @@
 import { StaffTimesheet } from '../models/StaffTimesheet.js';
 import { Staff } from '../models/Staff.js';
+import { Job } from '../models/Job.js';
 import { successResponse } from '../helpers/responseHelper.js';
 
 export class StaffTimesheetService {
@@ -18,6 +19,14 @@ export class StaffTimesheetService {
       const staff = await Staff.getStaffById(timesheetData.staff_id);
       if (!staff) {
         throw new Error('Staff not found');
+      }
+
+      // If job_id is provided, verify job exists
+      if (timesheetData.job_id) {
+        const job = await Job.findById(timesheetData.job_id);
+        if (!job) {
+          throw new Error('Job not found');
+        }
       }
 
       // Create timesheet
@@ -83,6 +92,16 @@ export class StaffTimesheetService {
         const staff = await Staff.getStaffById(updateData.staff_id);
         if (!staff) {
           throw new Error('Staff not found');
+        }
+      }
+
+      // If job_id is being updated, verify new job exists
+      if (updateData.job_id !== undefined && updateData.job_id !== existingTimesheet.job_id) {
+        if (updateData.job_id) {
+          const job = await Job.findById(updateData.job_id);
+          if (!job) {
+            throw new Error('Job not found');
+          }
         }
       }
 
