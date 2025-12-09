@@ -350,20 +350,33 @@ export class LeadLaborService {
     try {
       const fileUrls = {};
 
+      // Handle both 'photo' and 'photo_url' field names
       if (files.photo && files.photo[0]) {
         fileUrls.photo_url = files.photo[0].location;
+      } else if (files.photo_url && files.photo_url[0]) {
+        fileUrls.photo_url = files.photo_url[0].location;
       }
 
+      // Handle both 'id_proof' and 'id_proof_url' field names
       if (files.id_proof && files.id_proof[0]) {
         fileUrls.id_proof_url = files.id_proof[0].location;
+      } else if (files.id_proof_url && files.id_proof_url[0]) {
+        fileUrls.id_proof_url = files.id_proof_url[0].location;
       }
 
+      // Handle both 'resume' and 'resume_url' field names
       if (files.resume && files.resume[0]) {
         fileUrls.resume_url = files.resume[0].location;
+      } else if (files.resume_url && files.resume_url[0]) {
+        fileUrls.resume_url = files.resume_url[0].location;
       }
+
+      console.log('Processed file URLs:', fileUrls);
+      console.log('Available files keys:', Object.keys(files));
 
       return fileUrls;
     } catch (error) {
+      console.error('Error processing uploaded files:', error);
       throw error;
     }
   }
