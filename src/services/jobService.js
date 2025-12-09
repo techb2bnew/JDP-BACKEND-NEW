@@ -30,7 +30,7 @@ export class JobService {
   static async searchTimesheets(filters, pagination) {
     try {
       const result = await Job.searchTimesheets(filters, pagination);
-      return successResponse(result, "Timesheets searched successfully");
+      return successResponse(result, "All jobs weekly timesheet summary retrieved successfully");
     } catch (error) {
       throw error;
     }

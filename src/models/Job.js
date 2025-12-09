@@ -19,12 +19,14 @@ export class Job {
           ),
           labor:labor_id (
             id,
+            hourly_rate,
             users!labor_user_id_fkey (
               full_name
             )
           ),
           lead_labor:lead_labor_id (
             id,
+            hourly_rate,
             users!lead_labor_user_id_fkey (
               full_name
             )
@@ -58,14 +60,16 @@ export class Job {
 
       for (const ts of timesheets || []) {
         const laborName = ts.labor?.users?.full_name || ts.lead_labor?.users?.full_name || 'Unknown';
-        const isEmployee = laborName.toLowerCase();
+        const isEmployee = (laborName || '').toLowerCase();
         const isStatus = (ts.status || ts.job_status || '').toLowerCase();
         const jobTitle = (ts.job?.job_title || '').toLowerCase();
         const jobIdStr = (ts.job?.id || '').toString();
 
 
-        if (q) {
-          const hit = isEmployee.includes(q) || jobTitle.includes(q) || jobIdStr.includes(q);
+        if (q && q.length > 0) {
+          const hit = (isEmployee && isEmployee.includes(q)) || 
+                      (jobTitle && jobTitle.includes(q)) || 
+                      (jobIdStr && jobIdStr.includes(q));
           if (!hit) continue;
         }
 
@@ -90,7 +94,9 @@ export class Job {
           employee: laborName,
           job: `${ts.job?.job_title} (Job-${ts.job?.id})`,
           job_id: ts.job?.id,
-          labor_id: ts.labor_id || ts.lead_labor_id || null,
+          labor_id: ts.labor_id || null,
+          lead_labor_id: ts.lead_labor_id || null,
+          hourly_rate: ts.labor?.hourly_rate || ts.lead_labor?.hourly_rate || null,
           date: ts.date,
           hours: hours,
           status: ts.status || ts.job_status || 'pending'
@@ -142,14 +148,28 @@ export class Job {
       const dayNames = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 
 
-      const ensureRow = (key, employee, jobTitle, jobId, laborId) => {
+      const ensureRow = (key, employee, jobTitle, jobId, laborId, leadLaborId, hourlyRate) => {
         if (!buckets.has(key)) {
-          const base = { employee, job: `${jobTitle} (Job-${jobId})`, job_id: jobId, labor_id: laborId };
+          const base = { 
+            employee, 
+            job: `${jobTitle} (Job-${jobId})`, 
+            job_id: jobId, 
+            labor_id: laborId,
+            lead_labor_id: leadLaborId,
+            hourly_rate: hourlyRate || 0,
+            daily_dates: [] // Track dates for week calculation
+          };
           dayNames.forEach(d => base[d] = '0h');
           base.total = '0h';
           base.billable = '0h';
           base.status = 'Draft';
           buckets.set(key, base);
+        } else {
+          // Update hourly_rate if not set (or is 0) or if new rate is provided
+          const existingRow = buckets.get(key);
+          if ((!existingRow.hourly_rate || existingRow.hourly_rate === 0) && hourlyRate && hourlyRate > 0) {
+            existingRow.hourly_rate = hourlyRate;
+          }
         }
         return buckets.get(key);
       };
@@ -167,8 +187,19 @@ export class Job {
         recordDate.setHours(0, 0, 0, 0);
         
         if (recordDate < startDate || recordDate > endDate) return;
-        const key = `${r.employee}|${r.job_id}|${r.labor_id || ''}`;
-        const row = ensureRow(key, r.employee, r.job.split(' (Job-')[0], r.job_id, r.labor_id);
+        const key = `${r.employee}|${r.job_id}|${r.labor_id || ''}|${r.lead_labor_id || ''}`;
+        const row = ensureRow(key, r.employee, r.job.split(' (Job-')[0], r.job_id, r.labor_id, r.lead_labor_id, r.hourly_rate);
+        
+        // Track date for week calculation
+        const dateKey = Job.formatLocalDate(r.date);
+        if (!row.daily_dates.includes(dateKey)) {
+          row.daily_dates.push(dateKey);
+        }
+        
+        // Update hourly_rate if row already exists and new rate is better
+        if (r.hourly_rate && r.hourly_rate > 0) {
+          row.hourly_rate = r.hourly_rate;
+        }
 
 
         const dt = new Date(r.date);
@@ -182,8 +213,25 @@ export class Job {
         const existing = parseFloat((row[dayKey] || '0h').replace('h', '').replace('m', ''));
         row[dayKey] = Job.formatTimeDisplay(hoursVal + (isNaN(existing) ? 0 : existing));
 
-        const currentTotal = Job.timeToHours(row.total.replace('h', '').replace('m', '').includes('m') ? '00:00:00' : row.total);
-        row.total = Job.formatTimeDisplay(currentTotal + hoursVal);
+        // Calculate total properly - convert current total to hours, add new hours
+        const currentTotalStr = row.total || '0h';
+        let currentTotalHours = 0;
+        
+        // Convert "0h", "10h", "10h 30m", "3m" format to hours (decimal)
+        if (currentTotalStr.includes('h') || currentTotalStr.includes('m')) {
+          // Handle "10h", "10h 30m", "30m" formats
+          const hourMatch = currentTotalStr.match(/(\d+)h/);
+          const minuteMatch = currentTotalStr.match(/(\d+)m/);
+          const hours = hourMatch ? parseFloat(hourMatch[1]) : 0;
+          const minutes = minuteMatch ? parseFloat(minuteMatch[1]) : 0;
+          currentTotalHours = hours + (minutes / 60);
+        } else if (currentTotalStr.match(/^\d{1,2}:\d{2}(:\d{2})?$/)) {
+          // If it's in HH:MM:SS format, use timeToHours
+          currentTotalHours = Job.timeToHours(currentTotalStr);
+        }
+        
+        const newTotalHours = currentTotalHours + hoursVal;
+        row.total = Job.formatTimeDisplay(newTotalHours);
         row.billable = row.total;
 
         const normalized = (r.status || 'pending').toLowerCase();
@@ -192,6 +240,43 @@ export class Job {
         statusCountsByKey.set(key, sc);
       });
 
+      // Fetch hourly_rates for all labor and lead_labor IDs from buckets
+      const allLaborIds = new Set();
+      const allLeadLaborIds = new Set();
+      
+      buckets.forEach((row) => {
+        if (row.labor_id) allLaborIds.add(parseInt(row.labor_id));
+        if (row.lead_labor_id) allLeadLaborIds.add(parseInt(row.lead_labor_id));
+      });
+      
+      const hourlyRateMap = {};
+      
+      if (allLaborIds.size > 0) {
+        const { data: laborRates, error: laborRatesError } = await supabase
+          .from('labor')
+          .select('id, hourly_rate')
+          .in('id', Array.from(allLaborIds));
+        
+        if (!laborRatesError && laborRates) {
+          laborRates.forEach(l => {
+            hourlyRateMap[`labor_${l.id}`] = parseFloat(l.hourly_rate) || 0;
+          });
+        }
+      }
+      
+      if (allLeadLaborIds.size > 0) {
+        const { data: leadLaborRates, error: leadLaborRatesError } = await supabase
+          .from('lead_labor')
+          .select('id, hourly_rate')
+          .in('id', Array.from(allLeadLaborIds));
+        
+        if (!leadLaborRatesError && leadLaborRates) {
+          leadLaborRates.forEach(l => {
+            hourlyRateMap[`lead_labor_${l.id}`] = parseFloat(l.hourly_rate) || 0;
+          });
+        }
+      }
+
       buckets.forEach((row, key) => {
         const sc = statusCountsByKey.get(key) || {};
         if (sc.approved > 0) row.status = 'Approved';
@@ -199,6 +284,76 @@ export class Job {
         else if (sc.active > 0) row.status = 'Active';
         else if (sc.pending > 0) row.status = 'Pending';
         else if (sc.rejected > 0) row.status = 'Rejected';
+        
+        // Calculate actual week from daily_dates
+        let weekStartDate, weekEndDate;
+        const datesWithData = row.daily_dates || [];
+        
+        if (datesWithData.length > 0) {
+          // Find earliest date
+          const earliestDate = datesWithData.sort()[0];
+          const earliestDateObj = new Date(earliestDate);
+          const earliestDayOfWeek = earliestDateObj.getDay();
+          const earliestDaysToMonday = earliestDayOfWeek === 0 ? -6 : 1 - earliestDayOfWeek;
+          const monday = new Date(earliestDateObj);
+          monday.setDate(earliestDateObj.getDate() + earliestDaysToMonday);
+          const sunday = new Date(monday);
+          sunday.setDate(monday.getDate() + 6);
+          
+          weekStartDate = Job.formatLocalDate(monday);
+          weekEndDate = Job.formatLocalDate(sunday);
+        } else {
+          // Fallback to global period
+          weekStartDate = actualStartDate;
+          weekEndDate = actualEndDate;
+        }
+        
+        // Update hourly_rate from fetched rates
+        let hourlyRate = 0;
+        const laborId = row.labor_id ? parseInt(row.labor_id) : null;
+        const leadLaborId = row.lead_labor_id ? parseInt(row.lead_labor_id) : null;
+        
+        if (laborId && hourlyRateMap[`labor_${laborId}`] !== undefined) {
+          hourlyRate = hourlyRateMap[`labor_${laborId}`];
+          row.hourly_rate = hourlyRate;
+        } else if (leadLaborId && hourlyRateMap[`lead_labor_${leadLaborId}`] !== undefined) {
+          hourlyRate = hourlyRateMap[`lead_labor_${leadLaborId}`];
+          row.hourly_rate = hourlyRate;
+        } else {
+          // Try to use existing hourly_rate from row, or fallback to 0
+          if (row.hourly_rate && row.hourly_rate > 0) {
+            hourlyRate = parseFloat(row.hourly_rate) || 0;
+          } else {
+            row.hourly_rate = 0;
+            hourlyRate = 0;
+          }
+        }
+        
+        // Ensure hourly_rate is always a number
+        row.hourly_rate = parseFloat(row.hourly_rate) || 0;
+        
+        // Calculate weekly payment (always calculate, even if 0)
+        // Convert row.total from "10h", "10h 30m", "30m" format to decimal hours
+        let totalHoursValue = 0;
+        const totalStr = row.total || '0h';
+        if (totalStr.includes('h') || totalStr.includes('m')) {
+          const hourMatch = totalStr.match(/(\d+)h/);
+          const minuteMatch = totalStr.match(/(\d+)m/);
+          const hours = hourMatch ? parseFloat(hourMatch[1]) : 0;
+          const minutes = minuteMatch ? parseFloat(minuteMatch[1]) : 0;
+          totalHoursValue = hours + (minutes / 60);
+        } else if (totalStr.match(/^\d{1,2}:\d{2}(:\d{2})?$/)) {
+          totalHoursValue = Job.timeToHours(totalStr);
+        }
+        
+        row.weekly_payment = parseFloat((totalHoursValue * hourlyRate).toFixed(2));
+        
+        // Add actions and week field
+        row.actions = ["approve", "reject"];
+        row.week = `${weekStartDate} - ${weekEndDate}`;
+        
+        // Remove daily_dates field from final response
+        delete row.daily_dates;
       });
 
       const dashboard = Array.from(buckets.values());
@@ -3165,7 +3320,6 @@ export class Job {
               billable: timesheet.billable !== undefined ? timesheet.billable : null
             };
           });
-
 
         } else {
           console.log('DEBUG - No timesheet data found at all in job');
