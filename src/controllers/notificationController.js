@@ -49,30 +49,60 @@ export class NotificationController {
       const sendToAll = Boolean(send_to_all);
       let rolesArray = [];
 
-      if (!sendToAll) {
-        if (!Array.isArray(recipient_roles) || recipient_roles.length === 0) {
-          return responseHelper.validationError(reply, {
-            recipient_roles: 'At least one role must be selected when send_to_all is false'
-          });
-        }
-        rolesArray = recipient_roles
-          .map((role) => role.toString().trim().toLowerCase())
-          .filter(Boolean);
-        if (rolesArray.length === 0) {
-          return responseHelper.validationError(reply, {
-            recipient_roles: 'At least one valid role must be provided'
-          });
+      // Parse labor_ids and lead_labor_ids first to check if they exist
+      // Handle both array format and string array format like "[2,4,5]"
+      let laborIdsArray = [];
+      if (Array.isArray(labor_ids)) {
+        laborIdsArray = labor_ids;
+      } else if (typeof labor_ids === 'string' && labor_ids.trim()) {
+        try {
+          // Try to parse JSON string like "[2,4,5]"
+          const parsed = JSON.parse(labor_ids);
+          if (Array.isArray(parsed)) {
+            laborIdsArray = parsed;
+          }
+        } catch (e) {
+          // If JSON parse fails, try comma-separated values
+          laborIdsArray = labor_ids.split(',').map(id => id.trim()).filter(Boolean);
         }
       }
-
-      // Parse labor_ids and lead_labor_ids arrays
-      const parsedLaborIds = Array.isArray(labor_ids) 
-        ? labor_ids.map(id => parseOptionalInt(id)).filter(id => id !== null)
-        : [];
       
-      const parsedLeadLaborIds = Array.isArray(lead_labor_ids)
-        ? lead_labor_ids.map(id => parseOptionalInt(id)).filter(id => id !== null)
-        : [];
+      let leadLaborIdsArray = [];
+      if (Array.isArray(lead_labor_ids)) {
+        leadLaborIdsArray = lead_labor_ids;
+      } else if (typeof lead_labor_ids === 'string' && lead_labor_ids.trim()) {
+        try {
+          // Try to parse JSON string like "[1,4,5]"
+          const parsed = JSON.parse(lead_labor_ids);
+          if (Array.isArray(parsed)) {
+            leadLaborIdsArray = parsed;
+          }
+        } catch (e) {
+          // If JSON parse fails, try comma-separated values
+          leadLaborIdsArray = lead_labor_ids.split(',').map(id => id.trim()).filter(Boolean);
+        }
+      }
+      
+      const parsedLaborIds = laborIdsArray.map(id => parseOptionalInt(id)).filter(id => id !== null);
+      const parsedLeadLaborIds = leadLaborIdsArray.map(id => parseOptionalInt(id)).filter(id => id !== null);
+
+      // Check if specific job recipients are provided (labor_ids or lead_labor_ids)
+      const hasSpecificJobRecipients = parsedLaborIds.length > 0 || parsedLeadLaborIds.length > 0;
+
+      if (!sendToAll) {
+        // If no specific job recipients and no roles, then validation error
+        if ((!Array.isArray(recipient_roles) || recipient_roles.length === 0) && !hasSpecificJobRecipients) {
+          return responseHelper.validationError(reply, {
+            recipient_roles: 'At least one role or specific job recipients (labor_ids/lead_labor_ids) must be selected when send_to_all is false'
+          });
+        }
+        
+        if (Array.isArray(recipient_roles) && recipient_roles.length > 0) {
+          rolesArray = recipient_roles
+            .map((role) => role.toString().trim().toLowerCase())
+            .filter(Boolean);
+        }
+      }
 
       // Parse recipient_user_ids array if provided
       const parsedRecipientUserIds = Array.isArray(recipient_user_ids)
@@ -100,6 +130,13 @@ export class NotificationController {
         lead_labor_ids: parsedLeadLaborIds,
         recipient_user_ids: parsedRecipientUserIds
       };
+
+      console.log('=== Notification Payload ===');
+      console.log(JSON.stringify(payload, null, 2));
+      console.log('Parsed labor_ids:', parsedLaborIds);
+      console.log('Parsed lead_labor_ids:', parsedLeadLaborIds);
+      console.log('hasSpecificJobRecipients:', hasSpecificJobRecipients);
+      console.log('===========================');
 
       const result = await NotificationService.sendNotification(payload);
 

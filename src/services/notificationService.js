@@ -148,6 +148,8 @@ export class NotificationService {
         ? notificationPayload.labor_ids.filter(id => id !== null && id !== undefined)
         : [];
       
+      console.log('Parsed labor_ids:', laborIds);
+      
       let laborUserIds = [];
       if (laborIds.length > 0) {
         try {
@@ -157,10 +159,13 @@ export class NotificationService {
             .in('id', laborIds)
             .not('user_id', 'is', null);
           
-          if (!laborError && laborData) {
+          if (laborError) {
+            console.error('Error fetching user_ids from labor_ids:', laborError);
+          } else if (laborData) {
             laborUserIds = laborData
               .map(l => l.user_id)
               .filter(id => id !== null && id !== undefined);
+            console.log('Fetched labor user_ids:', laborUserIds);
           }
         } catch (error) {
           console.error('Error fetching user_ids from labor_ids:', error);
@@ -172,6 +177,8 @@ export class NotificationService {
         ? notificationPayload.lead_labor_ids.filter(id => id !== null && id !== undefined)
         : [];
       
+      console.log('Parsed lead_labor_ids:', leadLaborIds);
+      
       let leadLaborUserIds = [];
       if (leadLaborIds.length > 0) {
         try {
@@ -181,10 +188,13 @@ export class NotificationService {
             .in('id', leadLaborIds)
             .not('user_id', 'is', null);
           
-          if (!leadLaborError && leadLaborData) {
+          if (leadLaborError) {
+            console.error('Error fetching user_ids from lead_labor_ids:', leadLaborError);
+          } else if (leadLaborData) {
             leadLaborUserIds = leadLaborData
               .map(ll => ll.user_id)
               .filter(id => id !== null && id !== undefined);
+            console.log('Fetched lead_labor user_ids:', leadLaborUserIds);
           }
         } catch (error) {
           console.error('Error fetching user_ids from lead_labor_ids:', error);
@@ -213,6 +223,9 @@ export class NotificationService {
           .filter((value) => value !== null)
       );
       const hasTargetUsers = targetUserIds.size > 0;
+      
+      console.log('Total target user_ids:', Array.from(targetUserIds));
+      console.log('hasTargetUsers:', hasTargetUsers);
 
       const notificationData = {
         notification_title: notificationPayload.notification_title,
