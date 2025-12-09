@@ -1,4 +1,5 @@
 import { StaffTimesheetService } from '../services/staffTimesheetService.js';
+import { Staff } from '../models/Staff.js';
 import { successResponse, errorResponse, validationErrorResponse } from '../helpers/responseHelper.js';
 
 export class StaffTimesheetController {
@@ -55,6 +56,21 @@ export class StaffTimesheetController {
 
   static async getAllStaffTimesheets(req, reply) {
     try {
+      // Get logged-in user's ID
+      const userId = req.user?.id;
+      
+      if (!userId) {
+        return reply.status(401).send(errorResponse('User not authenticated', 401));
+      }
+
+      // Get staff_id for the logged-in user
+      const staff = await Staff.getStaffByUserId(userId);
+      if (!staff || !staff.id) {
+        return reply.status(404).send(errorResponse('Staff record not found for this user', 404));
+      }
+
+      const loggedInStaffId = staff.id;
+
       const { 
         staff_id, 
         date_from, 
@@ -68,7 +84,10 @@ export class StaffTimesheetController {
       } = req.query;
 
       const filters = {};
-      if (staff_id) filters.staff_id = parseInt(staff_id);
+      // Always filter by logged-in user's staff_id
+      filters.staff_id = loggedInStaffId;
+      
+      // Ignore staff_id from query if provided - user can only see their own timesheets
       if (date_from) filters.date_from = date_from;
       if (date_to) filters.date_to = date_to;
       if (date) filters.date = date;
