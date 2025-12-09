@@ -701,10 +701,21 @@ export class LeadLaborService {
         map['specialization'] = index;
         map['specializa'] = index;
       }
+      // Map "Lead Labo" to labor_code, NOT name
       if (normalized.includes('lead') && normalized.includes('labo')) {
-        map['lead labo name'] = index;
         map['lead labo'] = index;
-        map['name'] = index;
+        map['lead labor id'] = index;
+        map['labor_code'] = index;
+        map['lead_labor_id'] = index;
+        // Don't map to 'name' - that's a separate column
+      }
+      // Map "Name" column separately
+      if (normalized === 'name' || normalized.includes('name')) {
+        // Only map if it's not already mapped as lead labo
+        if (!map['name'] && !normalized.includes('lead') && !normalized.includes('labo')) {
+          map['name'] = index;
+          map['full_name'] = index;
+        }
       }
       if (normalized.includes('hourly') && normalized.includes('rate')) {
         map['hourly rate'] = index;
@@ -804,13 +815,19 @@ export class LeadLaborService {
       if (parsedId) leadLaborData.id = parsedId;
     }
 
-    const leadLaboName = getValue('lead labo') || getValue('lead labo name') || getValue('name');
-    leadLaborData.full_name = leadLaboName || null;
-    
-    const laborCode = extractLaborCode(leadLaboName);
-    if (laborCode) {
-      leadLaborData.labor_code = laborCode;
+    // Get labor_code from "Lead Labo" column
+    const leadLaboValue = getValue('lead labo') || getValue('lead labor id') || getValue('labor_code');
+    if (leadLaboValue) {
+      // Check if it's already a code format (LL-2025-001) or extract from name
+      const laborCode = extractLaborCode(leadLaboValue) || leadLaboValue;
+      if (laborCode) {
+        leadLaborData.labor_code = laborCode;
+      }
     }
+    
+    // Get full_name from "Name" column (separate from Lead Labo)
+    const nameValue = getValue('name') || getValue('full_name');
+    leadLaborData.full_name = nameValue || null;
 
     leadLaborData.email = getValue('email') || null;
     
