@@ -32,6 +32,26 @@ export class InvoiceController {
       }
 
   
+      // Map lineItems to items format for template (convert qty to quantity, total to amount)
+      let items = [];
+      if (estimateData.lineItems && Array.isArray(estimateData.lineItems)) {
+        items = estimateData.lineItems.map(item => ({
+          quantity: item.qty || item.quantity || 1,
+          item: item.item || '',
+          description: item.description || '',
+          rate: item.rate || 0,
+          amount: item.total || item.amount || 0
+        }));
+      } else if (estimateData.items && Array.isArray(estimateData.items)) {
+        items = estimateData.items.map(item => ({
+          quantity: item.qty || item.quantity || 1,
+          item: item.item || '',
+          description: item.description || '',
+          rate: item.rate || 0,
+          amount: item.total || item.amount || 0
+        }));
+      }
+
       const pdfData = {
         ...estimateData,
         estimateNumber: estimate.invoice_number || estimateData.estimateNumber,
@@ -39,12 +59,16 @@ export class InvoiceController {
         customerName: estimateData.customerName || estimate.customer?.customer_name || 'Customer',
         customerAddress: estimateData.customerAddress || `${estimate.customer?.company_name || ''} ${estimate.customer?.address || ''}`.trim(),
         billToAddress: estimateData.billToAddress || estimate.bill_to_address,
-        projectName: estimateData.projectName || estimate.job?.job_title || 'Project',
+        projectName: estimateData.project || estimateData.projectName || estimate.job?.job_title || 'Project',
         poNumber: estimateData.poNumber || estimate.po_number || 'N/A',
         dueDate: estimateData.dueDate || estimate.due_date || new Date().toLocaleDateString(),
-        items: estimateData.items || [],
+        items: items,
         additionalCosts: estimateData.additionalCosts || [],
-        taxPercentage: estimateData.taxPercentage || 0
+        taxPercentage: estimateData.taxPercentage || 0,
+        subtotal: estimateData.subtotal || 0,
+        total: estimateData.total || 0,
+        paymentsCredits: estimateData.paymentCredits || estimateData.paymentsCredits || 0,
+        balanceDue: estimateData.balanceDue || ''
       };
 
       

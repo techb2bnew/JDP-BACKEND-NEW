@@ -47,10 +47,12 @@ export class PDFService {
       const taxPercentage = parseFloat(estimateData.taxPercentage) || 0;
       calculatedTaxAmount = (calculatedSubtotal * taxPercentage) / 100;
 
-   
-      calculatedTotal = calculatedSubtotal + calculatedTaxAmount;
+      // Use provided values if available, otherwise use calculated
+      const finalSubtotal = estimateData.subtotal ? parseFloat(estimateData.subtotal) : calculatedSubtotal;
+      const finalTaxAmount = estimateData.taxAmount ? parseFloat(estimateData.taxAmount) : calculatedTaxAmount;
+      const finalTotal = estimateData.total ? parseFloat(estimateData.total) : (calculatedSubtotal + calculatedTaxAmount);
 
-      console.log(`Final Calculation - Subtotal: ${calculatedSubtotal}, Tax: ${calculatedTaxAmount}, Total: ${calculatedTotal}`);
+      console.log(`Final Values - Subtotal: ${finalSubtotal}, Tax: ${finalTaxAmount}, Total: ${finalTotal}`);
       console.log(`Input Data - Subtotal: ${estimateData.subtotal}, Tax: ${estimateData.taxAmount}, Total: ${estimateData.total}`);
 
       
@@ -65,16 +67,18 @@ export class PDFService {
         dueDate: estimateData.dueDate || undefined,
         items: estimateData.items || [],
         additionalCosts: estimateData.additionalCosts || [],
-        subtotal: calculatedSubtotal.toFixed(2),
-        taxAmount: calculatedTaxAmount.toFixed(2), 
-        total: calculatedTotal.toFixed(2), 
+        subtotal: finalSubtotal.toFixed(2),
+        taxAmount: finalTaxAmount.toFixed(2), 
+        total: finalTotal.toFixed(2), 
         paymentsCredits: estimateData.paymentsCredits || undefined,
         balanceDue: estimateData.balanceDue || undefined,
         rep: estimateData.rep || undefined,
-        notes: estimateData.notes || [
-          'JDP WILL REQUIRE HALF DOWN UPON SIGNED ESTIMATE',
-          'JDP is not responsible for repair of lamps & landscaping, house owner utilities including cables, sprinkler systems, television or telephone cables, etc. that may be cut or damaged during installation. Price are subject to change prior to receipt of down payment.'
-        ],
+        notes: estimateData.notes ? 
+          (Array.isArray(estimateData.notes) ? estimateData.notes : estimateData.notes.split('\n').filter(n => n.trim())) :
+          [
+            'JDP WILL REQUIRE HALF DOWN UPON SIGNED ESTIMATE',
+            'JDP is not responsible for repair of lamps & landscaping, house owner utilities including cables, sprinkler systems, television or telephone cables, etc. that may be cut or damaged during installation. Price are subject to change prior to receipt of down payment.'
+          ],
         email: estimateData.email || 'jen@jdpelectric.us',
         phone: estimateData.phone || '952-449-1088'
       };
