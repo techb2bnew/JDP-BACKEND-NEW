@@ -53,5 +53,15 @@ export default async function staffTimesheetRoutes(fastify, options) {
       }
     }
   }, StaffTimesheetController.deleteStaffTimesheet);
+
+  // Get All Staff Weekly Timesheet Summary
+  fastify.get('/getAllStaffWeeklyTimesheetSummary', {
+    preHandler: authenticateToken
+  }, StaffTimesheetController.getAllStaffWeeklyTimesheetSummary);
+
+  // Get Weekly Timesheet View
+  fastify.get('/getWeeklyTimesheetView', {
+    preHandler: authenticateToken
+  }, StaffTimesheetController.getWeeklyTimesheetView);
 }
 
