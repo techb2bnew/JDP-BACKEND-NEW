@@ -109,7 +109,7 @@
                   <th style="padding:8px; border:1px solid #ccc;">Qty</th>
                   <th style="padding:8px; border:1px solid #ccc;">Item</th>
                   <th style="padding:8px; border:1px solid #ccc;">Description</th>
-                  <th style="padding:8px; border:1px solid #ccc;">Rate</th>
+                  <th style="padding:8px; border:1px solid #ccc;">Estimated Price</th>
                   <th style="padding:8px; border:1px solid #ccc;">Amount</th>
                 </tr>
 
@@ -118,7 +118,7 @@
                   <td style="border:1px solid #ccc; padding:8px;">{{quantity}}</td>
                   <td style="border:1px solid #ccc; padding:8px;">{{item}}</td>
                   <td style="border:1px solid #ccc; padding:8px;">{{description}}</td>
-                  <td style="border:1px solid #ccc; padding:8px;">${{rate}}</td>
+                  <td style="border:1px solid #ccc; padding:8px;">${{#if estimated_price}}{{estimated_price}}{{else}}{{#if rate}}{{rate}}{{else}}0.00{{/if}}{{/if}}</td>
                   <td style="border:1px solid #ccc; padding:8px;">${{amount}}</td>
                 </tr>
                 {{/each}}

@@ -40,6 +40,7 @@ export class InvoiceController {
           item: item.item || '',
           description: item.description || '',
           rate: item.rate || 0,
+          estimated_price: item.estimated_price !== undefined && item.estimated_price !== null ? parseFloat(item.estimated_price).toFixed(2) : null,
           amount: item.total || item.amount || 0
         }));
       } else if (estimateData.items && Array.isArray(estimateData.items)) {
@@ -48,6 +49,7 @@ export class InvoiceController {
           item: item.item || '',
           description: item.description || '',
           rate: item.rate || 0,
+          estimated_price: item.estimated_price !== undefined && item.estimated_price !== null ? parseFloat(item.estimated_price).toFixed(2) : null,
           amount: item.total || item.amount || 0
         }));
       }

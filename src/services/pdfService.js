@@ -55,7 +55,6 @@ export class PDFService {
       console.log(`Final Values - Subtotal: ${finalSubtotal}, Tax: ${finalTaxAmount}, Total: ${finalTotal}`);
       console.log(`Input Data - Subtotal: ${estimateData.subtotal}, Tax: ${estimateData.taxAmount}, Total: ${estimateData.total}`);
 
-      
       const templateData = {
         estimateNumber: estimateData.estimateNumber || estimateData.invoice_number || 'INV-2025-001',
         estimateDate: estimateData.estimateDate || new Date().toLocaleDateString(),
@@ -69,7 +68,7 @@ export class PDFService {
         additionalCosts: estimateData.additionalCosts || [],
         subtotal: finalSubtotal.toFixed(2),
         taxAmount: finalTaxAmount.toFixed(2), 
-        total: finalTotal.toFixed(2), 
+        total: finalTotal.toFixed(2),
         paymentsCredits: estimateData.paymentsCredits || undefined,
         balanceDue: estimateData.balanceDue || undefined,
         rep: estimateData.rep || undefined,
