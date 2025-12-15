@@ -36,14 +36,23 @@ export const sendEmailWithAttachment = async ({ to, subject, text, html, attachm
 
     const transporter = nodemailer.createTransport({
       service: "gmail",
+      host: "smtp.gmail.com",
+      port: 465,
+      secure: true, // true for 465, false for other ports
       auth: {
         user: emailUser || "vikasbase2brand@gmail.com", 
         pass: emaiPass || "pjphbswhlyhkdpjv", 
       },
+      connectionTimeout: 30000, // 30 seconds
+      socketTimeout: 30000, // 30 seconds
+      greetingTimeout: 30000, // 30 seconds
+      tls: {
+        rejectUnauthorized: false
+      }
     });
 
     const mailOptions = {
-      from: "vikasbase2brand@gmail.com", 
+      from: emailUser || "vikasbase2brand@gmail.com", 
       to,
       subject,
       text,

@@ -129,9 +129,18 @@ export class InvoiceController {
         ]
       };
 
-    
-      await sendEmailWithAttachment(emailData);
+      // Send email asynchronously (non-blocking) so API response doesn't fail if email times out
+      sendEmailWithAttachment(emailData)
+        .then(() => {
+          console.log(`Email sent successfully to ${customerEmail}`);
+        })
+        .catch((error) => {
+          console.error(`Failed to send email to ${customerEmail}:`, error.message);
+          // Don't throw - email failure shouldn't block the response
+        });
 
+      // Return success response immediately - invoice is already saved and uploaded
+      // Email sending happens in background and won't block the response
       return reply.status(200).send(successResponse({
         estimateId: estimateIdNum,
         customerEmail: customerEmail,
@@ -139,9 +148,9 @@ export class InvoiceController {
         invoiceLink: invoiceLink,
         s3Key: s3Result.Key,
         status: estimateData.status || 'sent',
-        emailSent: true,
+        emailSent: 'pending', // Email is being sent asynchronously
         uploadedAt: new Date().toISOString()
-      }, 'Estimate PDF generated, uploaded to S3, and sent via email successfully'));
+      }, 'Estimate PDF generated and uploaded to S3. Email is being sent in the background.'));
 
     } catch (error) {
       console.error('Error in sendInvoiceToCustomer:', error);
