@@ -781,5 +781,297 @@ export class StaffTimesheet {
       throw error;
     }
   }
+
+  static async searchStaffTimesheets(filters, pagination = {}) {
+    try {
+      // Fetch staff timesheets with date filters
+      let query = supabase
+        .from('staff_timesheets')
+        .select(`
+          *,
+          staff:staff_id (
+            id,
+            position,
+            department,
+            users!staff_user_id_fkey (
+              id,
+              full_name,
+              email
+            )
+          ),
+          job:job_id (
+            id,
+            job_title,
+            job_type,
+            status,
+            priority,
+            description
+          )
+        `);
+
+      // Apply date filters
+      if (filters.start_date && filters.end_date) {
+        query = query.gte('date', filters.start_date).lte('date', filters.end_date);
+      } else if (filters.start_date) {
+        query = query.gte('date', filters.start_date);
+      } else if (filters.end_date) {
+        query = query.lte('date', filters.end_date);
+      }
+
+      const { data: timesheets, error } = await query.order('date', { ascending: false });
+
+      if (error) {
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      // Filter by name and q (search query)
+      const q = (filters.q || '').toLowerCase().trim();
+      const nameFilter = (filters.name || '').toLowerCase().trim();
+
+      const timesheetRows = [];
+
+      for (const ts of timesheets || []) {
+        const staffName = ts.staff?.users?.full_name || 'Unknown';
+        const isStaffName = (staffName || '').toLowerCase();
+        const jobTitle = (ts.job?.job_title || '').toLowerCase();
+        const jobIdStr = (ts.job?.id || '').toString();
+
+        // Apply q (search) filter
+        if (q && q.length > 0) {
+          const hit = (isStaffName && isStaffName.includes(q)) || 
+                      (jobTitle && jobTitle.includes(q)) || 
+                      (jobIdStr && jobIdStr.includes(q));
+          if (!hit) continue;
+        }
+
+        // Apply name filter
+        if (nameFilter && !isStaffName.includes(nameFilter)) continue;
+
+        // Calculate hours
+        let hours = '00:00:00';
+        if (ts.start_time && ts.end_time) {
+          const start = new Date(`2000-01-01T${ts.start_time}`);
+          const end = new Date(`2000-01-01T${ts.end_time}`);
+          const diffMs = end - start;
+          const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+          const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+          const diffSeconds = Math.floor((diffMs % (1000 * 60)) / 1000);
+          hours = `${diffHours.toString().padStart(2, '0')}:${diffMinutes.toString().padStart(2, '0')}:${diffSeconds.toString().padStart(2, '0')}`;
+        } else if (ts.total_hours) {
+          hours = Job.hoursToTime(parseFloat(ts.total_hours) || 0);
+        }
+
+        timesheetRows.push({
+          employee: staffName,
+          job: ts.job ? `${ts.job.job_title} (Job-${ts.job.id})` : 'General Work',
+          job_id: ts.job_id || null,
+          staff_id: ts.staff_id,
+          date: ts.date,
+          hours: hours,
+          status: ts.status || 'pending',
+          title: ts.title || null
+        });
+      }
+
+      // If no results after filtering, return empty response
+      if (timesheetRows.length === 0) {
+        return {
+          period: {
+            start_date: filters.start_date || null,
+            end_date: filters.end_date || null,
+            week_range: filters.start_date && filters.end_date ? `${filters.start_date} - ${filters.end_date}` : null
+          },
+          dashboard_timesheets: [],
+          pagination: {
+            current_page: pagination.page || 1,
+            total_pages: 0,
+            total_records: 0,
+            records_per_page: pagination.limit || 10,
+            has_next_page: false,
+            has_prev_page: false
+          }
+        };
+      }
+
+      // Determine actual start and end dates
+      let actualStartDate, actualEndDate;
+      if (filters.start_date && filters.end_date) {
+        // Use filter dates and align to week boundaries
+        const startDateObj = new Date(filters.start_date);
+        const startDayOfWeek = startDateObj.getDay();
+        const startDaysToMonday = startDayOfWeek === 0 ? -6 : 1 - startDayOfWeek;
+        const startMonday = new Date(startDateObj);
+        startMonday.setDate(startDateObj.getDate() + startDaysToMonday);
+        
+        const endSunday = new Date(startMonday);
+        endSunday.setDate(startMonday.getDate() + 6);
+        
+        actualStartDate = Job.formatLocalDate(startMonday);
+        actualEndDate = Job.formatLocalDate(endSunday);
+      } else {
+        // Find earliest and latest dates from filtered results
+        const latest = timesheetRows.reduce((max, r) => (new Date(r.date) > new Date(max) ? r.date : max), timesheetRows[0].date);
+        const latestDateObj = new Date(latest);
+        const dayOfWeek = latestDateObj.getDay();
+        const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+        const monday = new Date(latestDateObj);
+        monday.setDate(latestDateObj.getDate() + daysToMonday);
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate() + 6);
+        actualStartDate = Job.formatLocalDate(monday);
+        actualEndDate = Job.formatLocalDate(sunday);
+      }
+
+      // Group by staff_id and job_id (similar to labor timesheet logic)
+      const buckets = new Map();
+      const dayNames = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+
+      const ensureRow = (key, employee, jobTitle, jobId, staffId) => {
+        if (!buckets.has(key)) {
+          const base = { 
+            employee, 
+            job: jobTitle, 
+            job_id: jobId, 
+            staff_id: staffId,
+            labor_id: null,
+            lead_labor_id: null,
+            hourly_rate: 0,
+            daily_dates: []
+          };
+          dayNames.forEach(d => base[d] = '0h');
+          base.total = '0h';
+          base.billable = '0h';
+          base.status = 'Draft';
+          buckets.set(key, base);
+        }
+        return buckets.get(key);
+      };
+
+      const statusCountsByKey = new Map();
+
+      timesheetRows.forEach(r => {
+        // Convert dates to Date objects for accurate comparison
+        const recordDate = new Date(r.date);
+        const startDate = new Date(actualStartDate);
+        const endDate = new Date(actualEndDate);
+        startDate.setHours(0, 0, 0, 0);
+        endDate.setHours(23, 59, 59, 999);
+        recordDate.setHours(0, 0, 0, 0);
+        
+        if (recordDate < startDate || recordDate > endDate) return;
+
+        const key = `${r.employee}|${r.job_id || 'null'}|${r.staff_id}`;
+        const row = ensureRow(key, r.employee, r.job, r.job_id, r.staff_id);
+        
+        // Track date for week calculation
+        const dateKey = Job.formatLocalDate(r.date);
+        if (!row.daily_dates.includes(dateKey)) {
+          row.daily_dates.push(dateKey);
+        }
+
+        // Calculate day of week
+        const dt = new Date(r.date);
+        const dow = dt.getDay();
+        const idx = dow === 0 ? 6 : dow - 1;
+        const dayKey = dayNames[idx];
+
+        const hoursVal = Job.timeToHours(r.hours || '00:00:00');
+
+        // Aggregate hours for the day
+        const existing = parseFloat((row[dayKey] || '0h').replace('h', '').replace('m', ''));
+        row[dayKey] = Job.formatTimeDisplay(hoursVal + (isNaN(existing) ? 0 : existing));
+
+        // Calculate total properly
+        const currentTotalStr = row.total || '0h';
+        let currentTotalHours = 0;
+        
+        if (currentTotalStr.includes('h') || currentTotalStr.includes('m')) {
+          const hourMatch = currentTotalStr.match(/(\d+)h/);
+          const minuteMatch = currentTotalStr.match(/(\d+)m/);
+          const hours = hourMatch ? parseFloat(hourMatch[1]) : 0;
+          const minutes = minuteMatch ? parseFloat(minuteMatch[1]) : 0;
+          currentTotalHours = hours + (minutes / 60);
+        } else if (currentTotalStr.match(/^\d{1,2}:\d{2}(:\d{2})?$/)) {
+          currentTotalHours = Job.timeToHours(currentTotalStr);
+        }
+        
+        const newTotalHours = currentTotalHours + hoursVal;
+        row.total = Job.formatTimeDisplay(newTotalHours);
+        row.billable = row.total;
+
+        // Track status
+        const normalized = (r.status || 'pending').toLowerCase();
+        const sc = statusCountsByKey.get(key) || {};
+        sc[normalized] = (sc[normalized] || 0) + 1;
+        statusCountsByKey.set(key, sc);
+      });
+
+      // Process buckets and set status, week, and other fields
+      buckets.forEach((row, key) => {
+        const sc = statusCountsByKey.get(key) || {};
+        if (sc.approved > 0) row.status = 'Approved';
+        else if (sc.submitted > 0) row.status = 'Submitted';
+        else if (sc.active > 0) row.status = 'Active';
+        else if (sc.pending > 0) row.status = 'Pending';
+        else if (sc.rejected > 0) row.status = 'Rejected';
+        
+        // Calculate actual week from daily_dates
+        let weekStartDate, weekEndDate;
+        const datesWithData = row.daily_dates || [];
+        
+        if (datesWithData.length > 0) {
+          const earliestDate = datesWithData.sort()[0];
+          const earliestDateObj = new Date(earliestDate);
+          const earliestDayOfWeek = earliestDateObj.getDay();
+          const earliestDaysToMonday = earliestDayOfWeek === 0 ? -6 : 1 - earliestDayOfWeek;
+          const monday = new Date(earliestDateObj);
+          monday.setDate(earliestDateObj.getDate() + earliestDaysToMonday);
+          const sunday = new Date(monday);
+          sunday.setDate(monday.getDate() + 6);
+          
+          weekStartDate = Job.formatLocalDate(monday);
+          weekEndDate = Job.formatLocalDate(sunday);
+        } else {
+          weekStartDate = actualStartDate;
+          weekEndDate = actualEndDate;
+        }
+
+        row.hourly_rate = 0; // Staff may not have hourly rate
+        row.weekly_payment = 0;
+        row.actions = [];
+        row.week = `${weekStartDate} - ${weekEndDate}`;
+        
+        // Remove daily_dates field from final response
+        delete row.daily_dates;
+      });
+
+      const dashboard = Array.from(buckets.values());
+
+      const { page = 1, limit = 10 } = pagination;
+      const totalRecords = dashboard.length;
+      const totalPages = Math.ceil(totalRecords / limit);
+      const offset = (page - 1) * limit;
+      const paginatedData = dashboard.slice(offset, offset + limit);
+
+      return {
+        period: {
+          start_date: actualStartDate,
+          end_date: actualEndDate,
+          week_range: `${actualStartDate} - ${actualEndDate}`
+        },
+        dashboard_timesheets: paginatedData,
+        pagination: {
+          current_page: page,
+          total_pages: totalPages,
+          total_records: totalRecords,
+          records_per_page: limit,
+          has_next_page: page < totalPages,
+          has_prev_page: page > 1
+        }
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
 }
 

@@ -240,5 +240,37 @@ export class StaffTimesheetController {
       return reply.code(500).send(errorResponse(error.message));
     }
   }
+
+  static async searchStaffTimesheets(req, reply) {
+    try {
+      const { q, name, start_date, end_date, page, limit } = req.query;
+
+      const pagination = {
+        page: parseInt(page) || 1,
+        limit: parseInt(limit) || 10,
+        sortBy: 'date',
+        sortOrder: 'desc'
+      };
+
+      const filters = {
+        q: (q || '').trim(),
+        name: name || '',
+        start_date: start_date || '',
+        end_date: end_date || ''
+      };
+
+      const result = await StaffTimesheet.searchStaffTimesheets(filters, pagination);
+      return reply.code(200).send({
+        success: true,
+        message: 'Staff timesheets search completed successfully',
+        data: result
+      });
+    } catch (error) {
+      if (error.message.includes('Database error')) {
+        return reply.code(500).send(errorResponse('Database error occurred', 500));
+      }
+      return reply.code(500).send(errorResponse(error.message));
+    }
+  }
 }
 

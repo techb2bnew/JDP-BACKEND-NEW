@@ -63,5 +63,10 @@ export default async function staffTimesheetRoutes(fastify, options) {
   fastify.get('/getWeeklyTimesheetView', {
     preHandler: authenticateToken
   }, StaffTimesheetController.getWeeklyTimesheetView);
+
+  // Search Staff Timesheets
+  fastify.get('/searchStaffTimesheets', {
+    preHandler: authenticateToken
+  }, StaffTimesheetController.searchStaffTimesheets);
 }
 
