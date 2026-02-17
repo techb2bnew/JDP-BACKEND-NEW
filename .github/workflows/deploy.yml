@@ -50,5 +50,5 @@ jobs:
           script: |
             cd /var/www/html/JDP-BACKEND-NEW/
             npm install --production
-            pm2 restart jdp-backend-new || pm2 start ecosystem.config.js --name jdp-backend-new
+            pm2 restart jdp-backend-new || pm2 start "npm run start" --name jdp-backend-new
             pm2 save
