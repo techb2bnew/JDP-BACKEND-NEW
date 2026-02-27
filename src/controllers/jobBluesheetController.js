@@ -391,13 +391,6 @@ export class JobBluesheetController {
         return responseHelper.error(reply, 'Materials array is required and cannot be empty', 400);
       }
 
-      // Validate each material has either id (for update) or product_id (for create)
-      for (const material of materials) {
-        if (!material.id && !material.product_id) {
-          return responseHelper.error(reply, 'Each material must have either id (for update) or product_id (for create)', 400);
-        }
-      }
-
       const result = await JobBluesheetService.bulkUpdateCreateMaterials(id, materials);
 
       return responseHelper.success(reply, result.data, result.message);
