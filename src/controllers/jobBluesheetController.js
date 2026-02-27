@@ -382,6 +382,30 @@ export class JobBluesheetController {
     }
   }
 
+  static async bulkMaterialUpdateCreate(request, reply) {
+    try {
+      const { id } = request.params;
+      const { materials } = request.body;
+
+      if (!materials || !Array.isArray(materials) || materials.length === 0) {
+        return responseHelper.error(reply, 'Materials array is required and cannot be empty', 400);
+      }
+
+      // Validate each material has either id (for update) or product_id (for create)
+      for (const material of materials) {
+        if (!material.id && !material.product_id) {
+          return responseHelper.error(reply, 'Each material must have either id (for update) or product_id (for create)', 400);
+        }
+      }
+
+      const result = await JobBluesheetService.bulkUpdateCreateMaterials(id, materials);
+
+      return responseHelper.success(reply, result.data, result.message);
+    } catch (error) {
+      return responseHelper.error(reply, error.message, 500);
+    }
+  }
+
   static async approveBluesheet(request, reply) {
     try {
       const { id } = request.params;

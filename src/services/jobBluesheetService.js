@@ -555,6 +555,54 @@ export class JobBluesheetService {
   }
 
 
+  static async bulkUpdateCreateMaterials(bluesheetId, materials) {
+    try {
+      // Validate bluesheet exists
+      const bluesheet = await JobBluesheet.findById(bluesheetId);
+      if (!bluesheet) {
+        throw new Error('Job bluesheet not found');
+      }
+
+      // Process bulk materials
+      const results = await JobBluesheetMaterial.bulkUpdateCreate(bluesheetId, materials);
+
+      // Recalculate total cost
+      const laborTotalCost = await JobBluesheetLabor.calculateTotalCost(bluesheetId);
+      const materialTotalCost = await JobBluesheetMaterial.calculateTotalCost(bluesheetId);
+      const additionalCharges = bluesheet.additional_charges || 0;
+      const grandTotal = laborTotalCost + materialTotalCost + additionalCharges;
+
+      // Update bluesheet total cost
+      await JobBluesheet.update(bluesheetId, {
+        total_cost: grandTotal
+      });
+
+      const createdCount = results.filter(r => r.operation === 'created').length;
+      const updatedCount = results.filter(r => r.operation === 'updated').length;
+
+      return {
+        success: true,
+        data: {
+          results,
+          summary: {
+            total_processed: results.length,
+            created: createdCount,
+            updated: updatedCount,
+            cost_breakdown: {
+              labor_total_cost: laborTotalCost,
+              material_total_cost: materialTotalCost,
+              additional_charges: additionalCharges,
+              grand_total: grandTotal
+            }
+          }
+        },
+        message: `Bulk material update/create completed: ${createdCount} created, ${updatedCount} updated`
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+
   static async approveBluesheet(id, approvedByUserId) {
     try {
 

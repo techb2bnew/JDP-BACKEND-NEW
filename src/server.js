@@ -3,6 +3,7 @@ import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
 import multipart from '@fastify/multipart';
 import dotenv from 'dotenv';
+import quickbooksRoutes from './routes/quickbooksRoutes.js';
 
 import { 
   authenticateToken, 
@@ -125,6 +126,7 @@ await fastify.register(jobDocumentRoutes, { prefix: '/api/job-documents' });
 await fastify.register(dashboardRoutes, { prefix: '/api/dashboard' });
 await fastify.register(analyticsRoutes, { prefix: '/api/analytics' });
 await fastify.register(notificationRoutes, { prefix: '/api/notifications' });
+await fastify.register(quickbooksRoutes, { prefix: '/api/quickbooks' });
 fastify.get('/health', async (request, reply) => {
   return { status: 'OK', timestamp: new Date().toISOString() };
 });

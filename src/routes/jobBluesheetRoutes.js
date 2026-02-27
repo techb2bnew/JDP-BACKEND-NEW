@@ -25,6 +25,7 @@ export async function jobBluesheetRoutes(fastify, options) {
   fastify.get('/material/:id', JobBluesheetController.getMaterialEntryById);
   fastify.put('/material/:id', JobBluesheetController.updateMaterialEntry);
   fastify.delete('/material/:id', JobBluesheetController.deleteMaterialEntry);
+  fastify.post('/bluesheet/:id/materialupdatecreate', JobBluesheetController.bulkMaterialUpdateCreate);
 
   fastify.get('/bluesheet/:id/summary', JobBluesheetController.getBluesheetSummary);
   fastify.get('/product/:productId/usage-stats', JobBluesheetController.getMaterialUsageStats);

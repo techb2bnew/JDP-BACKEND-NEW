@@ -1,5 +1,10 @@
 import { Estimate } from '../models/Estimate.js';
 import { supabase } from '../config/database.js';
+import {
+  createQuickBooksInvoice,
+  updateQuickBooksInvoice,
+  deleteQuickBooksInvoice,
+} from './quickbooksClient.js';
 
 export class EstimateService {
   static async deleteProductFromEstimate(estimateProductId) {
@@ -9,6 +14,112 @@ export class EstimateService {
     } catch (error) {
       throw error;
     }
+  }
+
+  // Helper: Build QuickBooks invoice payload from estimate
+  static async buildQuickBooksInvoicePayload(estimate) {
+    // Customer ka qb_customer_id nikaalo
+    const { data: customer } = await supabase
+      .from('customers')
+      .select('qb_customer_id')
+      .eq('id', estimate.customer_id)
+      .single();
+
+    if (!customer || !customer.qb_customer_id) {
+      throw new Error('Customer not found or not synced with QuickBooks. Please sync customer first.');
+    }
+
+    // Line items: products + additional costs
+    const { data: estimateProducts } = await supabase
+      .from('estimate_products')
+      .select(`
+        product:products(
+          product_name,
+          jdp_price,
+          total_cost,
+          description
+        )
+      `)
+      .eq('estimate_id', estimate.id);
+
+    const { data: additionalCosts } = await supabase
+      .from('estimate_additional_costs')
+      .select('description, amount')
+      .eq('estimate_id', estimate.id);
+
+    const lineItems = [];
+
+    // Products ko line items me convert karo
+    if (estimateProducts && estimateProducts.length > 0) {
+      estimateProducts.forEach((ep) => {
+        const product = ep.product;
+        if (product) {
+          lineItems.push({
+            DetailType: 'SalesItemLineDetail',
+            Amount: parseFloat(product.total_cost || product.jdp_price || 0),
+            SalesItemLineDetail: {
+              ItemRef: {
+                value: '1', // Default service item (QuickBooks me pehle se hona chahiye)
+                name: product.product_name || 'Service',
+              },
+              UnitPrice: parseFloat(product.jdp_price || 0),
+              Qty: 1,
+            },
+            Description: product.product_name || product.description || 'Product',
+          });
+        }
+      });
+    }
+
+    // Additional costs ko line items me convert karo
+    if (additionalCosts && additionalCosts.length > 0) {
+      additionalCosts.forEach((cost) => {
+        lineItems.push({
+          DetailType: 'SalesItemLineDetail',
+          Amount: parseFloat(cost.amount || 0),
+          SalesItemLineDetail: {
+            ItemRef: {
+              value: '1',
+              name: 'Service',
+            },
+            UnitPrice: parseFloat(cost.amount || 0),
+            Qty: 1,
+          },
+          Description: cost.description || 'Additional Cost',
+        });
+      });
+    }
+
+    // Agar koi line item nahi hai, ek default add karo
+    if (lineItems.length === 0) {
+      lineItems.push({
+        DetailType: 'SalesItemLineDetail',
+        Amount: parseFloat(estimate.total_amount || 0),
+        SalesItemLineDetail: {
+          ItemRef: {
+            value: '1',
+            name: 'Service',
+          },
+          UnitPrice: parseFloat(estimate.total_amount || 0),
+          Qty: 1,
+        },
+        Description: estimate.estimate_title || estimate.description || 'Invoice Item',
+      });
+    }
+
+    // QuickBooks invoice payload
+    const qbPayload = {
+      CustomerRef: {
+        value: customer.qb_customer_id,
+      },
+      DocNumber: estimate.invoice_number || undefined,
+      TxnDate: estimate.issue_date || estimate.estimate_date || new Date().toISOString().split('T')[0],
+      DueDate: estimate.due_date || undefined,
+      Line: lineItems,
+      TotalAmt: parseFloat(estimate.total_amount || 0),
+    };
+
+    return qbPayload;
   }
 
   static async createEstimate(estimateData, createdByUserId) {
@@ -61,6 +172,74 @@ export class EstimateService {
       console.log('Cleaned estimate data:', cleanedData);
 
       const estimate = await Estimate.create(cleanedData);
+
+      // QuickBooks me invoice create karo (agar customer_id hai aur qb_customer_id mapped hai)
+      if (estimate.customer_id) {
+        try {
+          // Pehle check karo customer ka qb_customer_id hai ya nahi
+          const { data: customer, error: customerError } = await supabase
+            .from('customers')
+            .select('qb_customer_id, customer_name')
+            .eq('id', estimate.customer_id)
+            .single();
+
+          if (customerError) {
+            console.error('Error fetching customer:', customerError);
+          }
+
+          if (!customer || !customer.qb_customer_id) {
+            console.warn(`QuickBooks sync skipped: Customer "${customer?.customer_name || estimate.customer_id}" is not synced with QuickBooks. Please sync customer first using POST /api/quickbooks/customers/sync-to-db`);
+          } else {
+            console.log(`Creating QuickBooks invoice for customer ID ${estimate.customer_id} with QB Customer ID: ${customer.qb_customer_id}`);
+            
+            const qbPayload = await EstimateService.buildQuickBooksInvoicePayload(estimate);
+            console.log('QuickBooks invoice payload:', JSON.stringify(qbPayload, null, 2));
+            
+            const qbResponse = await createQuickBooksInvoice(qbPayload);
+            console.log('QuickBooks invoice response:', JSON.stringify(qbResponse, null, 2));
+            
+            const qbInvoice = qbResponse.Invoice;
+            const qbInvoiceId = qbInvoice?.Id;
+
+            console.log('QuickBooks Invoice ID received:', qbInvoiceId);
+
+            // qb_invoice_id ko estimate me update karo
+            if (qbInvoiceId) {
+              const { error: updateError } = await supabase
+                .from('estimates')
+                .update({ qb_invoice_id: qbInvoiceId })
+                .eq('id', estimate.id);
+              
+              if (updateError) {
+                console.error('Error updating qb_invoice_id:', updateError);
+              } else {
+                console.log(`Successfully updated estimate ${estimate.id} with qb_invoice_id: ${qbInvoiceId}`);
+              }
+              
+              // Updated estimate return karo
+              const { data: updatedEstimate } = await supabase
+                .from('estimates')
+                .select('*')
+                .eq('id', estimate.id)
+                .single();
+              
+              if (updatedEstimate) {
+                estimate.qb_invoice_id = updatedEstimate.qb_invoice_id;
+              }
+            } else {
+              console.warn('QuickBooks invoice created but no Invoice ID in response');
+            }
+          }
+        } catch (qbError) {
+          // QuickBooks error ko log karo but estimate creation fail mat karo
+          console.error('QuickBooks invoice creation failed:', qbError.message);
+          console.error('Error stack:', qbError.stack);
+          if (qbError.response) {
+            console.error('QuickBooks API error response:', JSON.stringify(qbError.response.data, null, 2));
+          }
+          // User ko warning de sakte ho but estimate create ho gaya hai
+        }
+      }
       
       return {
         estimate,
@@ -156,6 +335,17 @@ export class EstimateService {
       console.log('Cleaned update data:', cleanedData);
 
       const estimate = await Estimate.update(estimateId, cleanedData);
+
+      // QuickBooks me invoice update karo (agar qb_invoice_id hai)
+      if (estimate.qb_invoice_id) {
+        try {
+          const qbPayload = await EstimateService.buildQuickBooksInvoicePayload(estimate);
+          await updateQuickBooksInvoice(estimate.qb_invoice_id, qbPayload);
+        } catch (qbError) {
+          console.error('QuickBooks invoice update failed:', qbError.message);
+          // Error ko log karo but estimate update successful hai
+        }
+      }
       
       return {
         estimate,
@@ -193,6 +383,16 @@ export class EstimateService {
         console.error('Error checking relationships, proceeding with deletion:', relationshipError);
         
         relationshipCheck = { canDelete: true, relationships: [] };
+      }
+      
+      // QuickBooks me invoice delete/inactive karo (agar qb_invoice_id hai)
+      if (estimate.qb_invoice_id) {
+        try {
+          await deleteQuickBooksInvoice(estimate.qb_invoice_id);
+        } catch (qbError) {
+          console.error('QuickBooks invoice delete failed:', qbError.message);
+          // Error ko log karo but estimate delete continue karo
+        }
       }
       
       

@@ -170,6 +170,39 @@ export class JobBluesheetMaterial {
     }
   }
 
+  static async bulkUpdateCreate(bluesheetId, materials) {
+    try {
+      const results = [];
+      
+      for (const material of materials) {
+        const { id, ...materialData } = material;
+        
+        let result;
+        if (id) {
+          // Update existing material by ID
+          result = await this.update(id, {
+            ...materialData,
+            job_bluesheet_id: bluesheetId
+          });
+          result.operation = 'updated';
+        } else {
+          // Create new material
+          result = await this.create({
+            ...materialData,
+            job_bluesheet_id: bluesheetId
+          });
+          result.operation = 'created';
+        }
+        
+        results.push(result);
+      }
+      
+      return results;
+    } catch (error) {
+      throw error;
+    }
+  }
+
   static async getMaterialUsageStats(productId, startDate, endDate) {
     try {
       const { data, error } = await supabase
