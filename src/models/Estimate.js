@@ -340,7 +340,7 @@ export class Estimate {
                 stock_quantity: productItem.stock_quantity,
                 unit: productItem.unit,
                 unit_cost: productItem.unit_cost,
-                jdp_price: productItem.jdp_price || productItem.unit_cost,
+                jdp_price: productItem.total_cost || productItem.estimated_price || productItem.unit_cost, // Use total_cost for QuickBooks consistency
                 estimated_price: productItem.estimated_price || null,
                 total_cost: productItem.total_cost || productItem.unit_cost,
                 status: 'active',
@@ -380,7 +380,7 @@ export class Estimate {
                 job_id: parseInt(productItem.job_id),
                 is_custom: true,
                 unit_cost: productItem.unit_cost,
-                jdp_price: productItem.jdp_price || productItem.unit_cost,
+                jdp_price: productItem.total_cost || productItem.estimated_price || productItem.unit_cost, // Use total_cost for QuickBooks consistency
                 estimated_price: productItem.estimated_price || null,
                 total_cost: productItem.total_cost || productItem.unit_cost,
                 status: 'active',

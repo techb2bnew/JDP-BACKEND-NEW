@@ -2,6 +2,7 @@ import { Estimate } from '../models/Estimate.js';
 import { supabase } from '../config/database.js';
 import {
   createQuickBooksInvoice,
+  sendQuickBooksInvoiceEmail,
   updateQuickBooksInvoice,
   deleteQuickBooksInvoice,
 } from './quickbooksClient.js';
@@ -18,10 +19,10 @@ export class EstimateService {
 
   // Helper: Build QuickBooks invoice payload from estimate
   static async buildQuickBooksInvoicePayload(estimate) {
-    // Customer ka qb_customer_id nikaalo
+    // Customer ka qb_customer_id aur email nikaalo
     const { data: customer } = await supabase
       .from('customers')
-      .select('qb_customer_id')
+      .select('qb_customer_id, email, customer_name')
       .eq('id', estimate.customer_id)
       .single();
 
@@ -37,7 +38,8 @@ export class EstimateService {
           product_name,
           jdp_price,
           total_cost,
-          description
+          description,
+          stock_quantity
         )
       `)
       .eq('estimate_id', estimate.id);
@@ -54,16 +56,19 @@ export class EstimateService {
       estimateProducts.forEach((ep) => {
         const product = ep.product;
         if (product) {
+          const quantity = parseInt(product.stock_quantity || 1);
+          const unitPrice = parseFloat(product.total_cost || product.estimated_price || 0);
+          
           lineItems.push({
             DetailType: 'SalesItemLineDetail',
-            Amount: parseFloat(product.total_cost || product.jdp_price || 0),
+            Amount: unitPrice * quantity, // Amount = UnitPrice * Qty
             SalesItemLineDetail: {
               ItemRef: {
                 value: '1', // Default service item (QuickBooks me pehle se hona chahiye)
                 name: product.product_name || 'Service',
               },
-              UnitPrice: parseFloat(product.jdp_price || 0),
-              Qty: 1,
+              UnitPrice: unitPrice,
+              Qty: quantity,
             },
             Description: product.product_name || product.description || 'Product',
           });
@@ -116,8 +121,17 @@ export class EstimateService {
       TxnDate: estimate.issue_date || estimate.estimate_date || new Date().toISOString().split('T')[0],
       DueDate: estimate.due_date || undefined,
       Line: lineItems,
-      TotalAmt: parseFloat(estimate.total_amount || 0),
+      // Remove TotalAmt - let QuickBooks calculate automatically from Line items
     };
+
+    // Add customer email if available
+    if (customer.email) {
+      qbPayload.BillEmail = {
+        Address: customer.email
+      };
+      // Fix #2: Set EmailStatus to queue email properly
+      qbPayload.EmailStatus = "NeedToSend";
+    }
 
     return qbPayload;
   }
@@ -129,6 +143,11 @@ export class EstimateService {
         ...estimateData,
         created_by: createdByUserId
       };
+
+      // Fix description undefined issue
+      if (!cleanedData.description || cleanedData.description === '') {
+        cleanedData.description = cleanedData.estimate_title || 'Invoice';
+      }
 
       
       if (cleanedData.total_amount === '' || cleanedData.total_amount === null) {
@@ -203,7 +222,18 @@ export class EstimateService {
 
             console.log('QuickBooks Invoice ID received:', qbInvoiceId);
 
-            // qb_invoice_id ko estimate me update karo
+            // Send email IMMEDIATELY after invoice creation (before any other operations)
+            if (qbInvoiceId) {
+              try {
+                console.log('Sending invoice email immediately...');
+                const emailResponse = await sendQuickBooksInvoiceEmail(qbInvoiceId);
+                console.log('Invoice email sent successfully:', JSON.stringify(emailResponse, null, 2));
+              } catch (emailError) {
+                console.error('Error sending invoice email:', emailError.message);
+              }
+            }
+
+            // qb_invoice_id ko estimate me update karo (after email attempt)
             if (qbInvoiceId) {
               const { error: updateError } = await supabase
                 .from('estimates')
@@ -214,8 +244,7 @@ export class EstimateService {
                 console.error('Error updating qb_invoice_id:', updateError);
               } else {
                 console.log(`Successfully updated estimate ${estimate.id} with qb_invoice_id: ${qbInvoiceId}`);
-              }
-              
+              }  
               // Updated estimate return karo
               const { data: updatedEstimate } = await supabase
                 .from('estimates')

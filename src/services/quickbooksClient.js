@@ -38,7 +38,7 @@ async function getQuickBooksAccessToken() {
 }
 
 // Helper to call QuickBooks Accounting API.
-async function callQuickBooks(path, method = 'GET', body) {
+async function callQuickBooks(path, method = 'GET', body, contentType = 'application/json') {
   const accessToken = await getQuickBooksAccessToken();
   const realmId = process.env.QB_REAL_ID || process.env.QB_REALM_ID;
 
@@ -59,7 +59,7 @@ async function callQuickBooks(path, method = 'GET', body) {
     headers: {
       Authorization: `Bearer ${accessToken}`,
       Accept: 'application/json',
-      'Content-Type': 'application/json',
+      'Content-Type': contentType,  // ✅ Dynamic contentType
     },
     data: body || undefined,
   });
@@ -109,7 +109,6 @@ async function deleteQuickBooksCustomer(qbCustomerId) {
     return null;
   }
 
-  // Hard delete ke bajaye QuickBooks me customer ko inactive mark karo
   const payload = {
     Id: customer.Id,
     SyncToken: customer.SyncToken,
@@ -144,6 +143,100 @@ async function createQuickBooksInvoice(invoicePayload) {
     if (error.response && error.response.data) {
       const qbError = error.response.data;
       throw new Error(`QuickBooks API Error: ${qbError.error || 'Unknown error'} - ${qbError.error_description || qbError.message || JSON.stringify(qbError)}`);
+    }
+    throw error;
+  }
+}
+
+// Send invoice email in QuickBooks
+async function sendQuickBooksInvoiceEmail(qbInvoiceId) {
+  const delay = ms => new Promise(res => setTimeout(res, ms));
+  
+  try {
+    console.log('🚀 Starting QuickBooks email send process...');
+    console.log('📧 Invoice ID:', qbInvoiceId);
+    
+    console.log('⏰ Waiting 6 seconds for QuickBooks processing...');
+    await delay(6000); // 6 sec safer for sandbox
+
+    // Get fresh invoice with minorversion (important for sandbox stability)
+    console.log('🔍 Getting fresh invoice data...');
+    const freshInvoice = await callQuickBooks(
+      `/invoice/${qbInvoiceId}?minorversion=65`,
+      'GET'
+    );
+    
+    console.log('📋 Fresh Invoice Response:', JSON.stringify(freshInvoice, null, 2));
+    
+    const syncToken = freshInvoice.Invoice?.SyncToken;
+    const emailAddress = freshInvoice.Invoice?.BillEmail?.Address;
+    
+    console.log('🔑 Fresh SyncToken:', syncToken);
+    console.log('📧 Email Address:', emailAddress);
+    
+    if (!emailAddress) {
+      throw new Error('❌ Email address not found in invoice');
+    }
+    
+    // Use sendTo parameter with octet-stream content type (Fix: prevents NullPointerException)
+    const sendUrl = `/invoice/${qbInvoiceId}/send?sendTo=${encodeURIComponent(emailAddress)}&minorversion=65`;
+    console.log('🌐 Send URL:', sendUrl);
+    console.log('📦 Content-Type: application/octet-stream');
+    
+    // Send invoice email with octet-stream content type
+    console.log('📤 Sending email request...');
+    const response = await callQuickBooks(
+      sendUrl,
+      'POST',
+      null,
+      'application/octet-stream'  // ✅ Use octet-stream for send endpoint
+    );
+    
+    console.log('✅ Invoice email sent successfully');
+    console.log('📧 Response:', JSON.stringify(response, null, 2));
+    return response;
+    
+  } catch (error) {
+    console.error('❌ ERROR IN EMAIL SEND:');
+    console.error('🔍 Full Error:', error);
+    console.error('📊 Error Response:', error.response?.data);
+    console.error('🔗 Error URL:', error.config?.url);
+    console.error('📝 Error Method:', error.config?.method);
+    console.error('📦 Error Body:', error.config?.data);
+    
+    const code = error.response?.data?.Fault?.Error?.[0]?.code;
+    
+    // Handle common QuickBooks errors with retry
+    if (code === "5010" || code === "10000") {
+      console.log('⚠️ QuickBooks timing error, retrying in 5 sec...');
+      await delay(5000);
+      
+      try {
+        // Retry with octet-stream content type
+        const freshInvoice = await callQuickBooks(
+          `/invoice/${qbInvoiceId}?minorversion=65`,
+          'GET'
+        );
+        const emailAddress = freshInvoice.Invoice?.BillEmail?.Address;
+        
+        const retryResponse = await callQuickBooks(
+          `/invoice/${qbInvoiceId}/send?sendTo=${encodeURIComponent(emailAddress)}&minorversion=65`,
+          'POST',
+          null,
+          'application/octet-stream'  // ✅ Use octet-stream for retry too
+        );
+        console.log('✅ Invoice email sent on retry');
+        return retryResponse;
+      } catch (retryError) {
+        console.error('❌ Retry failed:', retryError.response?.data || retryError.message);
+      }
+    }
+    
+    // Other errors
+    if (error.response && error.response.data) {
+      const qbError = error.response.data;
+      console.error('❌ QuickBooks Email Error:', JSON.stringify(qbError, null, 2));
+      throw new Error(`QuickBooks Email Error: ${qbError.error || 'Unknown error'}`);
     }
     throw error;
   }
@@ -211,6 +304,7 @@ export {
   deleteQuickBooksCustomer,
   getQuickBooksInvoiceById,
   createQuickBooksInvoice,
+  sendQuickBooksInvoiceEmail,
   updateQuickBooksInvoice,
   deleteQuickBooksInvoice,
   getQuickBooksInvoices,
