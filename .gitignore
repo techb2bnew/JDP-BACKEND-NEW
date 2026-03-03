@@ -18,6 +18,9 @@ pids
 # Environment files
 .env
 .env.local
+
+# QuickBooks tokens (contains refresh token – do not commit)
+data/qb-tokens.json
 .env.development.local
 .env.test.local
 .env.production.local

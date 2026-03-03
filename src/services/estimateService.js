@@ -121,6 +121,9 @@ export class EstimateService {
       TxnDate: estimate.issue_date || estimate.estimate_date || new Date().toISOString().split('T')[0],
       DueDate: estimate.due_date || undefined,
       Line: lineItems,
+      // Enable online payments so QuickBooks email includes a Pay link (if Payments is enabled on the company)
+      AllowOnlineACHPayment: true,
+      AllowOnlineCreditCardPayment: true,
       // Remove TotalAmt - let QuickBooks calculate automatically from Line items
     };
 
@@ -188,12 +191,15 @@ export class EstimateService {
         cleanedData.description = null;
       }
 
+      const invoiceSource = cleanedData.invoice_source || 'custom';
+      delete cleanedData.invoice_source;
       console.log('Cleaned estimate data:', cleanedData);
 
       const estimate = await Estimate.create(cleanedData);
 
-      // QuickBooks me invoice create karo (agar customer_id hai aur qb_customer_id mapped hai)
-      if (estimate.customer_id) {
+      // QuickBooks me invoice tabhi create karo jab invoice_source === 'quickbook' (custom = sirf custom invoice)
+      const shouldSyncToQuickBooks = invoiceSource === 'quickbook' && estimate.customer_id;
+      if (shouldSyncToQuickBooks) {
         try {
           // Pehle check karo customer ka qb_customer_id hai ya nahi
           const { data: customer, error: customerError } = await supabase

@@ -1,13 +1,47 @@
 import axios from 'axios';
+import fs from 'fs/promises';
+import path from 'path';
 
-// Get a fresh QuickBooks access token using the long‑lived refresh token.
+const QB_TOKENS_FILE = path.join(process.cwd(), 'data', 'qb-tokens.json');
+
+async function loadStoredRefreshToken() {
+  try {
+    const raw = await fs.readFile(QB_TOKENS_FILE, 'utf8');
+    const json = JSON.parse(raw);
+    if (json && typeof json.refresh_token === 'string' && json.refresh_token.trim()) {
+      return json.refresh_token.trim();
+    }
+  } catch {
+    // file missing or invalid – use .env
+  }
+  return null;
+}
+
+async function saveRefreshToken(refreshToken) {
+  try {
+    const dir = path.dirname(QB_TOKENS_FILE);
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(
+      QB_TOKENS_FILE,
+      JSON.stringify({ refresh_token: refreshToken, updated_at: new Date().toISOString() }, null, 2),
+      'utf8'
+    );
+  } catch (err) {
+    console.warn('Could not save QuickBooks refresh token to file:', err.message);
+  }
+}
+
+// Get a fresh QuickBooks access token; refresh token is auto-saved so it stays valid.
 async function getQuickBooksAccessToken() {
-  const refreshToken = process.env.QB_REFRESH_TOKEN;
+  let refreshToken = await loadStoredRefreshToken();
+  if (!refreshToken) {
+    refreshToken = process.env.QB_REFRESH_TOKEN;
+  }
   const clientId = process.env.QB_CLIENT_ID;
   const clientSecret = process.env.QB_CLIENT_SECRET;
 
   if (!refreshToken) {
-    throw new Error('QB_REFRESH_TOKEN is missing in environment variables');
+    throw new Error('QB_REFRESH_TOKEN is missing. Set it in .env or reconnect QuickBooks.');
   }
 
   if (!clientId || !clientSecret) {
@@ -15,23 +49,39 @@ async function getQuickBooksAccessToken() {
   }
 
   const tokenUrl = 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer';
-
   const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
 
   const params = new URLSearchParams();
   params.append('grant_type', 'refresh_token');
   params.append('refresh_token', refreshToken);
 
-  const { data } = await axios.post(tokenUrl, params.toString(), {
-    headers: {
-      Authorization: `Basic ${basicAuth}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-      Accept: 'application/json',
-    },
-  });
+  let data;
+  try {
+    const res = await axios.post(tokenUrl, params.toString(), {
+      headers: {
+        Authorization: `Basic ${basicAuth}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Accept: 'application/json',
+      },
+    });
+    data = res.data;
+  } catch (err) {
+    if (err.response?.data?.error === 'invalid_grant') {
+      const fromFile = await loadStoredRefreshToken();
+      if (fromFile && fromFile === refreshToken) {
+        await saveRefreshToken('').catch(() => {});
+      }
+      throw new Error('QuickBooks refresh token expired or invalid. Please reconnect QuickBooks from the app.');
+    }
+    throw err;
+  }
 
   if (!data || !data.access_token) {
     throw new Error('Unable to get QuickBooks access token from refresh token');
+  }
+
+  if (data.refresh_token) {
+    await saveRefreshToken(data.refresh_token);
   }
 
   return data.access_token;

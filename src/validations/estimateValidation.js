@@ -19,6 +19,8 @@ export const createEstimateSchema = Joi.object({
   total_amount: Joi.number().precision(2).min(0).default(0),
   status: Joi.string().valid('draft', 'sent', 'accepted', 'rejected', 'expired').default('draft'),
   invoice_type: Joi.string().max(100).default('estimate'),
+  /** 'custom' = only custom invoice (no QuickBooks); 'quickbook' = invoice QuickBooks me bhi create/send hogi */
+  invoice_source: Joi.string().valid('custom', 'quickbook').default('custom'),
   invoice_number: Joi.string().max(50).optional(),
   issue_date: Joi.date().optional(),
   due_date: Joi.any().optional(),
@@ -71,6 +73,7 @@ export const updateEstimateSchema = Joi.object({
   status: Joi.string().valid('draft', 'sent', 'accepted', 'rejected', 'expired').optional(),
   
   invoice_type: Joi.string().max(100).optional(),
+  invoice_source: Joi.string().valid('custom', 'quickbook').optional(),
   invoice_number: Joi.string().max(50).optional(),
   issue_date: Joi.date().optional(),
   due_date: Joi.any().optional(),
