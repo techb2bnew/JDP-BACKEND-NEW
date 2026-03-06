@@ -173,7 +173,24 @@ export class JobBluesheet {
           job:job_id (
             id,
             job_title,
-            status
+            job_type,
+            status,
+            customer:customers!jobs_customer_id_fkey (
+              id,
+              customer_name,
+              company_name,
+              email,
+              phone,
+              address
+            ),
+            contractor:contractors!jobs_contractor_id_fkey (
+              id,
+              contractor_name,
+              company_name,
+              email,
+              phone,
+              address
+            )
           ),
           created_by_user:users!job_bluesheet_created_by_fkey (
             id,
