@@ -458,14 +458,21 @@ export class Contractor {
               };
             }
 
+            // Sort by created_at ascending so the FIRST created job at an address becomes main job
+            const sortedJobs = [...(jobs || [])].sort((a, b) => {
+              const dateA = new Date(a.created_at || 0).getTime();
+              const dateB = new Date(b.created_at || 0).getTime();
+              return dateA - dateB;
+            });
+
             const jobsByAddress = {};
             const groupedJobs = [];
 
-            (jobs || []).forEach(job => {
+            sortedJobs.forEach(job => {
               const addressKey = job.address || 'No Address';
               
               if (!jobsByAddress[addressKey]) {
-             
+                // First (oldest) job with this address = main job
                 jobsByAddress[addressKey] = {
                   ...job, 
                   isMainJob: true,

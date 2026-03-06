@@ -537,14 +537,21 @@ export class JobService {
       const jobs = await Job.findByCustomerId(customerId);
 
       // Group jobs by address (same logic as contractor)
+      // Sort by created_at ascending so the FIRST created job at an address becomes main job
+      const sortedJobs = [...(jobs || [])].sort((a, b) => {
+        const dateA = new Date(a.created_at || 0).getTime();
+        const dateB = new Date(b.created_at || 0).getTime();
+        return dateA - dateB;
+      });
+
       const jobsByAddress = {};
       const groupedJobs = [];
 
-      (jobs || []).forEach(job => {
+      sortedJobs.forEach(job => {
         const addressKey = job.address || 'No Address';
         
         if (!jobsByAddress[addressKey]) {
-          // First job with this address becomes main job
+          // First (oldest) job with this address becomes main job
           jobsByAddress[addressKey] = {
             ...job, 
             isMainJob: true,
@@ -611,14 +618,21 @@ export class JobService {
       const jobs = await Job.findByContractorId(contractorId);
 
       // Group jobs by address (same logic as customer)
+      // Sort by created_at ascending so the FIRST created job at an address becomes main job
+      const sortedJobs = [...(jobs || [])].sort((a, b) => {
+        const dateA = new Date(a.created_at || 0).getTime();
+        const dateB = new Date(b.created_at || 0).getTime();
+        return dateA - dateB;
+      });
+
       const jobsByAddress = {};
       const groupedJobs = [];
 
-      (jobs || []).forEach(job => {
+      sortedJobs.forEach(job => {
         const addressKey = job.address || 'No Address';
         
         if (!jobsByAddress[addressKey]) {
-          // First job with this address becomes main job
+          // First (oldest) job with this address becomes main job
           jobsByAddress[addressKey] = {
             ...job, 
             isMainJob: true,
