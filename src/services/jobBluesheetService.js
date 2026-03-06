@@ -164,12 +164,13 @@ export class JobBluesheetService {
 
   static async searchBluesheets(filters, pagination = {}) {
     try {
-      const result = await JobBluesheet.search(filters, pagination);
+      // List returns one row per JOB (grouped); full bluesheets for a job via GET /job/:jobId/bluesheets
+      const result = await JobBluesheet.searchGroupedByJob(filters, pagination);
 
       return {
         success: true,
         data: result,
-        message: 'Job bluesheets retrieved successfully'
+        message: 'Job bluesheets list retrieved successfully (one entry per job; use GET /job/:jobId/bluesheets to view all bluesheets for a job)'
       };
     } catch (error) {
       throw error;
@@ -626,5 +627,47 @@ export class JobBluesheetService {
     } catch (error) {
       throw error;
     }
+  }
+
+  /**
+   * Approve multiple bluesheets at once.
+   * @param {number[]} ids - Array of bluesheet IDs to approve
+   * @param {number} approvedByUserId - User ID performing the approval
+   */
+  static async approveBluesheetsBulk(ids, approvedByUserId) {
+    if (!Array.isArray(ids) || ids.length === 0) {
+      throw new Error('ids must be a non-empty array of bluesheet IDs');
+    }
+
+    const approved = [];
+    const failed = [];
+
+    for (const id of ids) {
+      try {
+        const bluesheet = await JobBluesheet.findById(id);
+        if (!bluesheet) {
+          failed.push({ id, error: 'Bluesheet not found' });
+          continue;
+        }
+        const updated = await JobBluesheet.update(id, {
+          status: 'approved',
+          approved_by: approvedByUserId
+        });
+        approved.push(updated);
+      } catch (err) {
+        failed.push({ id, error: err.message || 'Failed to approve' });
+      }
+    }
+
+    return {
+      success: true,
+      data: {
+        approved,
+        failed,
+        approved_count: approved.length,
+        failed_count: failed.length
+      },
+      message: `Bulk approval completed: ${approved.length} approved, ${failed.length} failed`
+    };
   }
 }

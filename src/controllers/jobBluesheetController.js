@@ -419,4 +419,25 @@ export class JobBluesheetController {
       return responseHelper.error(reply, error.message, 500);
     }
   }
+
+  static async approveBluesheetsBulk(request, reply) {
+    try {
+      const { ids } = request.body || {};
+      const approvedByUserId = request.user.id;
+
+      if (!ids || !Array.isArray(ids) || ids.length === 0) {
+        return responseHelper.error(reply, 'ids must be a non-empty array of bluesheet IDs', 400);
+      }
+
+      const numericIds = ids.map((id) => parseInt(id, 10)).filter((id) => !isNaN(id));
+      if (numericIds.length === 0) {
+        return responseHelper.error(reply, 'No valid bluesheet IDs provided', 400);
+      }
+
+      const result = await JobBluesheetService.approveBluesheetsBulk(numericIds, approvedByUserId);
+      return responseHelper.success(reply, result.data, result.message);
+    } catch (error) {
+      return responseHelper.error(reply, error.message, 500);
+    }
+  }
 }

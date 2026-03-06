@@ -196,7 +196,10 @@ export class JobBluesheet {
             total_hours,
             hourly_rate,
             total_cost,
-            status
+            date,
+            description,
+            created_at,
+            updated_at
           ),
           material_entries:job_bluesheet_material (
             id,
@@ -209,7 +212,9 @@ export class JobBluesheet {
             return_to_warehouse,
             unit_cost,
             total_cost,
-            status
+            date,
+            created_at,
+            updated_at
           )
         `)
         .eq('job_id', jobId)
@@ -448,6 +453,154 @@ export class JobBluesheet {
           records_per_page: limit,
           has_next_page: page < totalPages,
           has_prev_page: page > 1
+        }
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * Search bluesheets and group by job: one row per job with bluesheet_count.
+   * Used for list API; full bluesheets for a job are fetched via GET /job/:jobId/bluesheets.
+   */
+  static async searchGroupedByJob(filters = {}, pagination = {}) {
+    try {
+      let query = supabase
+        .from('job_bluesheet')
+        .select(`
+          id,
+          job_id,
+          date,
+          status,
+          total_cost,
+          created_at,
+          created_by_user:users!job_bluesheet_created_by_fkey (
+            id,
+            full_name,
+            email
+          ),
+          approved_by_user:users!job_bluesheet_approved_by_fkey (
+            id,
+            full_name,
+            email
+          ),
+          job:job_id (
+            id,
+            job_title,
+            job_type,
+            status,
+            priority,
+            description,
+            bill_to_address,
+            bill_to_city_zip,
+            bill_to_phone,
+            bill_to_email,
+            customer:customers!jobs_customer_id_fkey (
+              id,
+              customer_name,
+              company_name,
+              email,
+              phone,
+              address
+            ),
+            contractor:contractors!jobs_contractor_id_fkey (
+              id,
+              contractor_name,
+              company_name,
+              email,
+              phone,
+              address
+            )
+          )
+        `);
+
+      if (filters.job_id) {
+        query = query.eq('job_id', filters.job_id);
+      }
+      if (filters.date) {
+        query = query.eq('date', filters.date);
+      }
+      if (filters.status) {
+        query = query.eq('status', filters.status);
+      }
+      if (filters.created_by) {
+        query = query.eq('created_by', filters.created_by);
+      }
+      if (filters.start_date && filters.end_date) {
+        query = query.gte('date', filters.start_date).lte('date', filters.end_date);
+      }
+
+      const { data: allRows, error } = await query.order('date', { ascending: false });
+
+      if (error) {
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      const rows = allRows || [];
+
+      // Group by job_id (first occurrence has job details; count all; sum amount; latest row = submitted_by)
+      const byJobId = {};
+      for (const row of rows) {
+        const jid = row.job_id;
+        if (!byJobId[jid]) {
+          byJobId[jid] = {
+            job_id: jid,
+            job: row.job,
+            bluesheet_count: 0,
+            latest_date: row.date,
+            latest_bluesheet_id: row.id,
+            total_amount: 0,
+            submitted_by: row.created_by_user,
+            approved_by: row.approved_by_user
+          };
+        }
+        byJobId[jid].bluesheet_count += 1;
+        byJobId[jid].total_amount += parseFloat(row.total_cost) || 0;
+        if (row.date && (!byJobId[jid].latest_date || row.date > byJobId[jid].latest_date)) {
+          byJobId[jid].latest_date = row.date;
+          byJobId[jid].latest_bluesheet_id = row.id;
+          byJobId[jid].submitted_by = row.created_by_user;
+          byJobId[jid].approved_by = row.approved_by_user;
+        }
+      }
+
+      const jobsList = Object.values(byJobId).sort((a, b) => {
+        const dA = a.latest_date || '';
+        const dB = b.latest_date || '';
+        return dB.localeCompare(dA);
+      });
+
+      const totalRecords = jobsList.length;
+      const { page = 1, limit = 10 } = pagination;
+      const pageNum = Math.max(1, parseInt(page, 10) || 1);
+      const limitNum = Math.max(1, Math.min(100, parseInt(limit, 10) || 10));
+      const offset = (pageNum - 1) * limitNum;
+      const paged = jobsList.slice(offset, offset + limitNum);
+
+      const jobs = paged.map(({ job_id, job, bluesheet_count, latest_date, latest_bluesheet_id, total_amount, submitted_by, approved_by }) => ({
+        job_id,
+        job,
+        bluesheet_count,
+        latest_bluesheet_date: latest_date,
+        latest_bluesheet_id,
+        amount: Math.round(total_amount * 100) / 100,
+        total_cost: Math.round(total_amount * 100) / 100,
+        submitted_by: submitted_by || null,
+        approved_by: approved_by || null
+      }));
+
+      const totalPages = Math.ceil(totalRecords / limitNum);
+
+      return {
+        jobs,
+        pagination: {
+          current_page: pageNum,
+          total_pages: totalPages,
+          total_records: totalRecords,
+          records_per_page: limitNum,
+          has_next_page: pageNum < totalPages,
+          has_prev_page: pageNum > 1
         }
       };
     } catch (error) {
